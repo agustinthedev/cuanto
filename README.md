@@ -46,7 +46,7 @@ npm run build
 
 1. Crear un proyecto gratuito en Supabase.
 2. Aplicar `supabase/migrations/202608250001_initial_schema.sql` desde el SQL Editor o con Supabase CLI.
-3. Ejecutar `supabase/seed.sql` para crear Disco, Tienda Inglesa, Red Express y categorías iniciales.
+3. Ejecutar `supabase/seed.sql` para crear Disco, Tienda Inglesa, Ta-Ta y categorías iniciales.
 4. Copiar `apps/web/.env.example` como `.env.local` y completar:
 
 ```text
@@ -85,8 +85,6 @@ Para desplegar, configurar los secretos sin commitearlos:
 ```bash
 npx wrangler secret put SUPABASE_URL
 npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
-npx wrangler secret put RED_EXPRESS_BASIC_AUTH
-npx wrangler secret put RED_EXPRESS_LOCAL_ID
 npm run scraper:deploy
 ```
 
@@ -96,15 +94,17 @@ El cron inicial es `0 7 * * *` en UTC dentro de `apps/scraper/wrangler.jsonc`; s
 
 - **Disco:** las páginas de producto entregan el precio visible en HTML server-rendered. El adapter elimina scripts/markup y usa el último valor de moneda positivo del bloque. Los precios del sitio están condicionados al área de entrega (`?sc=...`), por lo que la URL guardada debe representar el contexto elegido.
 - **Tienda Inglesa:** las páginas de categoría y producto exponen HTML con el precio. El sitio muestra explícitamente el contexto de stock/precio, como Montevideo, y puede mostrar precios ClubCard. El MVP guarda el precio visible seleccionado en la URL y no modela promociones ni tarjetas. El sitio puede responder con Cloudflare challenge a algunos requests; un error se registra como fallo, nunca como precio.
-- **Red Express:** la web es una SPA que llama un JSON API de Super en Casa. El API devuelve `precioUnitario`/`precio` y requiere `empresa`, `local` y una referencia exacta de producto o código de barras. Por eso el `store_locations` opcional y `store_products.location_id` ya existen, y cada referencia de Red Express debe incluir el `local` elegido o usar `RED_EXPRESS_LOCAL_ID`. El MVP usa una única ubicación configurada por publicación; no afirma que todos los locales compartan precio.
+- **Ta-Ta:** el sitio usa VTEX. El adapter extrae el slug de la URL y consulta el catálogo JSON público `https://tatauy.myvtex.com/api/catalog_system/pub/products/search/<slug>/p`, tomando `items[].sellers[].commertialOffer.Price`. No requiere un secreto adicional en el MVP.
 
-Para Red Express, una referencia estable puede ser el endpoint de código de barras:
+Red Express queda diferido porque su precio puede depender del local o contexto de compra. El adapter y el soporte opcional de `store_locations` se conservan para retomarlo más adelante, pero no forman parte del flujo activo ni requieren secretos en este MVP.
+
+Cuando se retome Red Express, una referencia estable puede ser el endpoint de código de barras:
 
 ```text
 https://redexpres.superencasa.com.uy/products-app-en-casa/v4/super-en-casa/articulos/codigos-barras/<barcode>?empresa=8062&local=<codigoLocal>
 ```
 
-El token Basic requerido se guarda solo como secret del Worker. No se copia el token que la app pública pueda llevar en su JavaScript.
+El token Basic requerido deberá guardarse solo como secret del Worker. No se debe copiar el token que la app pública pueda llevar en su JavaScript.
 
 ### Agregar otra cadena
 
@@ -127,7 +127,7 @@ Las variables de entorno del proyecto son `VITE_SUPABASE_URL` y `VITE_SUPABASE_A
 
 ## Alcance actual
 
-Incluido: catálogo manual, categorías, búsqueda, comparación actual por cadena, promedio histórico, historia por cadena, estadísticas reales, RLS de solo lectura, tres adapters y cron tolerante a fallos.
+Incluido: catálogo manual, categorías, búsqueda, comparación actual por cadena, promedio histórico, historia por cadena, estadísticas reales, RLS de solo lectura, adapters activos para Disco, Tienda Inglesa y Ta-Ta, y cron tolerante a fallos.
 
 Fuera de alcance: cuentas, login, carrito, matching automático, panel admin, promociones complejas, alertas, inflación, app móvil, SSR, scraping de descubrimiento y colas.
 
@@ -137,4 +137,4 @@ Fuera de alcance: cuentas, login, carrito, matching automático, panel admin, pr
 npm test
 ```
 
-Las fixtures cubren puntos como separador de miles (`$ 1.299` → `1299`), decimales con coma (`$ 129,90` → `129.90`), respuestas JSON anidadas de Red Express y el upsert diario.
+Las fixtures cubren puntos como separador de miles (`$ 1.299` → `1299`), decimales con coma (`$ 129,90` → `129.90`), respuestas JSON de Ta-Ta, el parser diferido de Red Express y el upsert diario.
