@@ -38,7 +38,7 @@ create table if not exists public.store_locations (
   unique (store_id, slug)
 );
 
-comment on table public.store_locations is 'Optional location context for chains whose online prices depend on branch or delivery area, initially used by Red Express.';
+comment on table public.store_locations is 'Optional location context for chains whose online prices depend on branch or delivery area, such as Red Express.';
 
 create table if not exists public.store_products (
   id uuid primary key default gen_random_uuid(),

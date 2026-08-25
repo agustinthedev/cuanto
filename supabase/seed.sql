@@ -2,7 +2,7 @@ insert into public.stores (name, slug)
 values
   ('Disco', 'disco'),
   ('Tienda Inglesa', 'tienda-inglesa'),
-  ('Red Express', 'red-express')
+  ('Ta-Ta', 'ta-ta')
 on conflict (slug) do update set name = excluded.name;
 
 insert into public.categories (name, slug)
