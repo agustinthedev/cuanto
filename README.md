@@ -70,7 +70,7 @@ No se incluyen productos de ejemplo ni precios históricos ficticios en producci
 
 ## Scraper Worker
 
-El Worker carga todas las publicaciones activas, elige el adapter por `stores.slug`, obtiene un precio positivo y hace upsert en `prices` con la clave `(store_product_id, date)`. Un fallo individual se registra como JSON en los logs y no detiene las demás publicaciones.
+El Worker carga todas las publicaciones activas, elige el adapter por `stores.slug`, obtiene el precio original/de lista —sin descuentos ni promociones— y hace upsert en `prices` con la clave `(store_product_id, date)`. Un fallo individual se registra como JSON en los logs y no detiene las demás publicaciones.
 
 Variables locales de ejemplo: `apps/scraper/.dev.vars.example`.
 
@@ -92,9 +92,9 @@ El cron inicial es `0 7 * * *` en UTC dentro de `apps/scraper/wrangler.jsonc`; s
 
 ### Fuentes verificadas y decisiones de adapters
 
-- **Disco:** las páginas de producto entregan el precio visible en HTML server-rendered. El adapter elimina scripts/markup y usa el último valor de moneda positivo del bloque. Los precios del sitio están condicionados al área de entrega (`?sc=...`), por lo que la URL guardada debe representar el contexto elegido.
-- **Tienda Inglesa:** las páginas de categoría y producto exponen HTML con el precio. El sitio muestra explícitamente el contexto de stock/precio, como Montevideo, y puede mostrar precios ClubCard. El MVP guarda el precio visible seleccionado en la URL y no modela promociones ni tarjetas. El sitio puede responder con Cloudflare challenge a algunos requests; un error se registra como fallo, nunca como precio.
-- **Ta-Ta:** el sitio usa VTEX. El adapter extrae el slug de la URL y consulta el catálogo JSON público `https://tatauy.myvtex.com/api/catalog_system/pub/products/search/<slug>/p`, tomando `items[].sellers[].commertialOffer.Price`. No requiere un secreto adicional en el MVP.
+- **Disco:** las páginas de producto entregan el precio en HTML server-rendered. Cuando hay precio web, el adapter toma el bloque original `.before` y no el valor `.price` rebajado. Los precios del sitio están condicionados al área de entrega (`?sc=...`), por lo que la URL guardada debe representar el contexto elegido.
+- **Tienda Inglesa:** las páginas de producto exponen un bloque JSON con `Prices`; si aparece una etiqueta `Antes`, el adapter toma ese valor y no el precio promocional. Si no hay precio anterior, usa el precio normal. El sitio muestra explícitamente el contexto de stock/precio, como Montevideo, y puede mostrar precios ClubCard. El sitio puede responder con Cloudflare challenge a algunos requests; un error se registra como fallo, nunca como precio.
+- **Ta-Ta:** el sitio usa VTEX. El adapter extrae el slug de la URL y consulta el catálogo JSON público `https://tatauy.myvtex.com/api/catalog_system/pub/products/search/<slug>/p`, tomando `items[].sellers[].commertialOffer.ListPrice` antes de `Price`. No requiere un secreto adicional en el MVP.
 
 Red Express queda diferido porque su precio puede depender del local o contexto de compra. El adapter y el soporte opcional de `store_locations` se conservan para retomarlo más adelante, pero no forman parte del flujo activo ni requieren secretos en este MVP.
 
