@@ -1,0 +1,4 @@
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=replace-with-a-server-only-key
+RED_EXPRESS_LOCAL_ID=131
+RED_EXPRESS_BASIC_AUTH=replace-with-the-provider-basic-token
