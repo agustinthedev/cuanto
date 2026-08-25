@@ -94,7 +94,7 @@ El cron inicial es `0 7 * * *` en UTC dentro de `apps/scraper/wrangler.jsonc`; s
 
 - **Disco:** las páginas de producto entregan el precio en HTML server-rendered. Cuando hay precio web, el adapter toma el bloque original `.before` y no el valor `.price` rebajado. Los precios del sitio están condicionados al área de entrega (`?sc=...`), por lo que la URL guardada debe representar el contexto elegido.
 - **Tienda Inglesa:** las páginas de producto exponen un bloque JSON con `Prices`; si aparece una etiqueta `Antes`, el adapter toma ese valor y no el precio promocional. Si no hay precio anterior, usa el precio normal. El sitio muestra explícitamente el contexto de stock/precio, como Montevideo, y puede mostrar precios ClubCard. El sitio puede responder con Cloudflare challenge a algunos requests; un error se registra como fallo, nunca como precio.
-- **Ta-Ta:** el sitio usa VTEX/FastStore. El adapter consulta la página de producto y lee su JSON-LD, tomando `offers[].listPrice` antes de `offers[].price`. No requiere un secreto adicional en el MVP.
+- **Ta-Ta:** el sitio usa VTEX/FastStore y sus precios dependen de la localidad. El adapter valida el contexto de **Montevideo y Ciudad de la Costa** (`postalCode: 11800`) mediante la API GraphQL pública y consulta el producto por slug. Toma `offers[].listPrice` antes de `offers[].price`, por lo que no registra el precio promocional. No requiere un secreto adicional en el MVP.
 
 Red Express queda diferido porque su precio puede depender del local o contexto de compra. El adapter y el soporte opcional de `store_locations` se conservan para retomarlo más adelante, pero no forman parte del flujo activo ni requieren secretos en este MVP.
 
@@ -137,4 +137,4 @@ Fuera de alcance: cuentas, login, carrito, matching automático, panel admin, pr
 npm test
 ```
 
-Las fixtures cubren puntos como separador de miles (`$ 1.299` → `1299`), decimales con coma (`$ 129,90` → `129.90`), JSON-LD de Ta-Ta con precio original, el parser diferido de Red Express y el upsert diario.
+Las fixtures cubren puntos como separador de miles (`$ 1.299` → `1299`), decimales con coma (`$ 129,90` → `129.90`), precio de lista de Ta-Ta por JSON-LD/HTML/API, el parser diferido de Red Express y el upsert diario.
