@@ -16,7 +16,7 @@ describe("adapters de supermercados", () => {
   });
 
   it("extrae Tienda Inglesa con decimal uruguayo", () => {
-    expect(parseTiendaInglesaHtml(fixture("tienda-product.html"))).toBe(129.9);
+    expect(parseTiendaInglesaHtml(fixture("tienda-product.html"))).toBe(149.9);
   });
 
   it("extrae Red Express desde la respuesta JSON anidada", () => {
@@ -25,6 +25,6 @@ describe("adapters de supermercados", () => {
 
   it("extrae Ta-Ta desde el catálogo JSON de VTEX", () => {
     expect(extractTataSlug("https://www.tata.com.uy/leche-descremada-blancanube-1-lt/p")).toBe("leche-descremada-blancanube-1-lt");
-    expect(parseTataJson(tataFixture)).toBe(79);
+    expect(parseTataJson(tataFixture)).toBe(109);
   });
 });

@@ -28,7 +28,8 @@ export function parseTataJson(payload: unknown): number {
         if (!seller || typeof seller !== "object") continue;
         const offer = (seller as Record<string, unknown>).commertialOffer;
         if (!offer || typeof offer !== "object") continue;
-        prices.push((offer as Record<string, unknown>).Price);
+        const offerRecord = offer as Record<string, unknown>;
+        prices.push(offerRecord.ListPrice, offerRecord.Price);
       }
     }
   }
