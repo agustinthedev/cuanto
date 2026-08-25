@@ -2,8 +2,19 @@ import { extractJsonPrice, extractPriceFromText } from "../price";
 import type { ScrapeResult, StoreProductRecord, StoreScraper } from "../types";
 import { htmlToText, requireResponseText } from "./base";
 
+function decodeHtmlEntities(value: string): string {
+  return value
+    .replace(/&quot;|&#34;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&nbsp;|&#160;/gi, " ");
+}
+
 export function parseTiendaInglesaHtml(html: string): number {
-  const prices = html.match(/"[^\"]+ProductUI_PARM"\s*:\s*\{[\s\S]*?"Prices"\s*:\s*\[([^\]]*)\]/i)?.[1];
+  const normalizedHtml = decodeHtmlEntities(html);
+  const prices = normalizedHtml.match(/"[^\"]+ProductUI_PARM"\s*:\s*\{[\s\S]*?"Prices"\s*:\s*\[([^\]]*)\]/i)?.[1];
   const originalPrice = prices?.match(/"Label"\s*:\s*"Antes[^\"]*"\s*,\s*"Price"\s*:\s*([\d.,]+)/i)?.[1];
   if (originalPrice) return extractJsonPrice(Number(originalPrice.replace(",", ".")));
 

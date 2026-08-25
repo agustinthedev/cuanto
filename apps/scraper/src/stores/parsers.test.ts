@@ -18,6 +18,10 @@ describe("adapters de supermercados", () => {
     expect(parseTiendaInglesaHtml(fixture("tienda-product.html"))).toBe(149.9);
   });
 
+  it("decodifica el bloque de precios actual de Tienda Inglesa y prioriza Antes", () => {
+    expect(parseTiendaInglesaHtml(fixture("tienda-product-encoded.html"))).toBe(230);
+  });
+
   it("extrae Red Express desde la respuesta JSON anidada", () => {
     expect(parseRedExpressJson(redFixture)).toBe(78);
   });
