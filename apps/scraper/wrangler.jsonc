@@ -1,0 +1,14 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cuanto-scraper",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-24",
+  "workers_dev": true,
+  "triggers": {
+    "crons": ["0 7 * * *"]
+  },
+  "vars": {
+    "RED_EXPRESS_LOCAL_ID": "",
+    "RED_EXPRESS_BASIC_AUTH": ""
+  }
+}

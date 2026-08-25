@@ -1,0 +1,20 @@
+{
+  "name": "cuanto-uy",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Cuánto.uy - seguimiento y comparación de precios de supermercados en Uruguay",
+  "workspaces": [
+    "apps/web",
+    "apps/scraper"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace @cuanto/web",
+    "build": "npm run build --workspace @cuanto/web",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "test:watch": "npm run test:watch --workspace @cuanto/scraper",
+    "scraper:dev": "npm run dev --workspace @cuanto/scraper",
+    "scraper:deploy": "npm run deploy --workspace @cuanto/scraper"
+  }
+}
