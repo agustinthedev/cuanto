@@ -115,7 +115,7 @@ a { color: inherit; text-decoration: none; }
 .price-store { display: flex; align-items: center; gap: 8px; color: #c3d1d0; font-size: 11px; font-weight: 700; }
 .store-avatar { display: grid; place-items: center; width: 25px; height: 25px; border-radius: 8px; color: #07111f; background: #9cf6d4; font-size: 11px; font-weight: 800; }
 .store-tienda-inglesa { background: #b6a8ff; }
-.store-red-express { background: #ffc28f; }
+.store-ta-ta { background: #ffc28f; }
 .price-card strong { color: #f1f9f5; font-size: 28px; letter-spacing: -.07em; }
 .price-date { color: #8196a0; font-size: 10px; }
 .chart-card { border: 1px solid rgba(224, 246, 240, .09); border-radius: 14px; padding: 18px 18px 12px; background: rgba(14, 29, 43, .56); }
