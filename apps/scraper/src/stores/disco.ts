@@ -3,6 +3,12 @@ import type { ScrapeResult, StoreProductRecord, StoreScraper } from "../types";
 import { htmlToText, requireResponseText } from "./base";
 
 export function parseDiscoHtml(html: string): number {
+  const originalPriceBlock = html.match(
+    /<(div|span)\b[^>]*class=["'][^"']*\bbefore\b[^"']*["'][^>]*>[\s\S]*?<\/\1>/i,
+  )?.[0];
+
+  if (originalPriceBlock) return extractPriceFromText(htmlToText(originalPriceBlock));
+
   return extractPriceFromText(htmlToText(html));
 }
 

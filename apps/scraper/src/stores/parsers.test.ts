@@ -11,8 +11,8 @@ import { extractTataSlug, parseTataJson } from "./tata";
 const fixture = (name: string) => readFileSync(fileURLToPath(new URL(`../fixtures/${name}`, import.meta.url)), "utf8");
 
 describe("adapters de supermercados", () => {
-  it("extrae Disco desde HTML server-rendered", () => {
-    expect(parseDiscoHtml(fixture("disco-product.html"))).toBe(1299);
+  it("extrae el precio original de Disco desde HTML server-rendered", () => {
+    expect(parseDiscoHtml(fixture("disco-product.html"))).toBe(230);
   });
 
   it("extrae Tienda Inglesa con decimal uruguayo", () => {
