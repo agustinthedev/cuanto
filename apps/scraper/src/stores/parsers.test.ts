@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import redFixture from "../fixtures/red-product.json";
+import tataFixture from "../fixtures/tata-product.json";
 import { parseDiscoHtml } from "./disco";
 import { parseRedExpressJson } from "./red-express";
 import { parseTiendaInglesaHtml } from "./tienda-inglesa";
+import { extractTataSlug, parseTataJson } from "./tata";
 
 const fixture = (name: string) => readFileSync(fileURLToPath(new URL(`../fixtures/${name}`, import.meta.url)), "utf8");
 
@@ -19,5 +21,10 @@ describe("adapters de supermercados", () => {
 
   it("extrae Red Express desde la respuesta JSON anidada", () => {
     expect(parseRedExpressJson(redFixture)).toBe(78);
+  });
+
+  it("extrae Ta-Ta desde el catálogo JSON de VTEX", () => {
+    expect(extractTataSlug("https://www.tata.com.uy/leche-descremada-blancanube-1-lt/p")).toBe("leche-descremada-blancanube-1-lt");
+    expect(parseTataJson(tataFixture)).toBe(79);
   });
 });

@@ -1,16 +1,16 @@
 import type { StoreScraper } from "../types";
 import { discoScraper } from "./disco";
-import { redExpressScraper } from "./red-express";
+import { tataScraper } from "./tata";
 import { tiendaInglesaScraper } from "./tienda-inglesa";
 
 const scrapers = new Map<string, StoreScraper>([
   [discoScraper.slug, discoScraper],
   [tiendaInglesaScraper.slug, tiendaInglesaScraper],
-  [redExpressScraper.slug, redExpressScraper],
+  [tataScraper.slug, tataScraper],
 ]);
 
 export function getScraper(storeSlug: string): StoreScraper | undefined {
   return scrapers.get(storeSlug);
 }
 
-export { discoScraper, redExpressScraper, tiendaInglesaScraper };
+export { discoScraper, tataScraper, tiendaInglesaScraper };
