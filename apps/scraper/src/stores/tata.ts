@@ -1,8 +1,6 @@
 import { extractJsonPrice } from "../price";
 import type { ScrapeResult, StoreProductRecord, StoreScraper } from "../types";
-import { requireResponseJson } from "./base";
-
-const TATA_CATALOG_API = "https://tatauy.myvtex.com/api/catalog_system/pub/products/search";
+import { requireResponseText } from "./base";
 
 export function extractTataSlug(rawUrl: string): string {
   const url = new URL(rawUrl);
@@ -13,34 +11,42 @@ export function extractTataSlug(rawUrl: string): string {
   return decodeURIComponent(slug);
 }
 
-export function parseTataJson(payload: unknown): number {
-  if (!Array.isArray(payload) || payload.length === 0) throw new Error("Ta-Ta no devolvió un producto");
+export function parseTataHtml(html: string): number {
   const prices: unknown[] = [];
-  for (const product of payload) {
-    if (!product || typeof product !== "object") continue;
-    const items = (product as Record<string, unknown>).items;
-    if (!Array.isArray(items)) continue;
-    for (const item of items) {
-      if (!item || typeof item !== "object") continue;
-      const sellers = (item as Record<string, unknown>).sellers;
-      if (!Array.isArray(sellers)) continue;
-      for (const seller of sellers) {
-        if (!seller || typeof seller !== "object") continue;
-        const offer = (seller as Record<string, unknown>).commertialOffer;
+  const scripts = html.matchAll(/<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi);
+
+  for (const match of scripts) {
+    try {
+      const payload = JSON.parse(match[1]) as Record<string, unknown>;
+      const offers = payload.offers;
+      const offerList: unknown[] = offers && typeof offers === "object" && Array.isArray((offers as Record<string, unknown>).offers)
+        ? (offers as Record<string, unknown>).offers as unknown[]
+        : offers && typeof offers === "object" ? [offers] : [];
+
+      for (const offer of offerList) {
         if (!offer || typeof offer !== "object") continue;
         const offerRecord = offer as Record<string, unknown>;
-        prices.push(offerRecord.ListPrice, offerRecord.Price);
+        prices.push(offerRecord.listPrice, offerRecord.price);
       }
+    } catch {
+      // Ignore unrelated or malformed JSON-LD blocks and keep looking.
     }
   }
+
+  if (prices.length === 0) throw new Error("Ta-Ta no incluyó el precio en el HTML");
   return extractJsonPrice(...prices);
 }
 
 export const tataScraper: StoreScraper = {
   slug: "ta-ta",
   async scrape(record: StoreProductRecord): Promise<ScrapeResult> {
-    const slug = extractTataSlug(record.url);
-    const payload = await requireResponseJson(`${TATA_CATALOG_API}/${encodeURIComponent(slug)}/p`, { headers: { Accept: "application/json" } });
-    return { price: parseTataJson(payload), source: "json" };
+    extractTataSlug(record.url);
+    const html = await requireResponseText(record.url, {
+      headers: {
+        Accept: "text/html,application/xhtml+xml",
+        "User-Agent": "Cuanto.uy price tracker/0.1 (+https://cuanto.uy)",
+      },
+    });
+    return { price: parseTataHtml(html), source: "html" };
   },
 };
