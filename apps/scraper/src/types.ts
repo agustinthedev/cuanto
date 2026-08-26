@@ -11,6 +11,7 @@ export interface StoreProductRecord {
 export interface ScrapeResult {
   price: number;
   source: "html" | "json";
+  imageUrl?: string;
 }
 
 export interface StoreScraper {

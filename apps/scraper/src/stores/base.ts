@@ -46,3 +46,166 @@ export function htmlToText(html: string): string {
     .replace(/&amp;/gi, "&")
     .replace(/\s+/g, " ");
 }
+
+function decodeHtmlEntities(value: string): string {
+  return value
+    .replace(/&quot;|&#34;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&#(\d+);/g, (_match, code: string) => String.fromCodePoint(Number(code)))
+    .replace(/&#x([\da-f]+);/gi, (_match, code: string) => String.fromCodePoint(parseInt(code, 16)));
+}
+
+function readAttribute(tag: string, attribute: string): string | undefined {
+  const match = tag.match(new RegExp(`\\b${attribute}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, "i"));
+  return match?.[1] ?? match?.[2] ?? match?.[3];
+}
+
+function toHttpUrl(value: unknown, baseUrl: string): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const decoded = decodeHtmlEntities(value).trim();
+  if (!decoded || /^(?:data|blob):/i.test(decoded)) return undefined;
+
+  try {
+    const url = new URL(decoded, baseUrl);
+    return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+const IMAGE_KEYS = new Set([
+  "image",
+  "images",
+  "imageurl",
+  "image_url",
+  "imageurls",
+  "image_urls",
+  "thumbnail",
+  "thumbnailurl",
+  "thumbnail_url",
+]);
+
+function imageUrlFromValue(value: unknown, baseUrl: string, depth = 0): string | undefined {
+  if (depth > 4 || value === null || value === undefined) return undefined;
+  const directUrl = toHttpUrl(value, baseUrl);
+  if (directUrl) return directUrl;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const imageUrl = imageUrlFromValue(item, baseUrl, depth + 1);
+      if (imageUrl) return imageUrl;
+    }
+    return undefined;
+  }
+  if (typeof value !== "object") return undefined;
+
+  const record = value as Record<string, unknown>;
+  for (const key of ["url", "src", "href"]) {
+    const imageUrl = toHttpUrl(record[key], baseUrl);
+    if (imageUrl) return imageUrl;
+  }
+  return undefined;
+}
+
+function isProductJsonLd(value: Record<string, unknown>): boolean {
+  const type = value["@type"];
+  return Array.isArray(type)
+    ? type.some((item) => typeof item === "string" && item.toLowerCase() === "product")
+    : typeof type === "string" && type.toLowerCase() === "product";
+}
+
+function findJsonLdImage(value: unknown, baseUrl: string, productContext = false, depth = 0): string | undefined {
+  if (depth > 8 || value === null || value === undefined) return undefined;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const imageUrl = findJsonLdImage(item, baseUrl, productContext, depth + 1);
+      if (imageUrl) return imageUrl;
+    }
+    return undefined;
+  }
+  if (typeof value !== "object") return undefined;
+
+  const record = value as Record<string, unknown>;
+  const currentProductContext = productContext || isProductJsonLd(record);
+  if (currentProductContext) {
+    for (const [key, child] of Object.entries(record)) {
+      if (!IMAGE_KEYS.has(key.toLowerCase())) continue;
+      const imageUrl = imageUrlFromValue(child, baseUrl);
+      if (imageUrl) return imageUrl;
+    }
+  }
+
+  for (const [key, child] of Object.entries(record)) {
+    const childProductContext = currentProductContext || ["product", "products", "item", "itemlistelement", "@graph"].includes(key.toLowerCase());
+    const imageUrl = findJsonLdImage(child, baseUrl, childProductContext, depth + 1);
+    if (imageUrl) return imageUrl;
+  }
+  return undefined;
+}
+
+export function extractProductImageFromHtml(html: string, pageUrl: string): string | undefined {
+  const metaTags = html.match(/<meta\b[^>]*>/gi) ?? [];
+  for (const tag of metaTags) {
+    const property = (readAttribute(tag, "property") ?? readAttribute(tag, "name"))?.toLowerCase();
+    if (!property || !["og:image", "og:image:url", "og:image:secure_url", "twitter:image", "twitter:image:src"].includes(property)) continue;
+    const imageUrl = toHttpUrl(readAttribute(tag, "content"), pageUrl);
+    if (imageUrl) return imageUrl;
+  }
+
+  const imagePropertyTags = html.match(/<[^>]*\bitemprop=["']image["'][^>]*>/gi) ?? [];
+  for (const tag of imagePropertyTags) {
+    const imageUrl = toHttpUrl(readAttribute(tag, "content") ?? readAttribute(tag, "src") ?? readAttribute(tag, "data-src"), pageUrl);
+    if (imageUrl) return imageUrl;
+  }
+
+  const jsonLdScripts = html.matchAll(/<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi);
+  for (const match of jsonLdScripts) {
+    try {
+      const payload = JSON.parse(decodeHtmlEntities(match[1])) as unknown;
+      const imageUrl = findJsonLdImage(payload, pageUrl);
+      if (imageUrl) return imageUrl;
+    } catch {
+      // Ignore unrelated or malformed JSON-LD blocks and keep looking.
+    }
+  }
+
+  return undefined;
+}
+
+export function extractProductImageFromPayload(payload: unknown, pageUrl: string): string | undefined {
+  if (payload === null || typeof payload !== "object") return undefined;
+  if (Array.isArray(payload)) {
+    for (const item of payload) {
+      const imageUrl = extractProductImageFromPayload(item, pageUrl);
+      if (imageUrl) return imageUrl;
+    }
+    return undefined;
+  }
+
+  const visit = (value: unknown, depth: number): string | undefined => {
+    if (depth > 8 || value === null || typeof value !== "object") return undefined;
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const imageUrl = visit(item, depth + 1);
+        if (imageUrl) return imageUrl;
+      }
+      return undefined;
+    }
+    const record = value as Record<string, unknown>;
+    for (const [key, child] of Object.entries(record)) {
+      if (IMAGE_KEYS.has(key.toLowerCase())) {
+        const imageUrl = imageUrlFromValue(child, pageUrl);
+        if (imageUrl) return imageUrl;
+      }
+    }
+    for (const child of Object.values(record)) {
+      const imageUrl = visit(child, depth + 1);
+      if (imageUrl) return imageUrl;
+    }
+    return undefined;
+  };
+
+  return visit(payload, 0);
+}
