@@ -46,8 +46,9 @@ npm run build
 
 1. Crear un proyecto gratuito en Supabase.
 2. Aplicar `supabase/migrations/202608250001_initial_schema.sql` desde el SQL Editor o con Supabase CLI.
-3. Ejecutar `supabase/seed.sql` para crear Disco, Tienda Inglesa, Ta-Ta y categorías iniciales.
-4. Copiar `apps/web/.env.example` como `.env.local` y completar:
+3. Aplicar las migraciones posteriores, incluida `supabase/migrations/202608260001_add_product_image_sources.sql`.
+4. Ejecutar `supabase/seed.sql` para crear Disco, Tienda Inglesa, Ta-Ta y categorías iniciales.
+5. Copiar `apps/web/.env.example` como `.env.local` y completar:
 
 ```text
 VITE_SUPABASE_URL=https://your-project.supabase.co
@@ -66,11 +67,15 @@ La administración queda intencionalmente fuera del MVP. Desde Table Editor:
 4. Pegar la URL o referencia exacta que usará el adapter.
 5. Dejar `active = true` para incluirla en el próximo cron.
 
+No hace falta cargar `products.image_url` ni `store_products.image_url`: el scraper intenta obtener la imagen desde la publicación de cada cadena y la guarda automáticamente.
+
 No se incluyen productos de ejemplo ni precios históricos ficticios en producción.
 
 ## Scraper Worker
 
 El Worker carga todas las publicaciones activas, elige el adapter por `stores.slug`, obtiene el precio original/de lista —sin descuentos ni promociones— y hace upsert en `prices` con la clave `(store_product_id, date)`. Un fallo individual se registra como JSON en los logs y no detiene las demás publicaciones.
+
+Cuando un adapter encuentra una imagen, la guarda en `store_products.image_url` junto con `image_fetched_at`. Si el producto canónico todavía no tiene imagen, la primera publicación disponible la dona a `products.image_url`; también queda registrada en `products.image_source_store_product_id`. La prioridad actual de donantes es Disco, Tienda Inglesa, Ta-Ta y Red Express. Una imagen existente —incluida una cargada manualmente— no se reemplaza automáticamente.
 
 Variables locales de ejemplo: `apps/scraper/.dev.vars.example`.
 
@@ -127,7 +132,7 @@ Las variables de entorno del proyecto son `VITE_SUPABASE_URL` y `VITE_SUPABASE_A
 
 ## Alcance actual
 
-Incluido: catálogo manual, categorías, búsqueda, comparación actual por cadena, promedio histórico, historia por cadena, estadísticas reales, RLS de solo lectura, adapters activos para Disco, Tienda Inglesa y Ta-Ta, y cron tolerante a fallos.
+Incluido: catálogo manual, categorías, búsqueda, imágenes de producto aportadas automáticamente por las cadenas, comparación actual por cadena, promedio histórico, historia por cadena, estadísticas reales, RLS de solo lectura, adapters activos para Disco, Tienda Inglesa y Ta-Ta, y cron tolerante a fallos.
 
 Fuera de alcance: cuentas, login, carrito, matching automático, panel admin, promociones complejas, alertas, inflación, app móvil, SSR, scraping de descubrimiento y colas.
 
