@@ -2,10 +2,25 @@ import { getScraper } from "./stores";
 import type { ScrapeSummary, StoreProductRecord } from "./types";
 
 const API_TABLES = {
+  products: "products",
   storeProducts: "store_products",
   stores: "stores",
   prices: "prices",
 } as const;
+
+interface ProductImageRecord {
+  id: string;
+  image_url: string | null;
+  image_source_store_product_id: string | null;
+  image_updated_at: string | null;
+}
+
+const IMAGE_STORE_PRIORITY: Record<string, number> = {
+  disco: 10,
+  "tienda-inglesa": 20,
+  "ta-ta": 30,
+  "red-express": 40,
+};
 
 function apiUrl(env: Env, table: string, query = "") {
   return `${env.SUPABASE_URL.replace(/\/$/, "")}/rest/v1/${table}${query ? `?${query}` : ""}`;
@@ -24,7 +39,7 @@ function apiHeaders(env: Env, prefer?: string): Headers {
 async function loadActiveStoreProducts(env: Env): Promise<StoreProductRecord[]> {
   const [storesResponse, productsResponse] = await Promise.all([
     fetch(apiUrl(env, API_TABLES.stores, "select=id,slug"), { headers: apiHeaders(env) }),
-    fetch(apiUrl(env, API_TABLES.storeProducts, "select=id,product_id,store_id,location_id,url,external_name&active=eq.true"), { headers: apiHeaders(env) }),
+    fetch(apiUrl(env, API_TABLES.storeProducts, "select=id,product_id,store_id,location_id,url,external_name,image_url&active=eq.true"), { headers: apiHeaders(env) }),
   ]);
   if (!storesResponse.ok) throw new Error(`No se pudieron cargar las cadenas: HTTP ${storesResponse.status}`);
   if (!productsResponse.ok) throw new Error(`No se pudieron cargar los productos: HTTP ${productsResponse.status}`);
@@ -37,6 +52,13 @@ async function loadActiveStoreProducts(env: Env): Promise<StoreProductRecord[]> 
   });
 }
 
+async function loadProductImages(env: Env): Promise<Map<string, ProductImageRecord>> {
+  const response = await fetch(apiUrl(env, API_TABLES.products, "select=id,image_url,image_source_store_product_id,image_updated_at"), { headers: apiHeaders(env) });
+  if (!response.ok) throw new Error(`No se pudieron cargar las imágenes de productos: HTTP ${response.status}`);
+  const products = await response.json() as ProductImageRecord[];
+  return new Map(products.map((product) => [product.id, product]));
+}
+
 async function savePrice(env: Env, record: StoreProductRecord, price: number, date: string) {
   const response = await fetch(apiUrl(env, API_TABLES.prices, "on_conflict=store_product_id,date"), {
     method: "POST",
@@ -46,6 +68,47 @@ async function savePrice(env: Env, record: StoreProductRecord, price: number, da
   if (!response.ok) throw new Error(`No se pudo guardar el precio: HTTP ${response.status} ${await response.text()}`);
 }
 
+async function saveStoreProductImage(env: Env, record: StoreProductRecord, imageUrl: string, fetchedAt: string) {
+  const response = await fetch(apiUrl(env, API_TABLES.storeProducts, `id=eq.${encodeURIComponent(record.id)}`), {
+    method: "PATCH",
+    headers: apiHeaders(env, "return=minimal"),
+    body: JSON.stringify({ image_url: imageUrl, image_fetched_at: fetchedAt }),
+  });
+  if (!response.ok) throw new Error(`No se pudo guardar la imagen de la publicación: HTTP ${response.status} ${await response.text()}`);
+}
+
+async function promoteProductImage(
+  env: Env,
+  record: StoreProductRecord,
+  imageUrl: string,
+  fetchedAt: string,
+  productImages: Map<string, ProductImageRecord>,
+) {
+  const current = productImages.get(record.product_id);
+  if (!current || current.image_url) return;
+
+  const response = await fetch(apiUrl(env, API_TABLES.products, `id=eq.${encodeURIComponent(record.product_id)}&image_url=is.null`), {
+    method: "PATCH",
+    headers: apiHeaders(env, "return=minimal"),
+    body: JSON.stringify({
+      image_url: imageUrl,
+      image_source_store_product_id: record.id,
+      image_updated_at: fetchedAt,
+    }),
+  });
+  if (!response.ok) throw new Error(`No se pudo actualizar la imagen del producto: HTTP ${response.status} ${await response.text()}`);
+  productImages.set(record.product_id, {
+    ...current,
+    image_url: imageUrl,
+    image_source_store_product_id: record.id,
+    image_updated_at: fetchedAt,
+  });
+}
+
+function imagePriority(storeSlug: string): number {
+  return IMAGE_STORE_PRIORITY[storeSlug] ?? 100;
+}
+
 function uruguayDate(now = new Date()): string {
   const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Montevideo", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now);
   const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
@@ -53,7 +116,8 @@ function uruguayDate(now = new Date()): string {
 }
 
 export async function runScrape(env: Env, now = new Date()): Promise<ScrapeSummary> {
-  const records = await loadActiveStoreProducts(env);
+  const [records, productImages] = await Promise.all([loadActiveStoreProducts(env), loadProductImages(env)]);
+  records.sort((left, right) => imagePriority(left.store_slug) - imagePriority(right.store_slug));
   const date = uruguayDate(now);
   const summary: ScrapeSummary = { attempted: records.length, saved: 0, failed: 0 };
 
@@ -65,6 +129,16 @@ export async function runScrape(env: Env, now = new Date()): Promise<ScrapeSumma
       if (!Number.isFinite(result.price) || result.price <= 0) throw new Error("El adapter devolvió un precio inválido");
       await savePrice(env, record, result.price, date);
       summary.saved += 1;
+      if (result.imageUrl) {
+        const imageFetchedAt = new Date().toISOString();
+        try {
+          await saveStoreProductImage(env, record, result.imageUrl, imageFetchedAt);
+          await promoteProductImage(env, record, result.imageUrl, imageFetchedAt, productImages);
+          console.log(JSON.stringify({ event: "product_image_saved", store: record.store_slug, store_product_id: record.id, product_id: record.product_id, image_url: result.imageUrl }));
+        } catch (error) {
+          console.error(JSON.stringify({ event: "product_image_failed", store: record.store_slug, store_product_id: record.id, product_id: record.product_id, reason: error instanceof Error ? error.message : String(error) }));
+        }
+      }
       console.log(JSON.stringify({ event: "price_saved", store: record.store_slug, store_product_id: record.id, date, price: result.price }));
     } catch (error) {
       summary.failed += 1;

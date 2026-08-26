@@ -5,6 +5,7 @@ export interface StoreProductRecord {
   location_id: string | null;
   url: string;
   external_name: string | null;
+  image_url: string | null;
   store_slug: string;
 }
 

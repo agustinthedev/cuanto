@@ -1,6 +1,6 @@
 import { extractJsonPrice } from "../price";
 import type { ScrapeResult, StoreProductRecord, StoreScraper } from "../types";
-import { requireResponseJson } from "./base";
+import { extractProductImageFromPayload, requireResponseJson } from "./base";
 
 const TATA_HEADERS = {
   Accept: "application/json",
@@ -113,6 +113,6 @@ export const tataScraper: StoreScraper = {
       ],
     }), { headers: TATA_HEADERS });
 
-    return { price: parseTataGraphqlProduct(payload), source: "json" };
+    return { price: parseTataGraphqlProduct(payload), source: "json", imageUrl: extractProductImageFromPayload(payload, record.url) };
   },
 };

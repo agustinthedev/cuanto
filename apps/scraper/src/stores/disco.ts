@@ -1,6 +1,6 @@
 import { extractPriceFromText } from "../price";
 import type { ScrapeResult, StoreProductRecord, StoreScraper } from "../types";
-import { htmlToText, requireResponseText } from "./base";
+import { extractProductImageFromHtml, htmlToText, requireResponseText } from "./base";
 
 export function parseDiscoHtml(html: string): number {
   const originalPriceBlock = html.match(
@@ -18,6 +18,6 @@ export const discoScraper: StoreScraper = {
     const html = await requireResponseText(record.url, {
       headers: { "User-Agent": "Cuanto.uy price tracker/0.1 (+https://cuanto.uy)" },
     });
-    return { price: parseDiscoHtml(html), source: "html" };
+    return { price: parseDiscoHtml(html), source: "html", imageUrl: extractProductImageFromHtml(html, record.url) };
   },
 };

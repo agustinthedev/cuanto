@@ -1,6 +1,6 @@
 import { extractJsonPrice } from "../price";
 import type { ScrapeResult, StoreProductRecord, StoreScraper } from "../types";
-import { requireResponseJson } from "./base";
+import { extractProductImageFromPayload, requireResponseJson } from "./base";
 
 interface RedExpressEnv {
   RED_EXPRESS_BASIC_AUTH?: string;
@@ -39,6 +39,6 @@ export const redExpressScraper: StoreScraper = {
       headers.Authorization = env.RED_EXPRESS_BASIC_AUTH.startsWith("Basic ") ? env.RED_EXPRESS_BASIC_AUTH : `Basic ${env.RED_EXPRESS_BASIC_AUTH}`;
     }
     const payload = await requireResponseJson(withLocationContext(record.url, env), { headers });
-    return { price: parseRedExpressJson(payload), source: "json" };
+    return { price: parseRedExpressJson(payload), source: "json", imageUrl: extractProductImageFromPayload(payload, record.url) };
   },
 };

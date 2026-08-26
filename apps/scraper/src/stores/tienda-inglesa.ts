@@ -1,6 +1,6 @@
 import { extractJsonPrice, extractPriceFromText } from "../price";
 import type { ScrapeResult, StoreProductRecord, StoreScraper } from "../types";
-import { htmlToText, requireResponseText } from "./base";
+import { extractProductImageFromHtml, htmlToText, requireResponseText } from "./base";
 
 function decodeHtmlEntities(value: string): string {
   return value
@@ -30,6 +30,6 @@ export const tiendaInglesaScraper: StoreScraper = {
     const html = await requireResponseText(record.url, {
       headers: { "User-Agent": "Cuanto.uy price tracker/0.1 (+https://cuanto.uy)" },
     });
-    return { price: parseTiendaInglesaHtml(html), source: "html" };
+    return { price: parseTiendaInglesaHtml(html), source: "html", imageUrl: extractProductImageFromHtml(html, record.url) };
   },
 };
