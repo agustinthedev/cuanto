@@ -6,6 +6,7 @@ import { parseDiscoHtml } from "./disco";
 import { parseRedExpressJson } from "./red-express";
 import { parseTiendaInglesaHtml } from "./tienda-inglesa";
 import { extractTataSlug, parseTataGraphqlProduct, parseTataHtml } from "./tata";
+import { extractProductImageFromHtml, extractProductImageFromPayload } from "./base";
 
 const fixture = (name: string) => readFileSync(fileURLToPath(new URL(`../fixtures/${name}`, import.meta.url)), "utf8");
 
@@ -39,5 +40,18 @@ describe("adapters de supermercados", () => {
     expect(parseTataGraphqlProduct({
       data: { product: { offers: { offers: [{ price: 207, listPrice: 230 }] } } },
     })).toBe(230);
+  });
+
+  it("extrae la imagen de producto desde metadatos HTML y resuelve rutas relativas", () => {
+    expect(extractProductImageFromHtml(
+      '<meta property="og:image" content="/media/coca-cola.jpg">',
+      "https://www.disco.com.uy/product/coca-cola",
+    )).toBe("https://www.disco.com.uy/media/coca-cola.jpg");
+  });
+
+  it("extrae la imagen de producto desde la respuesta JSON de una cadena", () => {
+    expect(extractProductImageFromPayload({
+      data: { product: { images: [{ url: "https://cdn.tata.com.uy/products/arroz.jpg" }] } },
+    }, "https://www.tata.com.uy/arroz/p")).toBe("https://cdn.tata.com.uy/products/arroz.jpg");
   });
 });
