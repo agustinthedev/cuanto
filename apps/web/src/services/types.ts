@@ -4,6 +4,34 @@ export interface Category {
   slug: string;
 }
 
+export interface Store {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+export type ProductSuggestionStatus = "pending" | "approved" | "rejected";
+
+export interface ProductSuggestionLink {
+  id: string;
+  suggestion_id: string;
+  store_id: string;
+  url: string;
+  store: Store;
+}
+
+export interface ProductSuggestion {
+  id: string;
+  title: string;
+  category_id: string;
+  category: Category;
+  status: ProductSuggestionStatus;
+  created_at: string;
+  updated_at: string;
+  reviewed_at: string | null;
+  links: ProductSuggestionLink[];
+}
+
 export interface Product {
   id: string;
   name: string;
