@@ -46,7 +46,7 @@ npm run build
 
 1. Crear un proyecto gratuito en Supabase.
 2. Aplicar `supabase/migrations/202608250001_initial_schema.sql` desde el SQL Editor o con Supabase CLI.
-3. Aplicar las migraciones posteriores, incluida `supabase/migrations/202608260001_add_product_image_sources.sql`.
+3. Aplicar las migraciones posteriores, incluida `supabase/migrations/202608260001_add_product_image_sources.sql` y las migraciones de propuestas `202608260002` y `202608260003`.
 4. Ejecutar `supabase/seed.sql` para crear Disco, Tienda Inglesa, Ta-Ta y categorías iniciales.
 5. Copiar `apps/web/.env.example` como `.env.local` y completar:
 
@@ -55,17 +55,33 @@ VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=...
 ```
 
-La anon key es pública y solo permite lecturas. RLS y los grants de la migración bloquean inserts, updates y deletes públicos. La `SUPABASE_SERVICE_ROLE_KEY` nunca debe entrar en `apps/web`.
+La anon key es pública y solo permite lecturas públicas. RLS y los grants bloquean cambios anónimos; las mutaciones del panel pasan por Supabase Auth, RLS y funciones SQL con `security definer`. La `SUPABASE_SERVICE_ROLE_KEY` nunca debe entrar en `apps/web`.
 
-### Cargar un producto manualmente
+### Habilitar el acceso de administrador
 
-La administración queda intencionalmente fuera del MVP. Desde Table Editor:
+La contraseña no se configura en el código ni en una variable `VITE_*`. Supabase Auth la almacena y valida de forma segura. Para habilitar el primer administrador:
 
-1. Crear o elegir una categoría en `categories`.
-2. Crear el producto canónico en `products` (`quantity` es numérico y `unit` puede ser `L`, `g`, `kg`, `un`, etc.).
-3. Crear una fila en `store_products` por cadena donde exista el producto.
-4. Pegar la URL o referencia exacta que usará el adapter.
-5. Dejar `active = true` para incluirla en el próximo cron.
+1. En Supabase Dashboard, ir a **Authentication → Users** y crear el usuario con un email y una contraseña fuerte. Se puede exigir confirmación de email desde la configuración de Auth.
+2. Copiar el UUID del usuario y ejecutar en el SQL Editor:
+
+```sql
+insert into public.admin_users (user_id)
+values ('UUID-DEL-USUARIO')
+on conflict (user_id) do nothing;
+```
+
+La tabla de administradores guarda únicamente UUIDs, no contraseñas. Luego se ingresa en `/admin/login`. No se debe copiar la service-role key al navegador ni commitear archivos `.env.local`.
+
+### Cargar y revisar productos sugeridos
+
+Desde `/admin/productos-sugeridos`, un administrador puede:
+
+1. Cargar el título, la categoría y un link `http(s)` por cada cadena configurada.
+2. Editar cualquiera de esos valores antes o después de guardarlos.
+3. Abrir cada publicación directamente desde el botón junto al link.
+4. Aprobar la propuesta para crear el producto canónico y sus publicaciones activas, o rechazarla para dejarla fuera del catálogo.
+
+La aprobación crea por defecto un producto de cantidad `1` y unidad `un`, porque la propuesta inicial solo solicita título, categoría y links. Si se necesita una presentación distinta, se debe incluir la cantidad en el título o ampliar el formulario antes de aprobar.
 
 No hace falta cargar `products.image_url` ni `store_products.image_url`: el scraper intenta obtener la imagen desde la publicación de cada cadena y la guarda automáticamente.
 
@@ -132,9 +148,9 @@ Las variables de entorno del proyecto son `VITE_SUPABASE_URL` y `VITE_SUPABASE_A
 
 ## Alcance actual
 
-Incluido: catálogo manual, categorías, búsqueda, imágenes de producto aportadas automáticamente por las cadenas, comparación actual por cadena, promedio histórico, historia por cadena, estadísticas reales, RLS de solo lectura, adapters activos para Disco, Tienda Inglesa y Ta-Ta, y cron tolerante a fallos.
+Incluido: catálogo manual, categorías, búsqueda, imágenes de producto aportadas automáticamente por las cadenas, comparación actual por cadena, promedio histórico, historia por cadena, estadísticas reales, panel admin con Supabase Auth, propuestas de productos con RLS y aprobación transaccional, adapters activos para Disco, Tienda Inglesa y Ta-Ta, y cron tolerante a fallos.
 
-Fuera de alcance: cuentas, login, carrito, matching automático, panel admin, promociones complejas, alertas, inflación, app móvil, SSR, scraping de descubrimiento y colas.
+Fuera de alcance: registro público de cuentas, carrito, matching automático, promociones complejas, alertas, inflación, app móvil, SSR, scraping de descubrimiento y colas.
 
 ## Pruebas
 
