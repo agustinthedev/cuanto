@@ -86,6 +86,23 @@ export async function createProductSuggestion(title: string, categoryId: string,
   if (error) throw error;
 }
 
+export async function createProduct(name: string, categoryId: string, links: Array<{ store_id: string; url: string }>): Promise<string> {
+  if (!supabase) throw new Error("Supabase no está configurado.");
+  const { data, error } = await supabase.rpc("create_product_with_links", {
+    p_name: name,
+    p_category_id: categoryId,
+    p_links: links,
+  });
+  if (error) {
+    const duplicateLinkPrefix = "The store link is already assigned to another product or store: ";
+    if (error.message.startsWith(duplicateLinkPrefix)) {
+      throw new Error(`El link ${error.message.slice(duplicateLinkPrefix.length)} ya está almacenado en otro producto o cadena.`);
+    }
+    throw error;
+  }
+  return data as string;
+}
+
 export async function updateProductSuggestion(id: string, title: string, categoryId: string, links: Array<{ store_id: string; url: string }>): Promise<void> {
   if (!supabase) throw new Error("Supabase no está configurado.");
   const { error } = await supabase.rpc("update_product_suggestion", {
