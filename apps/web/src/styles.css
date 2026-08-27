@@ -148,6 +148,15 @@ a { color: inherit; text-decoration: none; }
 .chart-change-badge.is-increase .chart-change-arrow { color: #9cf6d4; background: rgba(156, 246, 212, .12); }
 .chart-change-badge.is-increase .chart-change-percent { color: #9cf6d4; }
 .chart-change-badge.is-neutral .chart-change-arrow { color: #a8b8ff; background: rgba(168, 184, 255, .12); }
+.chart-range-toolbar { display: flex; align-items: center; justify-content: flex-end; gap: 14px; margin: 0 0 12px 10px; }
+.chart-range-options { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; }
+.chart-range-title, .chart-date-picker span { color: #8198a2; font-family: 'DM Mono', monospace; font-size: 8px; letter-spacing: .05em; text-transform: uppercase; }
+.chart-range-button { padding: 5px 8px; border: 1px solid rgba(224, 246, 240, .12); border-radius: 6px; color: #9eafb3; background: transparent; font-family: 'DM Mono', monospace; font-size: 9px; }
+.chart-range-button:hover, .chart-range-button:focus-visible, .chart-range-button.is-active { border-color: rgba(156, 246, 212, .42); color: #07111f; background: #9cf6d4; outline: none; }
+.chart-date-picker { display: inline-flex; align-items: center; gap: 6px; color: #9eafb3; }
+.chart-date-picker input { width: 132px; padding: 5px 7px; border: 1px solid rgba(224, 246, 240, .12); border-radius: 6px; color: #c3d1d0; background: rgba(7, 17, 31, .6); font-family: 'DM Mono', monospace; font-size: 9px; color-scheme: dark; }
+.chart-date-picker input:focus { border-color: rgba(156, 246, 212, .42); outline: none; }
+.chart-date-picker.is-active span { color: #9cf6d4; }
 .chart-label, .chart-value { fill: #79909c; font-family: 'DM Mono', monospace; font-size: 9px; }
 .chart-value { fill: #adc0c0; }
 .chart-legend { display: flex; flex-wrap: wrap; gap: 15px; padding: 2px 0 13px 10px; color: #9eafb3; font-size: 10px; }
@@ -285,6 +294,7 @@ a { color: inherit; text-decoration: none; }
   .detail-image-wrap { height: 180px; }
   .detail-aside { grid-column: auto; }
   .comparison-section, .chart-section { padding-top: 60px; }
+  .chart-range-toolbar { align-items: flex-start; flex-direction: column; gap: 9px; margin-left: 0; }
   .admin-login-card, .admin-create-card, .suggestion-card { padding: 18px; }
   .admin-dashboard-card { padding: 18px; }
   .admin-page { padding-top: 31px; }
