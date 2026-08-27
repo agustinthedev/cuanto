@@ -126,6 +126,8 @@ a { color: inherit; text-decoration: none; }
 .average-line { stroke: #9cf6d4; }
 .chart-point { fill: #07111f; stroke: #9cf6d4; stroke-width: 2; cursor: pointer; }
 .chart-point:hover, .chart-point:focus { fill: #9cf6d4; stroke: #eff8f5; stroke-width: 2.5; outline: none; }
+.chart-hit-target { fill: transparent; stroke: transparent; cursor: pointer; }
+.chart-hit-target:hover, .chart-hit-target:focus { fill: #9cf6d4; stroke: #eff8f5; stroke-width: 2.5; outline: none; }
 .chart-tooltip { filter: drop-shadow(0 7px 12px rgba(0, 0, 0, .25)); }
 .chart-tooltip-bg { fill: #102637; stroke: rgba(156, 246, 212, .35); stroke-width: 1; }
 .chart-tooltip-date { fill: #9aabb6; font-family: 'DM Mono', monospace; font-size: 8px; }

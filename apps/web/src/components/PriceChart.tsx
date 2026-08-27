@@ -43,12 +43,13 @@ type TooltipData = {
   point: { x: number; y: number };
   date: string;
   value: number;
-  label?: string;
+  stores?: Array<{ name: string; value: number }>;
 };
 
 function ChartTooltip({ data, width, height, padding }: { data: TooltipData; width: number; height: number; padding: number }) {
-  const tooltipWidth = data.label ? 154 : 122;
-  const tooltipHeight = 42;
+  const stores = data.stores ?? [];
+  const tooltipWidth = data.stores ? 220 : 122;
+  const tooltipHeight = stores.length ? 24 + stores.length * 16 : 42;
   const x = Math.min(Math.max(data.point.x - tooltipWidth / 2, padding), width - padding - tooltipWidth);
   const aboveY = data.point.y - tooltipHeight - 12;
   const y = aboveY >= padding ? aboveY : Math.min(data.point.y + 12, height - padding - tooltipHeight);
@@ -56,8 +57,8 @@ function ChartTooltip({ data, width, height, padding }: { data: TooltipData; wid
   return (
     <g className="chart-tooltip" pointerEvents="none" transform={`translate(${x.toFixed(1)},${y.toFixed(1)})`}>
       <rect width={tooltipWidth} height={tooltipHeight} rx="7" className="chart-tooltip-bg" />
-      <text x="11" y="16" className="chart-tooltip-date">{data.label ? `${data.label} · ` : ""}{shortDate(data.date)}</text>
-      <text x="11" y="33" className="chart-tooltip-value">{exactPriceLabel(data.value)}</text>
+      <text x="11" y="16" className="chart-tooltip-date">{shortDate(data.date)}</text>
+      {stores.length ? stores.map((store, index) => <text key={`${store.name}-${store.value}`} x="11" y={33 + index * 16} className="chart-tooltip-value">{store.name}: {exactPriceLabel(store.value)}</text>) : <text x="11" y="33" className="chart-tooltip-value">{exactPriceLabel(data.value)}</text>}
     </g>
   );
 }
@@ -178,6 +179,30 @@ export function StoreChart({ data }: { data: StorePrice[] }) {
   const min = 0;
   const max = Math.max(...values);
   const range = max - min || 1;
+  const storeSeries = groups.flatMap(([slug, name], groupIndex) => {
+    const color = storeColors[groupIndex % storeColors.length];
+    const valuesForGroup = dates.map((date) => data.find((item) => item.store_slug === slug && item.date === date)?.price ?? NaN);
+    const points = valuesForGroup.flatMap((value, index) => {
+      if (!Number.isFinite(value)) return [];
+      return [{
+        x: dates.length === 1 ? width / 2 : padding + (index / (dates.length - 1)) * (width - padding * 2),
+        y: height - padding - ((Number(value) - min) / range) * (height - padding * 2),
+        date: dates[index],
+        value: Number(value),
+      }];
+    });
+    return points.length ? [{ slug, name, color, points }] : [];
+  });
+  const interactionPoints = new Map<string, { point: (typeof storeSeries)[number]["points"][number]; stores: Array<{ name: string; value: number }> }>();
+  storeSeries.forEach((series) => series.points.forEach((point) => {
+    const key = `${point.date}:${point.value}`;
+    const existing = interactionPoints.get(key);
+    if (existing) {
+      existing.stores.push({ name: series.name, value: point.value });
+    } else {
+      interactionPoints.set(key, { point, stores: [{ name: series.name, value: point.value }] });
+    }
+  }));
 
   return (
     <div className="chart-wrap">
@@ -189,44 +214,32 @@ export function StoreChart({ data }: { data: StorePrice[] }) {
           const y = padding + (step / 3) * (height - padding * 2);
           return <line key={step} x1={padding} x2={width - padding} y1={y} y2={y} className="chart-grid" />;
         })}
-        {groups.map(([slug, name], groupIndex) => {
-          const color = storeColors[groupIndex % storeColors.length];
-          const valuesForGroup = dates.map((date) => data.find((item) => item.store_slug === slug && item.date === date)?.price ?? NaN);
-          const points = valuesForGroup.flatMap((value, index) => {
-            if (!Number.isFinite(value)) return [];
-            return [{
-              x: dates.length === 1 ? width / 2 : padding + (index / (dates.length - 1)) * (width - padding * 2),
-              y: height - padding - ((Number(value) - min) / range) * (height - padding * 2),
-              date: dates[index],
-              value: Number(value),
-            }];
-          });
-          if (!points.length) return null;
+        {storeSeries.map(({ slug, color, points }) => (
+          <g key={slug}>
+            <path d={linePath(points)} className="chart-line" style={{ stroke: color }} />
+            {points.map((point) => <circle key={`${slug}-${point.date}`} cx={point.x} cy={point.y} r="3.5" className="chart-point" style={{ stroke: color }} pointerEvents="none" aria-hidden="true" />)}
+          </g>
+        ))}
+        {[...interactionPoints].map(([key, { point, stores }]) => {
+          const pointLabel = `${shortDate(point.date)}: ${stores.map((store) => `${store.name}, ${exactPriceLabel(store.value)}`).join("; ")}`;
+          const tooltipData = { point, date: point.date, value: point.value, stores };
           return (
-            <g key={slug}>
-              <path d={linePath(points)} className="chart-line" style={{ stroke: color }} />
-              {points.map((point) => {
-                const pointLabel = `${name}, ${shortDate(point.date)}: ${exactPriceLabel(point.value)}`;
-                return (
-                  <circle
-                    key={`${slug}-${point.date}`}
-                    cx={point.x}
-                    cy={point.y}
-                    r="3.5"
-                    className="chart-point"
-                    style={{ stroke: color }}
-                    tabIndex={0}
-                    aria-label={pointLabel}
-                    onMouseEnter={() => setActivePoint({ point, date: point.date, value: point.value, label: name })}
-                    onMouseLeave={() => setActivePoint(null)}
-                    onFocus={() => setActivePoint({ point, date: point.date, value: point.value, label: name })}
-                    onBlur={() => setActivePoint(null)}
-                  >
-                    <title>{pointLabel}</title>
-                  </circle>
-                );
-              })}
-            </g>
+            <circle
+              key={key}
+              cx={point.x}
+              cy={point.y}
+              r="8"
+              className="chart-hit-target"
+              tabIndex={0}
+              aria-label={pointLabel}
+              pointerEvents="all"
+              onMouseEnter={() => setActivePoint(tooltipData)}
+              onMouseLeave={() => setActivePoint(null)}
+              onFocus={() => setActivePoint(tooltipData)}
+              onBlur={() => setActivePoint(null)}
+            >
+              <title>{pointLabel}</title>
+            </circle>
           );
         })}
         {activePoint && <ChartTooltip data={activePoint} width={width} height={height} padding={padding} />}
