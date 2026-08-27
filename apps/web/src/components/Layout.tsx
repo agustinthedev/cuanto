@@ -14,6 +14,7 @@ export function Layout({ children }: { children: ReactNode }) {
         <nav className="site-nav" aria-label="Navegación principal">
           <NavLink to="/" className={({ isActive }) => (isActive ? "active" : "")}>Explorar</NavLink>
           <a href="#como-funciona">Cómo funciona</a>
+          <NavLink to="/admin/productos-sugeridos" className={({ isActive }) => (isActive ? "active" : "")}>Admin</NavLink>
         </nav>
         <div className="live-pill"><span className="live-dot" /> Datos diarios</div>
       </header>
