@@ -12,7 +12,7 @@ function priceLabel(value: number) {
 
 function chartPoints(values: number[], width: number, height: number, padding: number) {
   if (!values.length) return [];
-  const min = Math.min(...values);
+  const min = 0;
   const max = Math.max(...values);
   const range = max - min || 1;
   return values.map((value, index) => ({
@@ -32,7 +32,7 @@ export function AverageChart({ data }: { data: AveragePrice[] }) {
   const padding = 34;
   const points = chartPoints(data.map((item) => Number(item.average_price)), width, height, padding);
   const values = data.map((item) => Number(item.average_price));
-  const min = Math.min(...values);
+  const min = 0;
   const max = Math.max(...values);
   const range = max - min || 1;
 
@@ -70,7 +70,7 @@ export function StoreChart({ data }: { data: StorePrice[] }) {
   const height = 280;
   const padding = 34;
   const values = data.map((item) => Number(item.price));
-  const min = Math.min(...values);
+  const min = 0;
   const max = Math.max(...values);
   const range = max - min || 1;
 
