@@ -72,6 +72,10 @@ on conflict (user_id) do nothing;
 
 La tabla de administradores guarda únicamente UUIDs, no contraseñas. Luego se ingresa en `/admin/login`. No se debe copiar la service-role key al navegador ni commitear archivos `.env.local`.
 
+### Panel de administración
+
+Desde `/admin`, un administrador puede ver el resumen del catálogo, la actividad reciente de precios y el estado de las propuestas. La revisión y carga manual de productos se encuentra en `/admin/productos-sugeridos`.
+
 ### Cargar y revisar productos sugeridos
 
 Desde `/admin/productos-sugeridos`, un administrador puede:
