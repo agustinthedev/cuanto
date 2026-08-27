@@ -12,12 +12,12 @@ export function Layout({ children }: { children: ReactNode }) {
     <div className="app-shell">
       <div className="ambient ambient-one" />
       <div className="ambient ambient-two" />
-      <header className="site-header container">
+      <header className={isAdminArea ? "site-header container admin-site-header" : "site-header container"}>
         <Link className="brand" to="/" aria-label="Cuánto.uy, inicio">
           <span className="brand-mark">$</span>
           <span>cuánto<span className="brand-domain">.uy</span></span>
         </Link>
-        <nav className="site-nav" aria-label="Navegación principal">
+        <nav className={isAdminArea ? "site-nav admin-site-nav" : "site-nav"} aria-label="Navegación principal">
           {isAdminArea ? <>
             <NavLink to="/admin" end className={({ isActive }) => (isActive ? "active" : "")}>Resumen</NavLink>
             <NavLink to="/admin/productos-sugeridos" className={({ isActive }) => (isActive ? "active" : "")}>Sugerencias</NavLink>
