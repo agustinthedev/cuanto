@@ -3,7 +3,7 @@ import { Link, NavLink, useLocation } from "react-router-dom";
 import { useAdminAuth } from "../auth/AdminAuth";
 
 export function Layout({ children }: { children: ReactNode }) {
-  const { isAdmin } = useAdminAuth();
+  const { isAdmin, signOut } = useAdminAuth();
   const location = useLocation();
   const isAdminArea = isAdmin && location.pathname.startsWith("/admin");
   const howItWorksHref = location.pathname === "/" ? "#como-funciona" : "/#como-funciona";
@@ -26,7 +26,10 @@ export function Layout({ children }: { children: ReactNode }) {
             <a href={howItWorksHref}>Cómo funciona</a>
           </>}
         </nav>
-        <div className="live-pill"><span className="live-dot" /> Datos diarios</div>
+        <div className="site-header-actions">
+          <div className="live-pill"><span className="live-dot" /> Datos diarios</div>
+          {isAdminArea && <button className="header-sign-out" type="button" onClick={() => void signOut()}>Cerrar sesión</button>}
+        </div>
       </header>
       <main>{children}</main>
       <footer className="site-footer container">
