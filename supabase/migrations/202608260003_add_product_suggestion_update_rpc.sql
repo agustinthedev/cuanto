@@ -54,5 +54,9 @@ $$;
 
 revoke insert, update on public.product_suggestions from authenticated;
 revoke insert, update on public.product_suggestion_store_links from authenticated;
+revoke insert (title, category_id) on public.product_suggestions from authenticated;
+revoke update (title, category_id) on public.product_suggestions from authenticated;
+revoke insert (suggestion_id, store_id, url) on public.product_suggestion_store_links from authenticated;
+revoke update (url) on public.product_suggestion_store_links from authenticated;
 revoke all on function public.update_product_suggestion(uuid, text, uuid, jsonb) from public, anon, authenticated;
 grant execute on function public.update_product_suggestion(uuid, text, uuid, jsonb) to authenticated;
