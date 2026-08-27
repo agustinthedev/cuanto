@@ -1,5 +1,6 @@
 import type { AveragePrice, StorePrice } from "../services/types";
 import { useEffect, useState } from "react";
+import { dateDaysBefore } from "./dateRange";
 
 const storeColors = ["#9cf6d4", "#a8b8ff", "#ffc28f", "#ef9be7"];
 
@@ -32,12 +33,6 @@ const averageRangeOptions: Array<{ key: Exclude<AverageRangeKey, "custom">; labe
   { key: "90d", label: "90D", days: 90 },
   { key: "365d", label: "365D", days: 365 },
 ];
-
-function dateDaysBefore(date: string, days: number) {
-  const value = new Date(`${date}T12:00:00`);
-  value.setDate(value.getDate() - days);
-  return value.toISOString().slice(0, 10);
-}
 
 function chartPoints(values: number[], width: number, height: number, padding: number) {
   if (!values.length) return [];
