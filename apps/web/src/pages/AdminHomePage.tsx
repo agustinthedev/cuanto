@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { useAdminAuth } from "../auth/AdminAuth";
 import { StateMessage } from "../components/StateMessage";
 import { getAdminDashboardData } from "../services/data";
 import type { AdminDashboardData, AdminSuggestionStats, PriceObservationDay } from "../services/types";
@@ -83,7 +82,6 @@ function SuggestionStatusChart({ stats }: { stats: AdminSuggestionStats }) {
 }
 
 export function AdminHomePage() {
-  const { signOut } = useAdminAuth();
   const [data, setData] = useState<AdminDashboardData>(emptyDashboard);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -107,7 +105,6 @@ export function AdminHomePage() {
     <div className="container admin-page admin-dashboard-page">
       <div className="admin-page-header">
         <div><span className="section-kicker">Admin / panel</span><h1>Resumen general</h1><p>Una vista rápida del catálogo, la actividad de precios y las propuestas por revisar.</p></div>
-        <div className="admin-header-actions"><Link className="text-link" to="/admin/productos-sugeridos">Ver sugerencias <span>↗</span></Link><button className="button button-secondary" onClick={() => void signOut()}>Cerrar sesión</button></div>
       </div>
 
       {error && <div className="inline-alert" role="alert">{error}</div>}

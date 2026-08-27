@@ -155,8 +155,6 @@ a { color: inherit; text-decoration: none; }
 .admin-page-header { display: flex; justify-content: space-between; align-items: end; gap: 25px; margin-bottom: 30px; }
 .admin-page-header h1 { margin: 12px 0 9px; font-size: clamp(32px, 5vw, 51px); letter-spacing: -.075em; line-height: 1; }
 .admin-page-header p { margin: 0; color: #91a5ad; font-size: 12px; line-height: 1.7; }
-.admin-header-actions { display: flex; align-items: center; gap: 20px; padding-bottom: 3px; }
-.admin-header-actions .button { white-space: nowrap; }
 .admin-dashboard-page { padding-bottom: 130px; }
 .admin-stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 13px; margin-bottom: 14px; }
 .admin-stat-card { min-height: 137px; display: flex; flex-direction: column; padding: 18px; border: 1px solid rgba(224, 246, 240, .1); border-radius: 14px; background: rgba(13, 28, 43, .72); }
@@ -270,9 +268,6 @@ a { color: inherit; text-decoration: none; }
   .admin-login-card, .admin-create-card, .suggestion-card { padding: 18px; }
   .admin-dashboard-card { padding: 18px; }
   .admin-page { padding-top: 31px; }
-  .admin-header-actions { width: 100%; justify-content: space-between; gap: 12px; }
-  .admin-header-actions .text-link { font-size: 10px; }
-  .admin-header-actions .button { padding: 11px 12px; }
   .admin-form-grid { grid-template-columns: 1fr; }
   .admin-card-heading, .suggestion-card-topline { align-items: flex-start; flex-direction: column; }
   .admin-review-section > .admin-card-heading { gap: 15px; }
