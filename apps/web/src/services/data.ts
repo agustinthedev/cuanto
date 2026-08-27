@@ -135,6 +135,27 @@ async function countSuggestions(status?: ProductSuggestionStatus): Promise<numbe
   return count ?? 0;
 }
 
+function uruguayDate(now = new Date()): string {
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Montevideo", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function addDays(dateValue: string, days: number): string {
+  const date = new Date(`${dateValue}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function fillObservationHistory(rows: PriceObservationDay[], startDate: string, endDate: string): PriceObservationDay[] {
+  const counts = new Map(rows.map((row) => [row.date, Number(row.observation_count)]));
+  const history: PriceObservationDay[] = [];
+  for (let date = startDate; date <= endDate; date = addDays(date, 1)) {
+    history.push({ date, observation_count: counts.get(date) ?? 0 });
+  }
+  return history;
+}
+
 export async function getHomepageStats(): Promise<HomepageStats> {
   if (!supabase) return { products: 0, stores: 0, observations: 0, days: 0 };
   const [products, stores, observations, days] = await Promise.all([
@@ -155,12 +176,14 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     };
   }
 
+  const endDate = uruguayDate();
+  const startDate = addDays(endDate, -13);
   const [stats, pending, approved, rejected, observationsResult] = await Promise.all([
     getHomepageStats(),
     countSuggestions("pending"),
     countSuggestions("approved"),
     countSuggestions("rejected"),
-    supabase.from("price_observation_days").select("date,observation_count").order("date", { ascending: false }).limit(14),
+    supabase.from("price_observation_days").select("date,observation_count").gte("date", startDate).lte("date", endDate).order("date"),
   ]);
   if (observationsResult.error) throw observationsResult.error;
 
@@ -174,7 +197,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
   return {
     stats,
     suggestions,
-    observationHistory: ((observationsResult.data ?? []) as PriceObservationDay[]).reverse(),
+    observationHistory: fillObservationHistory((observationsResult.data ?? []) as PriceObservationDay[], startDate, endDate),
   };
 }
 
