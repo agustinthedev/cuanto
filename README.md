@@ -46,7 +46,7 @@ npm run build
 
 1. Crear un proyecto gratuito en Supabase.
 2. Aplicar `supabase/migrations/202608250001_initial_schema.sql` desde el SQL Editor o con Supabase CLI.
-3. Aplicar las migraciones posteriores, incluida `supabase/migrations/202608260001_add_product_image_sources.sql` y las migraciones de propuestas `202608260002` y `202608260003`.
+3. Aplicar las migraciones posteriores, incluida `supabase/migrations/202608260001_add_product_image_sources.sql` y las migraciones de propuestas `202608260002`, `202608260003`, `202608260004` y `202608260005`.
 4. Ejecutar `supabase/seed.sql` para crear Disco, Tienda Inglesa, Ta-Ta y categorías iniciales.
 5. Copiar `apps/web/.env.example` como `.env.local` y completar:
 
@@ -77,7 +77,7 @@ La tabla de administradores guarda únicamente UUIDs, no contraseñas. Luego se 
 Desde `/admin/productos-sugeridos`, un administrador puede:
 
 1. Cargar el título, la categoría y un link `http(s)` por cada cadena configurada.
-2. Editar cualquiera de esos valores antes o después de guardarlos.
+2. Editar cualquiera de esos valores mientras la propuesta está pendiente.
 3. Abrir cada publicación directamente desde el botón junto al link.
 4. Aprobar la propuesta para crear el producto canónico y sus publicaciones activas, o rechazarla para dejarla fuera del catálogo.
 
