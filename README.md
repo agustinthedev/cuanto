@@ -46,7 +46,7 @@ npm run build
 
 1. Crear un proyecto gratuito en Supabase.
 2. Aplicar `supabase/migrations/202608250001_initial_schema.sql` desde el SQL Editor o con Supabase CLI.
-3. Aplicar las migraciones posteriores, incluida `supabase/migrations/202608260001_add_product_image_sources.sql` y las migraciones de propuestas `202608260002`, `202608260003`, `202608260004`, `202608260005` y `202608260006`.
+3. Aplicar las migraciones posteriores, incluida `supabase/migrations/202608260001_add_product_image_sources.sql`, las migraciones de propuestas `202608260002`, `202608260003`, `202608260004`, `202608260005` y `202608260006`, y `supabase/migrations/202608270001_add_direct_product_creation.sql`.
 4. Ejecutar `supabase/seed.sql` para crear Disco, Tienda Inglesa, Ta-Ta y categorías iniciales.
 5. Copiar `apps/web/.env.example` como `.env.local` y completar:
 
@@ -80,12 +80,13 @@ Desde `/admin`, un administrador puede ver el resumen del catálogo, la activida
 
 Desde `/admin/productos-sugeridos`, un administrador puede:
 
-1. Cargar el título, la categoría y un link `http(s)` por cada cadena configurada.
-2. Editar cualquiera de esos valores mientras la propuesta está pendiente.
-3. Abrir cada publicación directamente desde el botón junto al link.
-4. Aprobar la propuesta para crear el producto canónico y sus publicaciones activas, o rechazarla para dejarla fuera del catálogo.
+1. Abrir el modal de creación manual para cargar el título, la categoría y un link `http(s)` por cada cadena configurada.
+2. Crear el producto canónico directamente con sus publicaciones activas, sin crear una propuesta pendiente.
+3. Editar cualquiera de esos valores mientras una propuesta sugerida está pendiente.
+4. Abrir cada publicación directamente desde el botón junto al link.
+5. Aprobar una propuesta sugerida para crear el producto canónico y sus publicaciones activas, o rechazarla para dejarla fuera del catálogo.
 
-La aprobación crea por defecto un producto de cantidad `1` y unidad `un`, porque la propuesta inicial solo solicita título, categoría y links. Si se necesita una presentación distinta, se debe incluir la cantidad en el título o ampliar el formulario antes de aprobar.
+La creación manual y la aprobación de sugerencias crean por defecto un producto de cantidad `1` y unidad `un`, porque el flujo actual solo solicita título, categoría y links. Si se necesita una presentación distinta, se debe incluir la cantidad en el título o ampliar el formulario.
 Las propuestas pendientes son editables; las ya aprobadas o rechazadas quedan bloqueadas para no desincronizar el registro de revisión del producto canónico.
 
 No hace falta cargar `products.image_url` ni `store_products.image_url`: el scraper intenta obtener la imagen desde la publicación de cada cadena y la guarda automáticamente.
