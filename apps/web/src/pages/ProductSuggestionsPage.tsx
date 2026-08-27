@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   approveProductSuggestion,
-  createProductSuggestion,
+  createProduct,
   getAdminStores,
   getCategories,
   getProductSuggestions,
@@ -71,7 +71,7 @@ function StoreLinkFields({ links, stores, onChange, disabled = false }: { links:
   );
 }
 
-function NewSuggestionForm({ categories, stores, onCreated }: { categories: Category[]; stores: Store[]; onCreated: () => Promise<void> }) {
+function CreateProductModal({ categories, stores, onClose, onCreated }: { categories: Category[]; stores: Store[]; onClose: () => void; onCreated: () => Promise<void> }) {
   const [title, setTitle] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [links, setLinks] = useState<LinkDraft[]>(() => initialLinks(stores));
@@ -81,6 +81,19 @@ function NewSuggestionForm({ categories, stores, onCreated }: { categories: Cate
   useEffect(() => {
     setLinks((current) => stores.map((store) => ({ storeId: store.id, url: current.find((link) => link.storeId === store.id)?.url ?? "" })));
   }, [stores]);
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !saving) onClose();
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [onClose, saving]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -96,31 +109,41 @@ function NewSuggestionForm({ categories, stores, onCreated }: { categories: Cate
     }
     setSaving(true);
     try {
-      await createProductSuggestion(title, categoryId || categories[0].id, links.map((link) => ({ store_id: link.storeId, url: link.url.trim() })));
+      await createProduct(title, categoryId || categories[0].id, links.map((link) => ({ store_id: link.storeId, url: link.url.trim() })));
       setTitle("");
       setCategoryId("");
       setLinks(initialLinks(stores));
       await onCreated();
+      onClose();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "No pudimos guardar la propuesta.");
+      setError(reason instanceof Error ? reason.message : "No pudimos crear el producto.");
     } finally {
       setSaving(false);
     }
   }
 
+  function handleBackdropClick(event: React.MouseEvent<HTMLDivElement>) {
+    if (event.target === event.currentTarget && !saving) onClose();
+  }
+
   return (
-    <section className="admin-create-card">
-      <div className="admin-card-heading"><div><span className="section-kicker">Carga manual</span><h2>Nueva propuesta</h2></div><span className="admin-required-note">Todos los campos son editables</span></div>
-      {error && <div className="inline-alert" role="alert">{error}</div>}
-      <form onSubmit={handleSubmit}>
-        <div className="admin-form-grid">
-          <label>Título del producto<input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Ej. Yerba mate 1 kg" maxLength={200} required /></label>
-          <label>Categoría<select value={categoryId || categories[0]?.id || ""} onChange={(event) => setCategoryId(event.target.value)} required><option value="" disabled>Seleccioná una categoría</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
+    <div className="modal-backdrop" onMouseDown={handleBackdropClick}>
+      <section className="admin-modal" role="dialog" aria-modal="true" aria-labelledby="create-product-title">
+        <div className="admin-modal-header">
+          <div><span className="section-kicker">Carga manual</span><h2 id="create-product-title">Nuevo producto</h2><p>El producto se agrega directamente al catálogo, sin pasar por revisión.</p></div>
+          <button className="modal-close" type="button" onClick={onClose} disabled={saving} aria-label="Cerrar">×</button>
         </div>
-        <fieldset className="admin-links-fieldset"><legend>Links por cadena</legend><StoreLinkFields links={links} stores={stores} onChange={(storeId, url) => setLinks((current) => current.map((link) => link.storeId === storeId ? { ...link, url } : link))} /></fieldset>
-        <div className="admin-form-actions"><button className="button button-primary" type="submit" disabled={saving}>{saving ? "Guardando..." : "Agregar a revisión"}<span>＋</span></button></div>
-      </form>
-    </section>
+        {error && <div className="inline-alert" role="alert">{error}</div>}
+        <form onSubmit={handleSubmit}>
+          <div className="admin-form-grid">
+            <label>Título del producto<input autoFocus value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Ej. Yerba mate 1 kg" maxLength={200} required /></label>
+            <label>Categoría<select value={categoryId || categories[0]?.id || ""} onChange={(event) => setCategoryId(event.target.value)} required><option value="" disabled>Seleccioná una categoría</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
+          </div>
+          <fieldset className="admin-links-fieldset"><legend>Links por cadena</legend><StoreLinkFields links={links} stores={stores} onChange={(storeId, url) => setLinks((current) => current.map((link) => link.storeId === storeId ? { ...link, url } : link))} /></fieldset>
+          <div className="admin-form-actions"><button className="button button-secondary" type="button" onClick={onClose} disabled={saving}>Cancelar</button><button className="button button-primary" type="submit" disabled={saving}>{saving ? "Creando..." : "Crear producto"}<span>＋</span></button></div>
+        </form>
+      </section>
+    </div>
   );
 }
 
@@ -205,6 +228,8 @@ export function ProductSuggestionsPage() {
   const [filter, setFilter] = useState<StatusFilter>("pending");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   async function loadData() {
     setError(null);
@@ -231,17 +256,20 @@ export function ProductSuggestionsPage() {
     <div className="container admin-page">
       <div className="admin-page-header">
         <div><span className="section-kicker">Admin / catálogo</span><h1>Productos sugeridos</h1><p>Revisá, corregí y aprobá los productos que van a entrar al seguimiento diario.</p></div>
+        <button className="button button-primary admin-page-header-action" type="button" onClick={() => { setSuccessMessage(null); setShowCreateModal(true); }}>Crear producto <span>＋</span></button>
       </div>
 
       <div className="admin-stats" aria-label="Resumen de propuestas"><div><strong>{pendingCount}</strong><span>Pendientes</span></div><div><strong>{suggestions.filter((suggestion) => suggestion.status === "approved").length}</strong><span>Aprobados</span></div><div><strong>{suggestions.length}</strong><span>Total cargadas</span></div></div>
 
       {error && <div className="inline-alert" role="alert">{error}</div>}
-      <NewSuggestionForm categories={categories} stores={stores} onCreated={loadData} />
+      {successMessage && <div className="inline-alert inline-alert-success" role="status">{successMessage}</div>}
 
       <section className="admin-review-section">
         <div className="admin-card-heading"><div><span className="section-kicker">Bandeja de revisión</span><h2>Propuestas cargadas</h2></div><div className="admin-filter-tabs" role="tablist" aria-label="Filtrar propuestas">{(["pending", "approved", "rejected", "all"] as StatusFilter[]).map((item) => <button key={item} className={filter === item ? "selected" : ""} onClick={() => setFilter(item)} role="tab" aria-selected={filter === item}>{item === "all" ? "Todas" : statusLabels[item]}</button>)}</div></div>
         {loading ? <div className="admin-loading"><div className="loading-orb" /><p>Cargando propuestas...</p></div> : filteredSuggestions.length ? <div className="suggestion-list">{filteredSuggestions.map((suggestion) => <SuggestionCard key={suggestion.id} suggestion={suggestion} categories={categories} stores={stores} onChanged={loadData} />)}</div> : <div className="state-message"><div className="state-icon">✓</div><div><h3>{filter === "pending" ? "No hay propuestas pendientes" : "Todavía no hay propuestas en esta vista"}</h3><p>Las nuevas cargas van a aparecer acá para que puedas revisarlas.</p></div></div>}
       </section>
+
+      {showCreateModal && <CreateProductModal categories={categories} stores={stores} onClose={() => setShowCreateModal(false)} onCreated={async () => { await loadData(); setSuccessMessage("Producto creado y agregado al catálogo."); }} />}
     </div>
   );
 }
