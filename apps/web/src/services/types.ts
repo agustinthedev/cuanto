@@ -81,6 +81,24 @@ export interface HomepageStats {
   days: number;
 }
 
+export interface PriceObservationDay {
+  date: string;
+  observation_count: number;
+}
+
+export interface AdminSuggestionStats {
+  pending: number;
+  approved: number;
+  rejected: number;
+  total: number;
+}
+
+export interface AdminDashboardData {
+  stats: HomepageStats;
+  suggestions: AdminSuggestionStats;
+  observationHistory: PriceObservationDay[];
+}
+
 export interface ProductPageData {
   product: Product | null;
   latestPrices: LatestPrice[];

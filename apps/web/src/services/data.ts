@@ -1,6 +1,8 @@
 import { supabase } from "../lib/supabase";
 import type {
   AveragePrice,
+  AdminDashboardData,
+  AdminSuggestionStats,
   Category,
   HomepageStats,
   LatestPrice,
@@ -8,6 +10,8 @@ import type {
   ProductPageData,
   ProductSuggestion,
   ProductSuggestionLink,
+  ProductSuggestionStatus,
+  PriceObservationDay,
   Store,
   StorePrice,
 } from "./types";
@@ -122,6 +126,15 @@ async function countRows(table: string, column = "id"): Promise<number> {
   return count ?? 0;
 }
 
+async function countSuggestions(status?: ProductSuggestionStatus): Promise<number> {
+  if (!supabase) return 0;
+  let query = supabase.from("product_suggestions").select("id", { count: "exact", head: true });
+  if (status) query = query.eq("status", status);
+  const { count, error } = await query;
+  if (error) throw error;
+  return count ?? 0;
+}
+
 export async function getHomepageStats(): Promise<HomepageStats> {
   if (!supabase) return { products: 0, stores: 0, observations: 0, days: 0 };
   const [products, stores, observations, days] = await Promise.all([
@@ -131,6 +144,38 @@ export async function getHomepageStats(): Promise<HomepageStats> {
     countRows("price_observation_days", "date"),
   ]);
   return { products, stores, observations, days };
+}
+
+export async function getAdminDashboardData(): Promise<AdminDashboardData> {
+  if (!supabase) {
+    return {
+      stats: { products: 0, stores: 0, observations: 0, days: 0 },
+      suggestions: { pending: 0, approved: 0, rejected: 0, total: 0 },
+      observationHistory: [],
+    };
+  }
+
+  const [stats, pending, approved, rejected, observationsResult] = await Promise.all([
+    getHomepageStats(),
+    countSuggestions("pending"),
+    countSuggestions("approved"),
+    countSuggestions("rejected"),
+    supabase.from("price_observation_days").select("date,observation_count").order("date", { ascending: false }).limit(14),
+  ]);
+  if (observationsResult.error) throw observationsResult.error;
+
+  const suggestions: AdminSuggestionStats = {
+    pending,
+    approved,
+    rejected,
+    total: pending + approved + rejected,
+  };
+
+  return {
+    stats,
+    suggestions,
+    observationHistory: ((observationsResult.data ?? []) as PriceObservationDay[]).reverse(),
+  };
 }
 
 export async function getProductPageData(id: string): Promise<ProductPageData> {
