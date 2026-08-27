@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   approveProductSuggestion,
   createProductSuggestion,
@@ -233,7 +234,7 @@ export function ProductSuggestionsPage() {
     <div className="container admin-page">
       <div className="admin-page-header">
         <div><span className="section-kicker">Admin / catálogo</span><h1>Productos sugeridos</h1><p>Revisá, corregí y aprobá los productos que van a entrar al seguimiento diario.</p></div>
-        <div className="admin-header-actions"><a className="text-link" href="/">Volver al sitio <span>↗</span></a><button className="button button-secondary" onClick={() => void signOut()}>Cerrar sesión</button></div>
+        <div className="admin-header-actions"><Link className="text-link" to="/admin">Resumen <span>↗</span></Link><a className="text-link" href="/">Volver al sitio <span>↗</span></a><button className="button button-secondary" onClick={() => void signOut()}>Cerrar sesión</button></div>
       </div>
 
       <div className="admin-stats" aria-label="Resumen de propuestas"><div><strong>{pendingCount}</strong><span>Pendientes</span></div><div><strong>{suggestions.filter((suggestion) => suggestion.status === "approved").length}</strong><span>Aprobados</span></div><div><strong>{suggestions.length}</strong><span>Total cargadas</span></div></div>
