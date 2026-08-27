@@ -23,6 +23,12 @@ describe("adapters de supermercados", () => {
     expect(parseTiendaInglesaHtml(fixture("tienda-product-encoded.html"))).toBe(230);
   });
 
+  it("extrae un decimal de Tienda Inglesa antes de la coma del siguiente campo JSON", () => {
+    expect(parseTiendaInglesaHtml(
+      '<div data-config="{&quot;W0032AV27ProductUI_PARM&quot;:{&quot;Prices&quot;:[{&quot;Label&quot;:&quot;Precio&quot;,&quot;Price&quot;:45.2,&quot;PriceStr&quot;:&quot;$ 45,20&quot;}]}}"></div>',
+    )).toBe(45.2);
+  });
+
   it("extrae Red Express desde la respuesta JSON anidada", () => {
     expect(parseRedExpressJson(redFixture)).toBe(78);
   });

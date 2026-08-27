@@ -15,10 +15,10 @@ function decodeHtmlEntities(value: string): string {
 export function parseTiendaInglesaHtml(html: string): number {
   const normalizedHtml = decodeHtmlEntities(html);
   const prices = normalizedHtml.match(/"[^\"]+ProductUI_PARM"\s*:\s*\{[\s\S]*?"Prices"\s*:\s*\[([^\]]*)\]/i)?.[1];
-  const originalPrice = prices?.match(/"Label"\s*:\s*"Antes[^\"]*"\s*,\s*"Price"\s*:\s*([\d.,]+)/i)?.[1];
+  const originalPrice = prices?.match(/"Label"\s*:\s*"Antes[^\"]*"\s*,\s*"Price"\s*:\s*([\d]+(?:[.,]\d+)?)/i)?.[1];
   if (originalPrice) return extractJsonPrice(Number(originalPrice.replace(",", ".")));
 
-  const regularPrice = prices?.match(/"Label"\s*:\s*"Precio[^\"]*"\s*,\s*"Price"\s*:\s*([\d.,]+)/i)?.[1];
+  const regularPrice = prices?.match(/"Label"\s*:\s*"Precio[^\"]*"\s*,\s*"Price"\s*:\s*([\d]+(?:[.,]\d+)?)/i)?.[1];
   if (regularPrice) return extractJsonPrice(Number(regularPrice.replace(",", ".")));
 
   return extractPriceFromText(htmlToText(html));
