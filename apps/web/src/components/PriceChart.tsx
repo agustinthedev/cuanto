@@ -15,6 +15,15 @@ function exactPriceLabel(value: number) {
   return new Intl.NumberFormat("es-UY", { style: "currency", currency: "UYU", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
 }
 
+function exactPercentageLabel(value: number) {
+  return new Intl.NumberFormat("es-UY", { style: "percent", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Math.abs(value));
+}
+
+function signedPercentageLabel(value: number) {
+  if (value === 0) return exactPercentageLabel(0);
+  return `${value < 0 ? "−" : "+"}${exactPercentageLabel(value)}`;
+}
+
 function chartPoints(values: number[], width: number, height: number, padding: number) {
   if (!values.length) return [];
   const min = 0;
@@ -53,6 +62,46 @@ function ChartTooltip({ data, width, height, padding }: { data: TooltipData; wid
   );
 }
 
+function pointLabelPosition(point: { x: number; y: number }, width: number, height: number, padding: number) {
+  const labelWidth = 82;
+  const labelHeight = 21;
+  const gap = 9;
+  const x = Math.min(Math.max(point.x - labelWidth / 2, padding), width - padding - labelWidth);
+  const aboveY = point.y - labelHeight - gap;
+  const y = aboveY >= padding ? aboveY : Math.min(point.y + gap, height - padding - labelHeight);
+  return { x, y, width: labelWidth, height: labelHeight };
+}
+
+function ChartPointLabel({ point, value, width, height, padding }: { point: { x: number; y: number }; value: number; width: number; height: number; padding: number }) {
+  const position = pointLabelPosition(point, width, height, padding);
+  return (
+    <g className="chart-data-label" pointerEvents="none" transform={`translate(${position.x.toFixed(1)},${position.y.toFixed(1)})`}>
+      <rect width={position.width} height={position.height} rx="6" className="chart-data-label-bg" />
+      <text x={position.width / 2} y="14" textAnchor="middle" className="chart-data-label-text">{exactPriceLabel(value)}</text>
+    </g>
+  );
+}
+
+function AverageChangeBadge({ firstValue, lastValue }: { firstValue: number; lastValue: number }) {
+  const change = lastValue - firstValue;
+  const percentage = firstValue ? change / firstValue : 0;
+  const direction = change < 0 ? "Bajó" : change > 0 ? "Subió" : "Sin cambio";
+  const changeSummary = change === 0
+    ? `${direction} (${signedPercentageLabel(percentage)})`
+    : `${direction} ${exactPriceLabel(Math.abs(change))} (${signedPercentageLabel(percentage)})`;
+
+  return (
+    <div className={`chart-change-badge ${change < 0 ? "is-decrease" : change > 0 ? "is-increase" : "is-neutral"}`} aria-label={`Variación desde el primer día: ${changeSummary}`}>
+      <span className="chart-change-arrow" aria-hidden="true">{change < 0 ? "↓" : change > 0 ? "↑" : "→"}</span>
+      <span className="chart-change-copy">
+        <small>Desde el primer día</small>
+        <strong>{direction}{change !== 0 && ` ${exactPriceLabel(Math.abs(change))}`}</strong>
+      </span>
+      <span className="chart-change-percent">{signedPercentageLabel(percentage)}</span>
+    </div>
+  );
+}
+
 export function AverageChart({ data }: { data: AveragePrice[] }) {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   if (!data.length) return <div className="chart-empty">Todavía no hay días suficientes para graficar.</div>;
@@ -67,6 +116,7 @@ export function AverageChart({ data }: { data: AveragePrice[] }) {
 
   return (
     <div className="chart-wrap">
+      <AverageChangeBadge firstValue={values[0]} lastValue={values[values.length - 1]} />
       <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Precio promedio histórico entre supermercados">
         <defs>
           <linearGradient id="average-fill" x1="0" x2="0" y1="0" y2="1">
@@ -100,6 +150,10 @@ export function AverageChart({ data }: { data: AveragePrice[] }) {
               <title>{pointLabel}</title>
             </circle>
           );
+        })}
+        {points.map((point, index) => {
+          if (index !== 0 && index !== points.length - 1) return null;
+          return <ChartPointLabel key={`label-${data[index].date}`} point={point} value={values[index]} width={width} height={height} padding={padding} />;
         })}
         {activeIndex !== null && <ChartTooltip data={{ point: points[activeIndex], date: data[activeIndex].date, value: values[activeIndex] }} width={width} height={height} padding={padding} />}
         <text x={padding} y={height - 8} className="chart-label">{shortDate(data[0].date)}</text>
