@@ -1,6 +1,8 @@
 import { supabase } from "../lib/supabase";
 import type {
   AveragePrice,
+  AdminDashboardData,
+  AdminSuggestionStats,
   Category,
   HomepageStats,
   LatestPrice,
@@ -8,6 +10,8 @@ import type {
   ProductPageData,
   ProductSuggestion,
   ProductSuggestionLink,
+  ProductSuggestionStatus,
+  PriceObservationDay,
   Store,
   StorePrice,
 } from "./types";
@@ -122,6 +126,36 @@ async function countRows(table: string, column = "id"): Promise<number> {
   return count ?? 0;
 }
 
+async function countSuggestions(status?: ProductSuggestionStatus): Promise<number> {
+  if (!supabase) return 0;
+  let query = supabase.from("product_suggestions").select("id", { count: "exact", head: true });
+  if (status) query = query.eq("status", status);
+  const { count, error } = await query;
+  if (error) throw error;
+  return count ?? 0;
+}
+
+function uruguayDate(now = new Date()): string {
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Montevideo", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function addDays(dateValue: string, days: number): string {
+  const date = new Date(`${dateValue}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function fillObservationHistory(rows: PriceObservationDay[], startDate: string, endDate: string): PriceObservationDay[] {
+  const counts = new Map(rows.map((row) => [row.date, Number(row.observation_count)]));
+  const history: PriceObservationDay[] = [];
+  for (let date = startDate; date <= endDate; date = addDays(date, 1)) {
+    history.push({ date, observation_count: counts.get(date) ?? 0 });
+  }
+  return history;
+}
+
 export async function getHomepageStats(): Promise<HomepageStats> {
   if (!supabase) return { products: 0, stores: 0, observations: 0, days: 0 };
   const [products, stores, observations, days] = await Promise.all([
@@ -131,6 +165,40 @@ export async function getHomepageStats(): Promise<HomepageStats> {
     countRows("price_observation_days", "date"),
   ]);
   return { products, stores, observations, days };
+}
+
+export async function getAdminDashboardData(): Promise<AdminDashboardData> {
+  if (!supabase) {
+    return {
+      stats: { products: 0, stores: 0, observations: 0, days: 0 },
+      suggestions: { pending: 0, approved: 0, rejected: 0, total: 0 },
+      observationHistory: [],
+    };
+  }
+
+  const endDate = uruguayDate();
+  const startDate = addDays(endDate, -13);
+  const [stats, pending, approved, rejected, observationsResult] = await Promise.all([
+    getHomepageStats(),
+    countSuggestions("pending"),
+    countSuggestions("approved"),
+    countSuggestions("rejected"),
+    supabase.from("price_observation_days").select("date,observation_count").gte("date", startDate).lte("date", endDate).order("date"),
+  ]);
+  if (observationsResult.error) throw observationsResult.error;
+
+  const suggestions: AdminSuggestionStats = {
+    pending,
+    approved,
+    rejected,
+    total: pending + approved + rejected,
+  };
+
+  return {
+    stats,
+    suggestions,
+    observationHistory: fillObservationHistory((observationsResult.data ?? []) as PriceObservationDay[], startDate, endDate),
+  };
 }
 
 export async function getProductPageData(id: string): Promise<ProductPageData> {

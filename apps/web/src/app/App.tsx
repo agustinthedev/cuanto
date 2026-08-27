@@ -1,8 +1,9 @@
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { AdminAuthProvider } from "../auth/AdminAuth";
 import { AdminGuard } from "../auth/AdminGuard";
 import { Layout } from "../components/Layout";
 import { AdminLoginPage } from "../pages/AdminLoginPage";
+import { AdminHomePage } from "../pages/AdminHomePage";
 import { HomePage } from "../pages/HomePage";
 import { ProductPage } from "../pages/ProductPage";
 import { ProductSuggestionsPage } from "../pages/ProductSuggestionsPage";
@@ -17,7 +18,7 @@ export function App() {
             <Route path="/productos/:id" element={<ProductPage />} />
             <Route path="/admin/login" element={<AdminLoginPage />} />
             <Route path="/admin" element={<AdminGuard />}>
-              <Route index element={<Navigate to="productos-sugeridos" replace />} />
+              <Route index element={<AdminHomePage />} />
               <Route path="productos-sugeridos" element={<ProductSuggestionsPage />} />
             </Route>
             <Route path="*" element={<HomePage />} />

@@ -1,7 +1,13 @@
 import type { ReactNode } from "react";
-import { Link, NavLink } from "react-router-dom";
+import { Link, NavLink, useLocation } from "react-router-dom";
+import { useAdminAuth } from "../auth/AdminAuth";
 
 export function Layout({ children }: { children: ReactNode }) {
+  const { isAdmin } = useAdminAuth();
+  const location = useLocation();
+  const isAdminArea = isAdmin && location.pathname.startsWith("/admin");
+  const howItWorksHref = location.pathname === "/" ? "#como-funciona" : "/#como-funciona";
+
   return (
     <div className="app-shell">
       <div className="ambient ambient-one" />
@@ -12,9 +18,13 @@ export function Layout({ children }: { children: ReactNode }) {
           <span>cuánto<span className="brand-domain">.uy</span></span>
         </Link>
         <nav className="site-nav" aria-label="Navegación principal">
-          <NavLink to="/" className={({ isActive }) => (isActive ? "active" : "")}>Explorar</NavLink>
-          <a href="#como-funciona">Cómo funciona</a>
-          <NavLink to="/admin/productos-sugeridos" className={({ isActive }) => (isActive ? "active" : "")}>Admin</NavLink>
+          {isAdminArea ? <>
+            <NavLink to="/admin" end className={({ isActive }) => (isActive ? "active" : "")}>Resumen</NavLink>
+            <NavLink to="/admin/productos-sugeridos" className={({ isActive }) => (isActive ? "active" : "")}>Sugerencias</NavLink>
+          </> : <>
+            <NavLink to="/" end className={({ isActive }) => (isActive ? "active" : "")}>Explorar</NavLink>
+            <a href={howItWorksHref}>Cómo funciona</a>
+          </>}
         </nav>
         <div className="live-pill"><span className="live-dot" /> Datos diarios</div>
       </header>
