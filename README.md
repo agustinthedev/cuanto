@@ -87,6 +87,7 @@ Desde `/admin/productos-sugeridos`, un administrador puede:
 5. Aprobar una propuesta sugerida para crear el producto canónico y sus publicaciones activas, o rechazarla para dejarla fuera del catálogo.
 
 La creación manual y la aprobación de sugerencias crean por defecto un producto de cantidad `1` y unidad `un`, porque el flujo actual solo solicita título, categoría y links. Si se necesita una presentación distinta, se debe incluir la cantidad en el título o ampliar el formulario.
+La creación manual reutiliza el producto existente cuando coinciden el nombre normalizado y la categoría, actualiza sus publicaciones y muestra una alerta si alguno de los links ya está asignado a otra publicación.
 Las propuestas pendientes son editables; las ya aprobadas o rechazadas quedan bloqueadas para no desincronizar el registro de revisión del producto canónico.
 
 No hace falta cargar `products.image_url` ni `store_products.image_url`: el scraper intenta obtener la imagen desde la publicación de cada cadena y la guarda automáticamente.
