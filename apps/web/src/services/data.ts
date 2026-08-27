@@ -93,7 +93,13 @@ export async function createProduct(name: string, categoryId: string, links: Arr
     p_category_id: categoryId,
     p_links: links,
   });
-  if (error) throw error;
+  if (error) {
+    const duplicateLinkPrefix = "The store link is already assigned to another product or store: ";
+    if (error.message.startsWith(duplicateLinkPrefix)) {
+      throw new Error(`El link ${error.message.slice(duplicateLinkPrefix.length)} ya está almacenado en otro producto o cadena.`);
+    }
+    throw error;
+  }
   return data as string;
 }
 

@@ -269,7 +269,7 @@ export function ProductSuggestionsPage() {
         {loading ? <div className="admin-loading"><div className="loading-orb" /><p>Cargando propuestas...</p></div> : filteredSuggestions.length ? <div className="suggestion-list">{filteredSuggestions.map((suggestion) => <SuggestionCard key={suggestion.id} suggestion={suggestion} categories={categories} stores={stores} onChanged={loadData} />)}</div> : <div className="state-message"><div className="state-icon">✓</div><div><h3>{filter === "pending" ? "No hay propuestas pendientes" : "Todavía no hay propuestas en esta vista"}</h3><p>Las nuevas cargas van a aparecer acá para que puedas revisarlas.</p></div></div>}
       </section>
 
-      {showCreateModal && <CreateProductModal categories={categories} stores={stores} onClose={() => setShowCreateModal(false)} onCreated={async () => { await loadData(); setSuccessMessage("Producto creado y agregado al catálogo."); }} />}
+      {showCreateModal && <CreateProductModal categories={categories} stores={stores} onClose={() => setShowCreateModal(false)} onCreated={async () => { await loadData(); setSuccessMessage("Producto guardado en el catálogo."); }} />}
     </div>
   );
 }
