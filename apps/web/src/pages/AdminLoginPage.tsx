@@ -11,7 +11,7 @@ export function AdminLoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const from = (location.state as { from?: string } | null)?.from ?? "/admin/productos-sugeridos";
+  const from = (location.state as { from?: string } | null)?.from ?? "/admin";
 
   useEffect(() => {
     if (session && isAdmin) navigate(from, { replace: true });
