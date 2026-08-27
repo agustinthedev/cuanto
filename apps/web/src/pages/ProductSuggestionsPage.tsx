@@ -46,7 +46,7 @@ function linksError(links: LinkDraft[], stores: Store[]) {
   return null;
 }
 
-function StoreLinkFields({ links, stores, onChange }: { links: LinkDraft[]; stores: Store[]; onChange: (storeId: string, url: string) => void }) {
+function StoreLinkFields({ links, stores, onChange, disabled = false }: { links: LinkDraft[]; stores: Store[]; onChange: (storeId: string, url: string) => void; disabled?: boolean }) {
   return (
     <div className="admin-links-list">
       {stores.map((store) => {
@@ -62,6 +62,7 @@ function StoreLinkFields({ links, stores, onChange }: { links: LinkDraft[]; stor
               placeholder="https://..."
               aria-label={`Link de ${store.name}`}
               required
+              disabled={disabled}
             />
             {validUrl ? <a className="admin-open-link" href={link?.url} target="_blank" rel="noreferrer noopener" aria-label={`Abrir link de ${store.name}`}>↗</a> : <span className="admin-open-link disabled" aria-hidden="true">↗</span>}
           </div>
@@ -178,18 +179,19 @@ function SuggestionCard({ suggestion, categories, stores, onChanged }: { suggest
   }
 
   const categoryName = categories.find((category) => category.id === categoryId)?.name ?? suggestion.category.name;
+  const editable = suggestion.status === "pending";
   return (
     <article className="suggestion-card">
       <div className="suggestion-card-topline"><span className={`suggestion-status suggestion-status-${suggestion.status}`}>{statusLabels[suggestion.status]}</span><span className="suggestion-date">Cargado {new Intl.DateTimeFormat("es-UY", { dateStyle: "medium" }).format(new Date(suggestion.created_at))}</span></div>
       {error && <div className="inline-alert" role="alert">{error}</div>}
       <form onSubmit={handleSave}>
         <div className="admin-form-grid">
-          <label>Título<input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={200} required /></label>
-          <label>Categoría<select value={categoryId} onChange={(event) => setCategoryId(event.target.value)} required>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select><small className="admin-field-hint">Actual: {categoryName}</small></label>
+          <label>Título<input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={200} required disabled={!editable} /></label>
+          <label>Categoría<select value={categoryId} onChange={(event) => setCategoryId(event.target.value)} required disabled={!editable}>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select><small className="admin-field-hint">{editable ? `Actual: ${categoryName}` : "Propuesta revisada; edición bloqueada"}</small></label>
         </div>
-        <fieldset className="admin-links-fieldset"><legend>Links por cadena</legend><StoreLinkFields links={links} stores={stores} onChange={(storeId, url) => setLinks((current) => current.map((link) => link.storeId === storeId ? { ...link, url } : link))} /></fieldset>
+        <fieldset className="admin-links-fieldset"><legend>Links por cadena</legend><div className={!editable ? "admin-readonly-links" : ""}><StoreLinkFields links={links} stores={stores} disabled={!editable} onChange={(storeId, url) => setLinks((current) => current.map((link) => link.storeId === storeId ? { ...link, url } : link))} /></div></fieldset>
         <div className="suggestion-actions">
-          <button className="button button-secondary" type="submit" disabled={busyAction !== null}>{busyAction === "save" ? "Guardando..." : "Guardar cambios"}</button>
+          {editable && <button className="button button-secondary" type="submit" disabled={busyAction !== null}>{busyAction === "save" ? "Guardando..." : "Guardar cambios"}</button>}
           {suggestion.status === "pending" && <><button className="button button-approve" type="button" onClick={() => void handleApprove()} disabled={busyAction !== null}>{busyAction === "approve" ? "Aprobando..." : "Aprobar"}</button><button className="button button-reject" type="button" onClick={() => void handleReject()} disabled={busyAction !== null}>{busyAction === "reject" ? "Rechazando..." : "Rechazar"}</button></>}
         </div>
       </form>

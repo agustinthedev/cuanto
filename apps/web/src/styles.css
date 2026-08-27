@@ -189,6 +189,8 @@ a { color: inherit; text-decoration: none; }
 .suggestion-status-rejected { color: #ffd1c5; background: rgba(219, 89, 77, .16); }
 .suggestion-date { color: #718691; font-size: 10px; }
 .admin-field-hint { color: #718691; font-size: 9px; font-weight: 400; }
+.admin-form-grid input:disabled, .admin-form-grid select:disabled, .admin-link-row input:disabled { color: #7d9198; opacity: .75; cursor: not-allowed; }
+.admin-readonly-links { opacity: .72; }
 .suggestion-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 9px; margin-top: 23px; }
 .button-approve { color: #07111f; background: #9cf6d4; }
 .button-reject { color: #ffd1c5; background: rgba(219, 89, 77, .12); border: 1px solid rgba(219, 89, 77, .27); }

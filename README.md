@@ -82,6 +82,7 @@ Desde `/admin/productos-sugeridos`, un administrador puede:
 4. Aprobar la propuesta para crear el producto canónico y sus publicaciones activas, o rechazarla para dejarla fuera del catálogo.
 
 La aprobación crea por defecto un producto de cantidad `1` y unidad `un`, porque la propuesta inicial solo solicita título, categoría y links. Si se necesita una presentación distinta, se debe incluir la cantidad en el título o ampliar el formulario antes de aprobar.
+Las propuestas pendientes son editables; las ya aprobadas o rechazadas quedan bloqueadas para no desincronizar el registro de revisión del producto canónico.
 
 No hace falta cargar `products.image_url` ni `store_products.image_url`: el scraper intenta obtener la imagen desde la publicación de cada cadena y la guarda automáticamente.
 
