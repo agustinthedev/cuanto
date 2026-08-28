@@ -38,7 +38,7 @@ export function AdminLoginPage() {
       <div className="admin-login-card">
         <span className="section-kicker">Acceso privado</span>
         <h1>Panel de administración</h1>
-        <p>Ingresá con tu cuenta autorizada para revisar productos sugeridos.</p>
+        <p>Ingresá con tu cuenta autorizada para gestionar el catálogo, revisar propuestas y monitorear los precios.</p>
         {!isSupabaseConfigured && <div className="inline-alert">La conexión con Supabase no está configurada en este entorno.</div>}
         {error && <div className="inline-alert" role="alert">{error}</div>}
         <form onSubmit={handleSubmit} className="admin-login-form">
@@ -46,7 +46,6 @@ export function AdminLoginPage() {
           <label>Contraseña<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /></label>
           <button className="button button-primary admin-submit-button" type="submit" disabled={submitting || !isSupabaseConfigured}>{submitting ? "Verificando..." : "Ingresar"}<span>↗</span></button>
         </form>
-        <small className="admin-login-note">La contraseña se valida mediante Supabase Auth y nunca se guarda en esta aplicación.</small>
       </div>
     </div>
   );

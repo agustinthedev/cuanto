@@ -112,7 +112,7 @@ export function AdminHomePage() {
         <>
           <div className="admin-stat-grid" aria-label="Métricas del panel">
             <div className="admin-stat-card"><span className="admin-stat-icon">◌</span><strong>{number(data.stats.products)}</strong><span>Productos seguidos</span></div>
-            <div className="admin-stat-card"><span className="admin-stat-icon">⌘</span><strong>{number(data.stats.stores)}</strong><span>Cadenas comparadas</span></div>
+            <div className="admin-stat-card"><span className="admin-stat-icon">◎</span><strong>{number(data.stats.stores)}</strong><span>Cadenas comparadas</span></div>
             <div className="admin-stat-card"><span className="admin-stat-icon">↗</span><strong>{number(data.stats.observations)}</strong><span>Precios registrados</span></div>
             <div className="admin-stat-card highlight"><span className="admin-stat-icon">!</span><strong>{number(data.suggestions.pending)}</strong><span>Propuestas pendientes</span></div>
           </div>

@@ -8,6 +8,7 @@ import {
   rejectProductSuggestion,
   updateProductSuggestion,
 } from "../services/data";
+import { StoreLogo } from "../components/StoreLogo";
 import type { Category, ProductSuggestion, ProductSuggestionStatus, Store } from "../services/types";
 
 type StatusFilter = ProductSuggestionStatus | "all";
@@ -53,7 +54,7 @@ function StoreLinkFields({ links, stores, onChange, disabled = false }: { links:
         const validUrl = Boolean(link?.url && isHttpUrl(link.url));
         return (
           <div className="admin-link-row" key={store.id}>
-            <span className="admin-store-label"><span className={`store-avatar store-${store.slug}`}>{store.name.slice(0, 1)}</span>{store.name}</span>
+            <span className="admin-store-label"><StoreLogo name={store.name} slug={store.slug} />{store.name}</span>
             <input
               type="url"
               value={link?.url ?? ""}
