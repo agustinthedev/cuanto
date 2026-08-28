@@ -36,6 +36,26 @@ function normalizeProduct(value: any): Product {
   };
 }
 
+type HomepagePriceRow = Pick<LatestPrice, "product_id" | "price" | "store_name">;
+
+export function attachLatestPrices(products: Product[], latestPrices: HomepagePriceRow[]): Product[] {
+  const bestPriceByProduct = new Map<string, { price: number; store: string }>();
+
+  latestPrices.forEach((row) => {
+    const price = Number(row.price);
+    if (!Number.isFinite(price) || price <= 0 || !row.store_name) return;
+    const current = bestPriceByProduct.get(row.product_id);
+    if (!current || price < current.price || (price === current.price && row.store_name.localeCompare(current.store, "es") < 0)) {
+      bestPriceByProduct.set(row.product_id, { price, store: row.store_name });
+    }
+  });
+
+  return products.map((product) => {
+    const bestPrice = bestPriceByProduct.get(product.id);
+    return bestPrice ? { ...product, current_price: bestPrice.price, best_store: bestPrice.store } : product;
+  });
+}
+
 function normalizeSuggestion(value: any): ProductSuggestion {
   const category = Array.isArray(value.category) ? value.category[0] : value.category;
   const links = (value.links ?? []).map((link: any): ProductSuggestionLink => ({
@@ -174,7 +194,16 @@ export async function getHomepageProducts(filters?: { search?: string; categoryI
   if (filters?.categoryId) query = query.eq("category_id", filters.categoryId);
   const { data, error } = await query;
   if (error) throw error;
-  return (data ?? []).map(normalizeProduct);
+  const products = (data ?? []).map(normalizeProduct);
+  if (!products.length) return products;
+
+  const { data: latestPrices, error: latestPricesError } = await supabase
+    .from("latest_store_product_prices")
+    .select("product_id,price,store_name")
+    .in("product_id", products.map((product) => product.id));
+  if (latestPricesError) throw latestPricesError;
+
+  return attachLatestPrices(products, (latestPrices ?? []) as HomepagePriceRow[]);
 }
 
 async function countRows(table: string, column = "id"): Promise<number> {
