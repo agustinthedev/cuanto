@@ -152,7 +152,7 @@ Build command: npm run build
 Output directory: apps/web/dist
 ```
 
-Las variables de entorno del proyecto son `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`. Para conectar `cuanto.uy`, agregar el dominio personalizado en Pages y apuntar el DNS según el instructivo que muestra Cloudflare; no hay secretos adicionales de Pages.
+Las variables de entorno del proyecto son `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` y `VITE_SCRAPER_URL`. Configurarlas en **Settings → Environment variables** para los entornos Production y Preview según corresponda; `VITE_SCRAPER_URL` debe apuntar a la URL pública del Worker, por ejemplo `https://cuanto-scraper.your-account.workers.dev`. Para conectar `cuanto.uy`, agregar el dominio personalizado en Pages y apuntar el DNS según el instructivo que muestra Cloudflare; no se debe configurar ninguna service-role key en Pages.
 
 ## Alcance actual
 

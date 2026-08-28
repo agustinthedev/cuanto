@@ -13,6 +13,7 @@ import type { Category, ProductSuggestion, ProductSuggestionStatus, Store } from
 
 type StatusFilter = ProductSuggestionStatus | "all";
 type LinkDraft = { storeId: string; url: string };
+type ApprovalNotice = (message: string, tone: "success" | "error") => void;
 
 const statusLabels: Record<ProductSuggestionStatus, string> = {
   pending: "Pendiente",
@@ -151,7 +152,7 @@ function CreateProductModal({ categories, stores, onClose, onCreated }: { catego
   );
 }
 
-function SuggestionCard({ suggestion, categories, stores, onChanged }: { suggestion: ProductSuggestion; categories: Category[]; stores: Store[]; onChanged: () => Promise<void> }) {
+function SuggestionCard({ suggestion, categories, stores, onChanged, onApprovalNotice }: { suggestion: ProductSuggestion; categories: Category[]; stores: Store[]; onChanged: () => Promise<void>; onApprovalNotice: ApprovalNotice }) {
   const [title, setTitle] = useState(suggestion.title);
   const [categoryId, setCategoryId] = useState(suggestion.category_id);
   const [links, setLinks] = useState<LinkDraft[]>(() => initialLinks(stores, suggestion));
@@ -200,7 +201,11 @@ function SuggestionCard({ suggestion, categories, stores, onChanged }: { suggest
         scrapeError = reason;
       }
       await onChanged();
-      if (scrapeError) setError(`Producto aprobado, pero no pudimos iniciar su actualización de precios. El cron diario lo intentará de nuevo. ${scrapeError instanceof Error ? scrapeError.message : ""}`.trim());
+      if (scrapeError) {
+        onApprovalNotice(`Producto aprobado, pero no pudimos iniciar su actualización de precios. El cron diario lo intentará de nuevo. ${scrapeError instanceof Error ? scrapeError.message : ""}`.trim(), "error");
+      } else {
+        onApprovalNotice("Producto aprobado. Se inició la actualización de precios.", "success");
+      }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "No pudimos aprobar la propuesta.");
     } finally {
@@ -288,7 +293,7 @@ export function ProductSuggestionsPage() {
 
       <section className="admin-review-section">
         <div className="admin-card-heading"><div><span className="section-kicker">Bandeja de revisión</span><h2>Propuestas cargadas</h2></div><div className="admin-filter-tabs" role="tablist" aria-label="Filtrar propuestas">{(["pending", "approved", "rejected", "all"] as StatusFilter[]).map((item) => <button key={item} className={filter === item ? "selected" : ""} onClick={() => setFilter(item)} role="tab" aria-selected={filter === item}>{item === "all" ? "Todas" : statusLabels[item]}</button>)}</div></div>
-        {loading ? <div className="admin-loading"><div className="loading-orb" /><p>Cargando propuestas...</p></div> : filteredSuggestions.length ? <div className="suggestion-list">{filteredSuggestions.map((suggestion) => <SuggestionCard key={suggestion.id} suggestion={suggestion} categories={categories} stores={stores} onChanged={loadData} />)}</div> : <div className="state-message"><div className="state-icon">✓</div><div><h3>{filter === "pending" ? "No hay propuestas pendientes" : "Todavía no hay propuestas en esta vista"}</h3><p>Las nuevas cargas van a aparecer acá para que puedas revisarlas.</p></div></div>}
+        {loading ? <div className="admin-loading"><div className="loading-orb" /><p>Cargando propuestas...</p></div> : filteredSuggestions.length ? <div className="suggestion-list">{filteredSuggestions.map((suggestion) => <SuggestionCard key={suggestion.id} suggestion={suggestion} categories={categories} stores={stores} onChanged={loadData} onApprovalNotice={(message, tone) => { if (tone === "error") { setSuccessMessage(null); setError(message); } else { setError(null); setSuccessMessage(message); } }} />)}</div> : <div className="state-message"><div className="state-icon">✓</div><div><h3>{filter === "pending" ? "No hay propuestas pendientes" : "Todavía no hay propuestas en esta vista"}</h3><p>Las nuevas cargas van a aparecer acá para que puedas revisarlas.</p></div></div>}
       </section>
 
       {showCreateModal && <CreateProductModal categories={categories} stores={stores} onClose={() => setShowCreateModal(false)} onCreated={async () => { await loadData(); setSuccessMessage("Producto guardado en el catálogo."); }} />}
