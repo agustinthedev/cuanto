@@ -6,6 +6,7 @@ import {
   getCategories,
   getProductSuggestions,
   rejectProductSuggestion,
+  triggerProductScrape,
   updateProductSuggestion,
 } from "../services/data";
 import type { Category, ProductSuggestion, ProductSuggestionStatus, Store } from "../services/types";
@@ -185,14 +186,21 @@ function SuggestionCard({ suggestion, categories, stores, onChanged }: { suggest
     }
     setBusyAction("approve");
     try {
-      await approveProductSuggestion(
+      const productId = await approveProductSuggestion(
         suggestion.id,
         title,
         categoryId,
         links.map((link) => ({ store_id: link.storeId, url: link.url.trim() })),
         suggestion.updated_at,
       );
+      let scrapeError: unknown = null;
+      try {
+        await triggerProductScrape(productId);
+      } catch (reason) {
+        scrapeError = reason;
+      }
       await onChanged();
+      if (scrapeError) setError(`Producto aprobado, pero no pudimos iniciar su actualización de precios. El cron diario lo intentará de nuevo. ${scrapeError instanceof Error ? scrapeError.message : ""}`.trim());
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "No pudimos aprobar la propuesta.");
     } finally {
