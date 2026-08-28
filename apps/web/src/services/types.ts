@@ -41,6 +41,8 @@ export interface Product {
   image_url: string | null;
   category: Category | null;
   created_at: string;
+  current_price?: number;
+  best_store?: string;
 }
 
 export interface LatestPrice {
