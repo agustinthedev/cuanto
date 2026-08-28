@@ -6,6 +6,7 @@ import {
   getCategories,
   getProductSuggestions,
   rejectProductSuggestion,
+  triggerProductScrape,
   updateProductSuggestion,
 } from "../services/data";
 import { StoreLogo } from "../components/StoreLogo";
@@ -13,6 +14,7 @@ import type { Category, ProductSuggestion, ProductSuggestionStatus, Store } from
 
 type StatusFilter = ProductSuggestionStatus | "all";
 type LinkDraft = { storeId: string; url: string };
+type ApprovalNotice = (message: string, tone: "success" | "error") => void;
 
 const statusLabels: Record<ProductSuggestionStatus, string> = {
   pending: "Pendiente",
@@ -46,7 +48,7 @@ function linksError(links: LinkDraft[], stores: Store[]) {
   return null;
 }
 
-function StoreLinkFields({ links, stores, onChange, disabled = false }: { links: LinkDraft[]; stores: Store[]; onChange: (storeId: string, url: string) => void; disabled?: boolean }) {
+function StoreLinkFields({ links, stores, onChange, disabled = false, showMissingWarning = false }: { links: LinkDraft[]; stores: Store[]; onChange: (storeId: string, url: string) => void; disabled?: boolean; showMissingWarning?: boolean }) {
   return (
     <div className="admin-links-list">
       {stores.map((store) => {
@@ -55,15 +57,18 @@ function StoreLinkFields({ links, stores, onChange, disabled = false }: { links:
         return (
           <div className="admin-link-row" key={store.id}>
             <span className="admin-store-label"><StoreLogo name={store.name} slug={store.slug} />{store.name}</span>
-            <input
-              type="url"
-              value={link?.url ?? ""}
-              onChange={(event) => onChange(store.id, event.target.value)}
-              placeholder="https://..."
-              aria-label={`Link de ${store.name}`}
-              required
-              disabled={disabled}
-            />
+            <div className="admin-link-input-wrap">
+              <input
+                type="url"
+                value={link?.url ?? ""}
+                onChange={(event) => onChange(store.id, event.target.value)}
+                placeholder="https://..."
+                aria-label={`Link de ${store.name}`}
+                required
+                disabled={disabled}
+              />
+              {showMissingWarning && !link?.url.trim() && <small className="admin-missing-link-warning" role="status">⚠ No se encontró una coincidencia exacta para esta cadena.</small>}
+            </div>
             {validUrl ? <a className="admin-open-link" href={link?.url} target="_blank" rel="noreferrer noopener" aria-label={`Abrir link de ${store.name}`}>↗</a> : <span className="admin-open-link disabled" aria-hidden="true">↗</span>}
           </div>
         );
@@ -148,7 +153,7 @@ function CreateProductModal({ categories, stores, onClose, onCreated }: { catego
   );
 }
 
-function SuggestionCard({ suggestion, categories, stores, onChanged }: { suggestion: ProductSuggestion; categories: Category[]; stores: Store[]; onChanged: () => Promise<void> }) {
+function SuggestionCard({ suggestion, categories, stores, onChanged, onApprovalNotice }: { suggestion: ProductSuggestion; categories: Category[]; stores: Store[]; onChanged: () => Promise<void>; onApprovalNotice: ApprovalNotice }) {
   const [title, setTitle] = useState(suggestion.title);
   const [categoryId, setCategoryId] = useState(suggestion.category_id);
   const [links, setLinks] = useState<LinkDraft[]>(() => initialLinks(stores, suggestion));
@@ -176,10 +181,32 @@ function SuggestionCard({ suggestion, categories, stores, onChanged }: { suggest
 
   async function handleApprove() {
     setError(null);
+    const linkValidation = linksError(links, stores);
+    if (linkValidation) {
+      setError(linkValidation);
+      return;
+    }
     setBusyAction("approve");
     try {
-      await approveProductSuggestion(suggestion.id);
+      const productId = await approveProductSuggestion(
+        suggestion.id,
+        title,
+        categoryId,
+        links.map((link) => ({ store_id: link.storeId, url: link.url.trim() })),
+        suggestion.updated_at,
+      );
+      let scrapeError: unknown = null;
+      try {
+        await triggerProductScrape(productId);
+      } catch (reason) {
+        scrapeError = reason;
+      }
       await onChanged();
+      if (scrapeError) {
+        onApprovalNotice(`Producto aprobado, pero no pudimos iniciar su actualización de precios. El cron diario lo intentará de nuevo. ${scrapeError instanceof Error ? scrapeError.message : ""}`.trim(), "error");
+      } else {
+        onApprovalNotice("Producto aprobado. Se inició la actualización de precios.", "success");
+      }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "No pudimos aprobar la propuesta.");
     } finally {
@@ -212,7 +239,7 @@ function SuggestionCard({ suggestion, categories, stores, onChanged }: { suggest
           <label>Título<input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={200} required disabled={!editable} /></label>
           <label>Categoría<select value={categoryId} onChange={(event) => setCategoryId(event.target.value)} required disabled={!editable}>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select><small className="admin-field-hint">{editable ? `Actual: ${categoryName}` : "Propuesta revisada; edición bloqueada"}</small></label>
         </div>
-        <fieldset className="admin-links-fieldset"><legend>Links por cadena</legend><div className={!editable ? "admin-readonly-links" : ""}><StoreLinkFields links={links} stores={stores} disabled={!editable} onChange={(storeId, url) => setLinks((current) => current.map((link) => link.storeId === storeId ? { ...link, url } : link))} /></div></fieldset>
+        <fieldset className="admin-links-fieldset"><legend>Links por cadena</legend><div className={!editable ? "admin-readonly-links" : ""}><StoreLinkFields links={links} stores={stores} disabled={!editable} showMissingWarning onChange={(storeId, url) => setLinks((current) => current.map((link) => link.storeId === storeId ? { ...link, url } : link))} /></div></fieldset>
         <div className="suggestion-actions">
           {editable && <button className="button button-secondary" type="submit" disabled={busyAction !== null}>{busyAction === "save" ? "Guardando..." : "Guardar cambios"}</button>}
           {suggestion.status === "pending" && <><button className="button button-approve" type="button" onClick={() => void handleApprove()} disabled={busyAction !== null}>{busyAction === "approve" ? "Aprobando..." : "Aprobar"}</button><button className="button button-reject" type="button" onClick={() => void handleReject()} disabled={busyAction !== null}>{busyAction === "reject" ? "Rechazando..." : "Rechazar"}</button></>}
@@ -267,7 +294,7 @@ export function ProductSuggestionsPage() {
 
       <section className="admin-review-section">
         <div className="admin-card-heading"><div><span className="section-kicker">Bandeja de revisión</span><h2>Propuestas cargadas</h2></div><div className="admin-filter-tabs" role="tablist" aria-label="Filtrar propuestas">{(["pending", "approved", "rejected", "all"] as StatusFilter[]).map((item) => <button key={item} className={filter === item ? "selected" : ""} onClick={() => setFilter(item)} role="tab" aria-selected={filter === item}>{item === "all" ? "Todas" : statusLabels[item]}</button>)}</div></div>
-        {loading ? <div className="admin-loading"><div className="loading-orb" /><p>Cargando propuestas...</p></div> : filteredSuggestions.length ? <div className="suggestion-list">{filteredSuggestions.map((suggestion) => <SuggestionCard key={suggestion.id} suggestion={suggestion} categories={categories} stores={stores} onChanged={loadData} />)}</div> : <div className="state-message"><div className="state-icon">✓</div><div><h3>{filter === "pending" ? "No hay propuestas pendientes" : "Todavía no hay propuestas en esta vista"}</h3><p>Las nuevas cargas van a aparecer acá para que puedas revisarlas.</p></div></div>}
+        {loading ? <div className="admin-loading"><div className="loading-orb" /><p>Cargando propuestas...</p></div> : filteredSuggestions.length ? <div className="suggestion-list">{filteredSuggestions.map((suggestion) => <SuggestionCard key={suggestion.id} suggestion={suggestion} categories={categories} stores={stores} onChanged={loadData} onApprovalNotice={(message, tone) => { if (tone === "error") { setSuccessMessage(null); setError(message); } else { setError(null); setSuccessMessage(message); } }} />)}</div> : <div className="state-message"><div className="state-icon">✓</div><div><h3>{filter === "pending" ? "No hay propuestas pendientes" : "Todavía no hay propuestas en esta vista"}</h3><p>Las nuevas cargas van a aparecer acá para que puedas revisarlas.</p></div></div>}
       </section>
 
       {showCreateModal && <CreateProductModal categories={categories} stores={stores} onClose={() => setShowCreateModal(false)} onCreated={async () => { await loadData(); setSuccessMessage("Producto guardado en el catálogo."); }} />}
