@@ -15,6 +15,9 @@ import type {
   Store,
   StorePrice,
 } from "./types";
+import { demoAveragePrices, demoCategories, demoProducts, demoStats, demoStores, getDemoProductPageData } from "./demoData";
+
+const isDemoMode = import.meta.env.VITE_DEMO_MODE === "true";
 
 const productSelect = "id,name,brand,quantity,unit,image_url,created_at,category:categories(id,name,slug)";
 const suggestionSelect = "id,title,category_id,status,created_at,updated_at,reviewed_at,category:categories(id,name,slug),links:product_suggestion_store_links(id,suggestion_id,store_id,url,store:stores(id,name,slug))";
@@ -31,6 +34,26 @@ function normalizeProduct(value: any): Product {
     category: category ?? null,
     created_at: value.created_at,
   };
+}
+
+type HomepagePriceRow = Pick<LatestPrice, "product_id" | "price" | "store_name">;
+
+export function attachLatestPrices(products: Product[], latestPrices: HomepagePriceRow[]): Product[] {
+  const bestPriceByProduct = new Map<string, { price: number; store: string }>();
+
+  latestPrices.forEach((row) => {
+    const price = Number(row.price);
+    if (!Number.isFinite(price) || price <= 0 || !row.store_name) return;
+    const current = bestPriceByProduct.get(row.product_id);
+    if (!current || price < current.price || (price === current.price && row.store_name.localeCompare(current.store, "es") < 0)) {
+      bestPriceByProduct.set(row.product_id, { price, store: row.store_name });
+    }
+  });
+
+  return products.map((product) => {
+    const bestPrice = bestPriceByProduct.get(product.id);
+    return bestPrice ? { ...product, current_price: bestPrice.price, best_store: bestPrice.store } : product;
+  });
 }
 
 function normalizeSuggestion(value: any): ProductSuggestion {
@@ -56,6 +79,7 @@ function normalizeSuggestion(value: any): ProductSuggestion {
 }
 
 export async function getCategories(): Promise<Category[]> {
+  if (isDemoMode) return demoCategories;
   if (!supabase) return [];
   const { data, error } = await supabase.from("categories").select("id,name,slug").order("name");
   if (error) throw error;
@@ -63,6 +87,7 @@ export async function getCategories(): Promise<Category[]> {
 }
 
 export async function getAdminStores(): Promise<Store[]> {
+  if (isDemoMode) return demoStores;
   if (!supabase) throw new Error("Supabase no está configurado.");
   const { data, error } = await supabase.from("stores").select("id,name,slug").order("name");
   if (error) throw error;
@@ -70,6 +95,7 @@ export async function getAdminStores(): Promise<Store[]> {
 }
 
 export async function getProductSuggestions(): Promise<ProductSuggestion[]> {
+  if (isDemoMode) return [];
   if (!supabase) throw new Error("Supabase no está configurado.");
   const { data, error } = await supabase.from("product_suggestions").select(suggestionSelect).order("created_at", { ascending: false });
   if (error) throw error;
@@ -154,13 +180,30 @@ export async function rejectProductSuggestion(id: string): Promise<void> {
 }
 
 export async function getHomepageProducts(filters?: { search?: string; categoryId?: string }): Promise<Product[]> {
+  if (isDemoMode) {
+    const searchValue = filters?.search?.trim().toLocaleLowerCase("es-UY") ?? "";
+    return demoProducts.filter((product) => {
+      const matchesSearch = !searchValue || `${product.name} ${product.brand ?? ""}`.toLocaleLowerCase("es-UY").includes(searchValue);
+      const matchesCategory = !filters?.categoryId || product.category?.id === filters.categoryId;
+      return matchesSearch && matchesCategory;
+    });
+  }
   if (!supabase) return [];
   let query = supabase.from("products").select(productSelect).order("created_at", { ascending: false }).limit(24);
   if (filters?.search?.trim()) query = query.ilike("name", `%${filters.search.trim()}%`);
   if (filters?.categoryId) query = query.eq("category_id", filters.categoryId);
   const { data, error } = await query;
   if (error) throw error;
-  return (data ?? []).map(normalizeProduct);
+  const products = (data ?? []).map(normalizeProduct);
+  if (!products.length) return products;
+
+  const { data: latestPrices, error: latestPricesError } = await supabase
+    .from("latest_store_product_prices")
+    .select("product_id,price,store_name")
+    .in("product_id", products.map((product) => product.id));
+  if (latestPricesError) throw latestPricesError;
+
+  return attachLatestPrices(products, (latestPrices ?? []) as HomepagePriceRow[]);
 }
 
 async function countRows(table: string, column = "id"): Promise<number> {
@@ -201,6 +244,7 @@ function fillObservationHistory(rows: PriceObservationDay[], startDate: string, 
 }
 
 export async function getHomepageStats(): Promise<HomepageStats> {
+  if (isDemoMode) return demoStats;
   if (!supabase) return { products: 0, stores: 0, observations: 0, days: 0 };
   const [products, stores, observations, days] = await Promise.all([
     countRows("products"),
@@ -212,6 +256,13 @@ export async function getHomepageStats(): Promise<HomepageStats> {
 }
 
 export async function getAdminDashboardData(): Promise<AdminDashboardData> {
+  if (isDemoMode) {
+    return {
+      stats: demoStats,
+      suggestions: { pending: 0, approved: 0, rejected: 0, total: 0 },
+      observationHistory: demoAveragePrices.map((item) => ({ date: item.date, observation_count: item.observation_count })),
+    };
+  }
   if (!supabase) {
     return {
       stats: { products: 0, stores: 0, observations: 0, days: 0 },
@@ -246,6 +297,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
 }
 
 export async function getProductPageData(id: string): Promise<ProductPageData> {
+  if (isDemoMode) return getDemoProductPageData(id);
   if (!supabase) return { product: null, latestPrices: [], averagePrices: [], storePrices: [] };
   const [productResult, latestResult, averageResult, storeResult] = await Promise.all([
     supabase.from("products").select(productSelect).eq("id", id).maybeSingle(),
