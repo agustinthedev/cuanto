@@ -53,6 +53,7 @@ npm run build
 ```text
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=...
+VITE_SCRAPER_URL=https://cuanto-scraper.your-account.workers.dev
 ```
 
 La anon key es pública y solo permite lecturas públicas. RLS y los grants bloquean cambios anónimos; las mutaciones del panel pasan por Supabase Auth, RLS y funciones SQL con `security definer`. La `SUPABASE_SERVICE_ROLE_KEY` nunca debe entrar en `apps/web`.
@@ -116,7 +117,7 @@ npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
 npm run scraper:deploy
 ```
 
-El cron inicial es `0 7 * * *` en UTC dentro de `apps/scraper/wrangler.jsonc`; se puede cambiar allí. El endpoint `/health` es solo una comprobación pública; no existe un endpoint público para disparar scrapes manuales.
+Configurar también la variable `CORS_ORIGIN` del Worker con el origen exacto de la web, por ejemplo `https://cuanto.uy` (en desarrollo, `http://localhost:5173`). El cron inicial es `0 7 * * *` en UTC dentro de `apps/scraper/wrangler.jsonc`; se puede cambiar allí. El endpoint `/health` es una comprobación pública. Los administradores autenticados pueden solicitar un scrape puntual con `POST /scrape/product` y un cuerpo `{ "product_id": "..." }`; el Worker valida el token de Supabase y procesa solo las publicaciones activas de ese producto.
 
 ### Fuentes verificadas y decisiones de adapters
 
