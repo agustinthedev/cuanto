@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { getRailScrollState } from "./railState";
 
 export function ProductRail({ children, label }: { children: ReactNode; label: string }) {
   const railRef = useRef<HTMLDivElement>(null);
@@ -8,8 +9,9 @@ export function ProductRail({ children, label }: { children: ReactNode; label: s
   const updateScrollState = useCallback(() => {
     const rail = railRef.current;
     if (!rail) return;
-    setCanScrollLeft(rail.scrollLeft > 4);
-    setCanScrollRight(rail.scrollLeft + rail.clientWidth < rail.scrollWidth - 4);
+    const nextState = getRailScrollState(rail.scrollLeft, rail.clientWidth, rail.scrollWidth);
+    setCanScrollLeft(nextState.canScrollLeft);
+    setCanScrollRight(nextState.canScrollRight);
   }, []);
 
   useEffect(() => {
@@ -18,11 +20,17 @@ export function ProductRail({ children, label }: { children: ReactNode; label: s
     updateScrollState();
     rail.addEventListener("scroll", updateScrollState, { passive: true });
     window.addEventListener("resize", updateScrollState);
+    const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updateScrollState);
+    resizeObserver?.observe(rail);
+    const mutationObserver = typeof MutationObserver === "undefined" ? null : new MutationObserver(updateScrollState);
+    mutationObserver?.observe(rail, { childList: true });
     return () => {
       rail.removeEventListener("scroll", updateScrollState);
       window.removeEventListener("resize", updateScrollState);
+      resizeObserver?.disconnect();
+      mutationObserver?.disconnect();
     };
-  }, [updateScrollState]);
+  }, [children, updateScrollState]);
 
   const move = (direction: -1 | 1) => {
     const rail = railRef.current;
