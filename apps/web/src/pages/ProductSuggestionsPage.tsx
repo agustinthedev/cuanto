@@ -175,9 +175,19 @@ function SuggestionCard({ suggestion, categories, stores, onChanged }: { suggest
 
   async function handleApprove() {
     setError(null);
+    const linkValidation = linksError(links, stores);
+    if (linkValidation) {
+      setError(linkValidation);
+      return;
+    }
     setBusyAction("approve");
     try {
-      await approveProductSuggestion(suggestion.id);
+      await approveProductSuggestion(
+        suggestion.id,
+        title,
+        categoryId,
+        links.map((link) => ({ store_id: link.storeId, url: link.url.trim() })),
+      );
       await onChanged();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "No pudimos aprobar la propuesta.");
