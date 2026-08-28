@@ -1,6 +1,15 @@
-import { extractPriceFromText } from "../price";
+import { extractJsonPrice, extractPriceFromText } from "../price";
 import type { ScrapeResult, StoreProductRecord, StoreScraper } from "../types";
 import { extractProductImageFromHtml, htmlToText, requireResponseText } from "./base";
+
+function metaContent(html: string, property: string): string | undefined {
+  const metaTags = html.match(/<meta\b[^>]*>/gi) ?? [];
+  const tag = metaTags.find((candidate) => {
+    const value = candidate.match(/\bproperty\s*=\s*(["'])(.*?)\1/i)?.[2];
+    return value?.toLowerCase() === property.toLowerCase();
+  });
+  return tag?.match(/\bcontent\s*=\s*(["'])(.*?)\1/i)?.[2];
+}
 
 export function parseDiscoHtml(html: string): number {
   const originalPriceBlock = html.match(
@@ -9,7 +18,10 @@ export function parseDiscoHtml(html: string): number {
 
   if (originalPriceBlock) return extractPriceFromText(htmlToText(originalPriceBlock));
 
-  return extractPriceFromText(htmlToText(html));
+  const originalPrice = metaContent(html, "product:price:amount");
+  if (originalPrice) return extractJsonPrice(Number(originalPrice));
+
+  throw new Error("Disco no incluyó un precio original identificable");
 }
 
 export const discoScraper: StoreScraper = {

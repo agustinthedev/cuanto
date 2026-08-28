@@ -15,6 +15,23 @@ describe("adapters de supermercados", () => {
     expect(parseDiscoHtml(fixture("disco-product.html"))).toBe(230);
   });
 
+  it("prioriza el precio original de Disco en metadatos sobre precio y descuento promocionales", () => {
+    expect(parseDiscoHtml(`
+      <meta property="product:price:amount" content="1299.00">
+      <div class="product-prices">
+        <div class="price"><span class="mon">$</span><span class="val">197</span></div>
+        <div class="lbl-dcto">20%</div>
+      </div>
+    `)).toBe(1299);
+  });
+
+  it("no usa un precio promocional como precio original de Disco si faltan señales explícitas", () => {
+    expect(() => parseDiscoHtml(`
+      <div class="price"><span class="mon">$</span><span class="val">197</span></div>
+      <div class="lbl-dcto">20%</div>
+    `)).toThrow("Disco no incluyó un precio original identificable");
+  });
+
   it("extrae Tienda Inglesa con decimal uruguayo", () => {
     expect(parseTiendaInglesaHtml(fixture("tienda-product.html"))).toBe(149.9);
   });
