@@ -1,7 +1,13 @@
 import { Link } from "react-router-dom";
+import { StoreLogo } from "./StoreLogo";
 import type { Product } from "../services/types";
 
+function money(value: number) {
+  return new Intl.NumberFormat("es-UY", { style: "currency", currency: "UYU", maximumFractionDigits: 0 }).format(value);
+}
+
 export function ProductCard({ product }: { product: Product }) {
+  const hasPrice = typeof product.current_price === "number";
   return (
     <Link className="product-card" to={`/productos/${product.id}`}>
       <div className="product-image-wrap">
@@ -13,11 +19,14 @@ export function ProductCard({ product }: { product: Product }) {
           </div>
         )}
         <span className="card-arrow">↗</span>
+        <span className="card-image-label"><span className="live-dot" />Precio actual</span>
       </div>
       <div className="product-card-body">
-        <span className="product-category">{product.category?.name ?? "Producto seguido"}</span>
+        <div className="card-topline"><span className="product-category">{product.category?.name ?? "Producto seguido"}</span>{product.best_store ? <span className="card-store"><StoreLogo name={product.best_store} compact /><span>{product.best_store}</span></span> : <span className="card-open">Ver detalle</span>}</div>
         <h3>{product.name}</h3>
         <p>{product.brand ? `${product.brand} · ` : ""}{product.quantity} {product.unit}</p>
+        <div className="card-price-row">{hasPrice ? <strong>{money(product.current_price as number)}</strong> : <strong>Ver precios</strong>}</div>
+        <div className="card-footer"><span>{hasPrice ? "Comparación disponible" : "Historial disponible"}</span><span>→</span></div>
       </div>
     </Link>
   );
