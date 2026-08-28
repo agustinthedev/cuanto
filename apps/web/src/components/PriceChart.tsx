@@ -1,5 +1,7 @@
-import type { AveragePrice, StorePrice } from "../services/types";
-import { useState } from "react";
+import type { AveragePrice, LatestPrice, StorePrice } from "../services/types";
+import { useEffect, useState } from "react";
+import { dateDaysBefore } from "./dateRange";
+import { StoreLogo } from "./StoreLogo";
 
 const storeColors = ["#9cf6d4", "#a8b8ff", "#ffc28f", "#ef9be7"];
 
@@ -23,6 +25,68 @@ function signedPercentageLabel(value: number) {
   if (value === 0) return exactPercentageLabel(0);
   return `${value < 0 ? "−" : "+"}${exactPercentageLabel(value)}`;
 }
+
+function money(value: number) {
+  return new Intl.NumberFormat("es-UY", { style: "currency", currency: "UYU", maximumFractionDigits: 2 }).format(value);
+}
+
+function percentageDifference(value: number, base: number) {
+  return new Intl.NumberFormat("es-UY", { style: "percent", maximumFractionDigits: 1 }).format(base ? value / base : 0);
+}
+
+export function PriceBarChart({ data }: { data: LatestPrice[] }) {
+  const sortedPrices = [...data].sort((left, right) => Number(left.price) - Number(right.price));
+  if (!sortedPrices.length) return <div className="chart-empty">Todavía no hay precios comparables.</div>;
+
+  const lowestPrice = Number(sortedPrices[0].price);
+  const highestPrice = Number(sortedPrices[sortedPrices.length - 1].price);
+  const spread = highestPrice - lowestPrice || 1;
+
+  return (
+    <div className="price-bars" role="list" aria-label="Últimos precios por cadena">
+      <div className="price-bars-intro">
+        <div>
+          <strong>{sortedPrices.length} cadenas comparadas</strong>
+          <span>La barra muestra la distancia relativa frente al precio más bajo.</span>
+        </div>
+        <span className="price-bars-key"><i /> Mejor precio</span>
+      </div>
+      <div className="price-vertical-stage">
+        {sortedPrices.map((item) => {
+          const price = Number(item.price);
+          const isBest = item.store_product_id === sortedPrices[0].store_product_id;
+          const barHeight = Math.max(30, 38 + ((price - lowestPrice) / spread) * 62);
+          const difference = price - lowestPrice;
+          return (
+            <a
+              href={item.url}
+              target="_blank"
+              rel="noreferrer"
+              className={`price-bar-row${isBest ? " is-best" : ""}`}
+              key={item.store_product_id}
+              role="listitem"
+              aria-label={`${item.store_name}: ${money(price)}${isBest ? ", mejor precio" : ", ver en la tienda"}`}
+            >
+              <span className="price-vertical-value"><strong>{money(price)}</strong><small>{isBest ? "Mejor precio" : `+${money(difference)} (${percentageDifference(difference, lowestPrice)})`}</small></span>
+              <span className="price-vertical-track" aria-hidden="true"><i style={{ height: `${barHeight}%` }} /></span>
+              <span className="price-vertical-store"><StoreLogo compact name={item.store_name} slug={item.store_slug} /><strong>{item.store_name}</strong></span>
+              <span className="price-vertical-footer">Ver en tienda <b>↗</b></span>
+            </a>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+type AverageRangeKey = "7d" | "30d" | "90d" | "365d" | "custom";
+
+const averageRangeOptions: Array<{ key: Exclude<AverageRangeKey, "custom">; label: string; days: number }> = [
+  { key: "7d", label: "7D", days: 7 },
+  { key: "30d", label: "30D", days: 30 },
+  { key: "90d", label: "90D", days: 90 },
+  { key: "365d", label: "365D", days: 365 },
+];
 
 function chartPoints(values: number[], width: number, height: number, padding: number) {
   if (!values.length) return [];
@@ -83,7 +147,7 @@ function ChartPointLabel({ point, value, width, height, padding }: { point: { x:
   );
 }
 
-function AverageChangeBadge({ firstValue, lastValue }: { firstValue: number; lastValue: number }) {
+function AverageChangeBadge({ firstValue, lastValue, rangeLabel }: { firstValue: number; lastValue: number; rangeLabel: string }) {
   const change = lastValue - firstValue;
   const percentage = firstValue ? change / firstValue : 0;
   const direction = change < 0 ? "Bajó" : change > 0 ? "Subió" : "Sin cambio";
@@ -92,10 +156,10 @@ function AverageChangeBadge({ firstValue, lastValue }: { firstValue: number; las
     : `${direction} ${exactPriceLabel(Math.abs(change))} (${signedPercentageLabel(percentage)})`;
 
   return (
-    <div className={`chart-change-badge ${change < 0 ? "is-decrease" : change > 0 ? "is-increase" : "is-neutral"}`} aria-label={`Variación desde el primer día: ${changeSummary}`}>
+    <div className={`chart-change-badge ${change < 0 ? "is-decrease" : change > 0 ? "is-increase" : "is-neutral"}`} aria-label={`Variación ${rangeLabel}: ${changeSummary}`}>
       <span className="chart-change-arrow" aria-hidden="true">{change < 0 ? "↓" : change > 0 ? "↑" : "→"}</span>
       <span className="chart-change-copy">
-        <small>Desde el primer día</small>
+        <small>{rangeLabel}</small>
         <strong>{direction}{change !== 0 && ` ${exactPriceLabel(Math.abs(change))}`}</strong>
       </span>
       <span className="chart-change-percent">{signedPercentageLabel(percentage)}</span>
@@ -105,19 +169,64 @@ function AverageChangeBadge({ firstValue, lastValue }: { firstValue: number; las
 
 export function AverageChart({ data }: { data: AveragePrice[] }) {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const [rangeKey, setRangeKey] = useState<AverageRangeKey>("30d");
+  const [customStartDate, setCustomStartDate] = useState(data[0]?.date ?? "");
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+  useEffect(() => {
+    setRangeKey("30d");
+    setCustomStartDate(data[0]?.date ?? "");
+    setActiveIndex(null);
+    setIsDatePickerOpen(false);
+  }, [data]);
   if (!data.length) return <div className="chart-empty">Todavía no hay días suficientes para graficar.</div>;
   const width = 760;
   const height = 260;
   const padding = 34;
-  const points = chartPoints(data.map((item) => Number(item.average_price)), width, height, padding);
-  const values = data.map((item) => Number(item.average_price));
+  const firstAvailableDate = data[0].date;
+  const lastAvailableDate = data[data.length - 1].date;
+  const selectedRange = averageRangeOptions.find((option) => option.key === rangeKey);
+  const requestedStartDate = rangeKey === "custom"
+    ? customStartDate || firstAvailableDate
+    : dateDaysBefore(lastAvailableDate, (selectedRange?.days ?? 30) - 1);
+  const startDate = requestedStartDate < firstAvailableDate ? firstAvailableDate : requestedStartDate > lastAvailableDate ? lastAvailableDate : requestedStartDate;
+  const visibleData = data.filter((item) => item.date >= startDate && item.date <= lastAvailableDate);
+  const points = chartPoints(visibleData.map((item) => Number(item.average_price)), width, height, padding);
+  const values = visibleData.map((item) => Number(item.average_price));
   const min = 0;
   const max = Math.max(...values);
   const range = max - min || 1;
+  const rangeLabel = rangeKey === "custom" ? `Desde ${shortDate(startDate)}` : `Últimos ${selectedRange?.days ?? 30} días`;
+  const dateChoices = data.length <= 14 ? data : data.filter((_, index) => index === 0 || index === data.length - 1 || index % Math.ceil(data.length / 10) === 0).slice(-12);
+  const chooseCustomDate = (date: string) => {
+    setCustomStartDate(date);
+    setRangeKey("custom");
+    setActiveIndex(null);
+    setIsDatePickerOpen(false);
+  };
 
   return (
     <div className="chart-wrap">
-      <AverageChangeBadge firstValue={values[0]} lastValue={values[values.length - 1]} />
+      <div className="chart-range-toolbar">
+        <div className="chart-range-options" role="group" aria-label="Seleccionar rango de fechas">
+          <span className="chart-range-title">Rango</span>
+          {averageRangeOptions.map((option) => <button key={option.key} type="button" className={`chart-range-button ${rangeKey === option.key ? "is-active" : ""}`} aria-pressed={rangeKey === option.key} onClick={() => { setRangeKey(option.key); setActiveIndex(null); }}>{option.label}</button>)}
+        </div>
+        <div className={`chart-date-picker ${rangeKey === "custom" ? "is-active" : ""} ${isDatePickerOpen ? "is-open" : ""}`}>
+          <button type="button" className="chart-date-trigger" aria-haspopup="dialog" aria-expanded={isDatePickerOpen} onClick={() => setIsDatePickerOpen((open) => !open)}>
+            <span>Desde</span>
+            <span className="chart-date-value">{customStartDate ? shortDate(customStartDate) : "Elegir fecha"}</span>
+            <span className="chart-date-chevron" aria-hidden="true">{isDatePickerOpen ? "⌃" : "⌄"}</span>
+          </button>
+          {isDatePickerOpen && <div className="chart-date-popover" role="dialog" aria-label="Elegir fecha inicial">
+            <div className="chart-date-popover-heading"><strong>Empezar desde</strong><span>{shortDate(firstAvailableDate)} — {shortDate(lastAvailableDate)}</span></div>
+            <div className="chart-date-options" role="group" aria-label="Fechas con datos">
+              {dateChoices.map((item) => <button key={item.date} type="button" className={`chart-date-option ${customStartDate === item.date ? "is-selected" : ""}`} onClick={() => chooseCustomDate(item.date)}>{shortDate(item.date)}</button>)}
+            </div>
+            <label className="chart-native-date"><span>Elegir otra fecha</span><input type="date" value={customStartDate} min={firstAvailableDate} max={lastAvailableDate} aria-label="Elegir otra fecha inicial" onChange={(event) => chooseCustomDate(event.target.value)} /></label>
+          </div>}
+        </div>
+      </div>
+      <AverageChangeBadge firstValue={values[0]} lastValue={values[values.length - 1]} rangeLabel={rangeLabel} />
       <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Precio promedio histórico entre supermercados">
         <defs>
           <linearGradient id="average-fill" x1="0" x2="0" y1="0" y2="1">
@@ -133,10 +242,10 @@ export function AverageChart({ data }: { data: AveragePrice[] }) {
         <path d={linePath(points)} className="chart-line average-line" />
         {points.map((point, index) => {
           const value = values[index];
-          const pointLabel = `${shortDate(data[index].date)}: ${exactPriceLabel(value)}`;
+          const pointLabel = `${shortDate(visibleData[index].date)}: ${exactPriceLabel(value)}`;
           return (
             <circle
-              key={data[index].date}
+              key={visibleData[index].date}
               cx={point.x}
               cy={point.y}
               r="3.5"
@@ -154,14 +263,14 @@ export function AverageChart({ data }: { data: AveragePrice[] }) {
         })}
         {points.map((point, index) => {
           if (index !== 0 && index !== points.length - 1) return null;
-          return <ChartPointLabel key={`label-${data[index].date}`} point={point} value={values[index]} width={width} height={height} padding={padding} />;
+          return <ChartPointLabel key={`label-${visibleData[index].date}`} point={point} value={values[index]} width={width} height={height} padding={padding} />;
         })}
-        {activeIndex !== null && <ChartTooltip data={{ point: points[activeIndex], date: data[activeIndex].date, value: values[activeIndex] }} width={width} height={height} padding={padding} />}
-        <text x={padding} y={height - 8} className="chart-label">{shortDate(data[0].date)}</text>
-        <text x={width - padding} y={height - 8} textAnchor="end" className="chart-label">{shortDate(data[data.length - 1].date)}</text>
+        {activeIndex !== null && <ChartTooltip data={{ point: points[activeIndex], date: visibleData[activeIndex].date, value: values[activeIndex] }} width={width} height={height} padding={padding} />}
+        <text x={padding} y={height - 8} className="chart-label">{shortDate(visibleData[0].date)}</text>
+        <text x={width - padding} y={height - 8} textAnchor="end" className="chart-label">{shortDate(visibleData[visibleData.length - 1].date)}</text>
         <text x={padding} y={16} className="chart-value">{priceLabel(max)}</text>
         <text x={padding} y={height - padding - 4} className="chart-value">{priceLabel(min)}</text>
-        <title>Promedio entre supermercados, rango {range.toFixed(0)} pesos</title>
+        <title>Promedio entre supermercados, {rangeLabel}, rango {range.toFixed(0)} pesos</title>
       </svg>
     </div>
   );

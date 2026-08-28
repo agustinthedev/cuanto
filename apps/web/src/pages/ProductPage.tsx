@@ -1,6 +1,6 @@
 import { Link, useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { AverageChart, StoreChart } from "../components/PriceChart";
+import { AverageChart, PriceBarChart, StoreChart } from "../components/PriceChart";
 import { StateMessage } from "../components/StateMessage";
 import { getProductPageData } from "../services/data";
 import type { ProductPageData } from "../services/types";
@@ -31,34 +31,41 @@ export function ProductPage() {
   if (!data.product) return <div className="container page-state"><StateMessage title="Producto no encontrado" text="Este producto todavía no forma parte del catálogo seguido." /></div>;
 
   const { product, latestPrices, averagePrices, storePrices } = data;
+  const bestLatest = [...latestPrices].sort((left, right) => Number(left.price) - Number(right.price))[0] ?? null;
+  const bestPrice = bestLatest ? Number(bestLatest.price) : null;
+
   return (
     <div className="container product-page">
-      <Link className="back-link" to="/">← Volver a explorar</Link>
+      <Link className="back-link" to="/"><span>‹</span> Volver a explorar</Link>
       <section className="product-hero-card">
         <div className="detail-image-wrap">
           {product.image_url ? <img src={product.image_url} alt={product.name} className="detail-image" /> : <div className="detail-placeholder">{product.name.slice(0, 1).toUpperCase()}</div>}
         </div>
         <div className="detail-copy">
-          <span className="product-category">{product.category?.name ?? "Producto seguido"}</span>
+          <div className="detail-topline"><span className="product-category">{product.category?.name ?? "Producto seguido"}</span><span className="detail-live-pill"><span className="live-dot" />Seguimiento activo</span></div>
           <h1>{product.name}</h1>
           <p className="detail-meta">{product.brand ? `${product.brand} · ` : ""}{product.quantity} {product.unit}</p>
-          <div className="detail-badge"><span className="live-dot" /> Seguimiento diario activo</div>
+          <div className="detail-highlight">
+            <span>Mejor precio registrado hoy</span>
+            <strong>{bestPrice === null ? "Sin precio todavía" : money(bestPrice)}</strong>
+            {bestLatest && <small>en {bestLatest.store_name}</small>}
+          </div>
         </div>
-        <div className="detail-aside"><span>Última observación</span><strong>{latestPrices.length ? latestPrices[0].date : "—"}</strong><small>Precios en pesos uruguayos</small></div>
+        <div className="detail-aside"><span>Última observación</span><strong>{latestPrices.length ? latestPrices[0].date : "—"}</strong><small>Precios en pesos uruguayos</small><span className="detail-aside-note">Datos comparables por cadena</span></div>
       </section>
 
       <section className="comparison-section">
-        <div className="section-heading"><div><span className="section-kicker">Ahora</span><h2>¿Dónde conviene hoy?</h2></div><span className="section-note">Último precio válido por cadena</span></div>
-        {latestPrices.length ? <div className="price-comparison-grid">{latestPrices.map((item) => <a href={item.url} target="_blank" rel="noreferrer" className="price-card" key={item.store_product_id}><span className="price-store"><span className={`store-avatar store-${item.store_slug}`}>{item.store_name.slice(0, 1)}</span>{item.store_name}</span><strong>{money(Number(item.price))}</strong><span className="price-date">Ver en la tienda ↗</span></a>)}</div> : <StateMessage compact title="Todavía no hay precios comparables" text="La primera observación diaria de este producto va a aparecer acá." />}
+        <div className="section-heading"><div><span className="section-kicker">Ahora</span><h2>¿Dónde conviene hoy?</h2><p className="section-subcopy">Compará el último precio válido en cada cadena.</p></div><span className="section-note">Mejor precio primero</span></div>
+        {latestPrices.length ? <PriceBarChart data={latestPrices} /> : <StateMessage compact title="Todavía no hay precios comparables" text="La primera observación diaria de este producto va a aparecer acá." />}
       </section>
 
       <section className="chart-section">
-        <div className="section-heading"><div><span className="section-kicker">Tendencia</span><h2>Promedio entre supermercados</h2></div><span className="section-note">Solo promedia observaciones disponibles</span></div>
+        <div className="section-heading"><div><span className="section-kicker">Tendencia</span><h2>¿Está subiendo o bajando?</h2><p className="section-subcopy">El promedio ayuda a leer el precio de hoy con contexto.</p></div><span className="section-note">Observaciones disponibles</span></div>
         <div className="chart-card"><AverageChart data={averagePrices} /></div>
       </section>
 
       <section className="chart-section last-section">
-        <div className="section-heading"><div><span className="section-kicker">Detalle</span><h2>La historia de cada cadena</h2></div></div>
+        <div className="section-heading"><div><span className="section-kicker">Detalle</span><h2>La historia de cada cadena</h2><p className="section-subcopy">Mirá si la diferencia es constante o solo una oportunidad puntual.</p></div></div>
         <div className="chart-card"><StoreChart data={storePrices} /></div>
       </section>
     </div>
