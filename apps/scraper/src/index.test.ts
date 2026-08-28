@@ -85,6 +85,61 @@ describe("ejecución diaria", () => {
     expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 500);
   });
 
+  it("usa el alias de Tienda Inglesa inmediatamente ante un 403 y conserva la URL original", async () => {
+    vi.useFakeTimers();
+    const canonicalUrl = "https://www.tiendainglesa.com.uy/supermercado/cafe.producto?1584835,,42";
+    const fallbackUrl = "https://prod-web-blue.tiendainglesa.com.uy/supermercado/cafe.producto?1584835,,42";
+    const savedPriceBodies: unknown[] = [];
+    const scraperUrls: string[] = [];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/rest/v1/stores")) return new Response(JSON.stringify([{ id: "store-1", slug: "tienda-inglesa" }]), { status: 200 });
+      if (url.includes("/rest/v1/store_products")) return new Response(JSON.stringify([{
+        id: "store-product-1",
+        product_id: "product-1",
+        store_id: "store-1",
+        location_id: null,
+        url: canonicalUrl,
+        external_name: "Café",
+        image_url: null,
+      }]), { status: 200 });
+      if (url.includes("/rest/v1/products")) return new Response(JSON.stringify([{
+        id: "product-1",
+        image_url: null,
+        image_source_store_product_id: null,
+        image_updated_at: null,
+      }]), { status: 200 });
+      if (url.includes("/rest/v1/prices")) {
+        savedPriceBodies.push(JSON.parse(String(init?.body)));
+        return new Response(null, { status: 201 });
+      }
+      if (url === canonicalUrl) {
+        scraperUrls.push(url);
+        return new Response("Just a moment...", { status: 403 });
+      }
+      if (url === fallbackUrl) {
+        scraperUrls.push(url);
+        return new Response('{"W0032AV27ProductUI_PARM":{"Prices":[{"Label":"Precio","Price":123.45}]}}', { status: 200 });
+      }
+      return new Response("Not found", { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const scrape = runScrape(
+      {
+        SUPABASE_URL: "https://project.supabase.co",
+        SUPABASE_SERVICE_ROLE_KEY: "service-role",
+        TIENDA_INGLESA_FALLBACK_ORIGIN: "https://prod-web-blue.tiendainglesa.com.uy",
+      },
+      new Date("2026-08-25T12:00:00Z"),
+    );
+    await vi.runAllTimersAsync();
+
+    await expect(scrape).resolves.toEqual({ attempted: 1, saved: 1, failed: 0 });
+    expect(scraperUrls).toEqual([canonicalUrl, fallbackUrl]);
+    expect(savedPriceBodies).toEqual([{ store_product_id: "store-product-1", price: 123.45, date: "2026-08-25", scraped_at: expect.any(String) }]);
+  });
+
   it("puede limitarse a las publicaciones activas de un producto", async () => {
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
