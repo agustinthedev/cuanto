@@ -38,7 +38,7 @@ describe("ejecución diaria", () => {
         image_source_store_product_id: null,
         image_updated_at: null,
       }]), { status: 200 });
-      if (url === "https://example.test/product") return new Response('<meta property="og:image" content="/images/product.jpg"><main><h1>Producto</h1><strong>$ 1.299</strong></main>', { status: 200 });
+      if (url === "https://example.test/product") return new Response('<meta property="og:image" content="/images/product.jpg"><meta property="product:price:amount" content="1299.00"><main><h1>Producto</h1><strong>$ 1.299</strong></main>', { status: 200 });
       if (url.includes("/rest/v1/prices")) {
         savedPriceBodies.push(JSON.parse(String(init?.body)));
         return new Response(null, { status: 201 });
