@@ -97,7 +97,11 @@ export async function getAdminStores(): Promise<Store[]> {
 export async function getProductSuggestions(): Promise<ProductSuggestion[]> {
   if (isDemoMode) return [];
   if (!supabase) throw new Error("Supabase no está configurado.");
-  const { data, error } = await supabase.from("product_suggestions").select(suggestionSelect).order("created_at", { ascending: false });
+  const { data, error } = await supabase
+    .from("product_suggestions")
+    .select(suggestionSelect)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: true });
   if (error) throw error;
   return (data ?? []).map(normalizeSuggestion);
 }
