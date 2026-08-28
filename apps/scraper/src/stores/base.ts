@@ -16,6 +16,15 @@ function requestUrl(input: RequestInfo | URL): string {
   return input instanceof Request ? input.url : String(input);
 }
 
+async function cancelResponseBody(response: Response): Promise<void> {
+  if (!response.body) return;
+  try {
+    await response.body.cancel();
+  } catch {
+    // A cleanup failure must not prevent the next retry attempt.
+  }
+}
+
 function logRetry(input: RequestInfo | URL, attempt: number, nextAttempt: number, delayMs: number, status?: number, error?: unknown, response?: Response) {
   console.warn(JSON.stringify({
     event: "http_retry_scheduled",
@@ -37,6 +46,7 @@ export async function fetchWithRetry(input: RequestInfo | URL, init?: RequestIni
       const response = await fetch(input, init);
       if (response.ok || attempt === attempts) return response;
 
+      await cancelResponseBody(response);
       lastError = new ScraperError(`Respuesta HTTP ${response.status}`);
       const delayMs = RETRY_DELAYS_MS[Math.min(attempt - 1, RETRY_DELAYS_MS.length - 1)];
       logRetry(input, attempt, attempt + 1, delayMs, response.status, undefined, response);
