@@ -187,6 +187,7 @@ function SuggestionCard({ suggestion, categories, stores, onChanged }: { suggest
         title,
         categoryId,
         links.map((link) => ({ store_id: link.storeId, url: link.url.trim() })),
+        suggestion.updated_at,
       );
       await onChanged();
     } catch (reason) {

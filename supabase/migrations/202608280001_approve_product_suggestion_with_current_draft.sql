@@ -1,13 +1,12 @@
 -- Approving a suggestion must publish the values currently being edited in the
 -- review form, including links that were added immediately before approval.
 -- Keep the draft update and canonical product publication in one transaction.
-drop function if exists public.approve_product_suggestion(uuid);
-
 create or replace function public.approve_product_suggestion(
   p_suggestion_id uuid,
   p_title text,
   p_category_id uuid,
-  p_links jsonb
+  p_links jsonb,
+  p_expected_updated_at timestamptz
 )
 returns uuid
 language plpgsql
@@ -30,6 +29,10 @@ begin
 
   if not found then
     raise exception 'Only pending suggestions can be approved';
+  end if;
+
+  if p_expected_updated_at is null or v_suggestion.updated_at <> p_expected_updated_at then
+    raise exception 'The suggestion changed after it was loaded. Reload it before approving';
   end if;
 
   if char_length(btrim(coalesce(p_title, ''))) not between 1 and 200 then
@@ -106,5 +109,5 @@ begin
 end;
 $$;
 
-revoke all on function public.approve_product_suggestion(uuid, text, uuid, jsonb) from public, anon, authenticated;
-grant execute on function public.approve_product_suggestion(uuid, text, uuid, jsonb) to authenticated;
+revoke all on function public.approve_product_suggestion(uuid, text, uuid, jsonb, timestamptz) from public, anon, authenticated;
+grant execute on function public.approve_product_suggestion(uuid, text, uuid, jsonb, timestamptz) to authenticated;

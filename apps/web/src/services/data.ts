@@ -114,13 +114,14 @@ export async function updateProductSuggestion(id: string, title: string, categor
   if (error) throw error;
 }
 
-export async function approveProductSuggestion(id: string, title: string, categoryId: string, links: Array<{ store_id: string; url: string }>): Promise<void> {
+export async function approveProductSuggestion(id: string, title: string, categoryId: string, links: Array<{ store_id: string; url: string }>, expectedUpdatedAt: string): Promise<void> {
   if (!supabase) throw new Error("Supabase no está configurado.");
   const { error } = await supabase.rpc("approve_product_suggestion", {
     p_suggestion_id: id,
     p_title: title,
     p_category_id: categoryId,
     p_links: links,
+    p_expected_updated_at: expectedUpdatedAt,
   });
   if (error) throw error;
 }
