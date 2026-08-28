@@ -84,4 +84,26 @@ describe("ejecución diaria", () => {
     await expect(scrape).resolves.toEqual({ attempted: 2, saved: 2, failed: 0 });
     expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 500);
   });
+
+  it("puede limitarse a las publicaciones activas de un producto", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/rest/v1/stores")) return new Response(JSON.stringify([{ id: "store-1", slug: "disco" }]), { status: 200 });
+      if (url.includes("/rest/v1/store_products")) return new Response(JSON.stringify([]), { status: 200 });
+      if (url.includes("/rest/v1/products")) return new Response(JSON.stringify([]), { status: 200 });
+      return new Response("Not found", { status: 404 });
+    }));
+
+    await runScrape(
+      { SUPABASE_URL: "https://project.supabase.co", SUPABASE_SERVICE_ROLE_KEY: "service-role" },
+      new Date("2026-08-25T12:00:00Z"),
+      { productId: "product-1" },
+    );
+
+    const storeProductsUrl = vi.mocked(fetch).mock.calls
+      .map(([input]) => String(input))
+      .find((url) => url.includes("/rest/v1/store_products"));
+    expect(storeProductsUrl).toContain("active=eq.true&product_id=eq.product-1");
+    vi.unstubAllGlobals();
+  });
 });

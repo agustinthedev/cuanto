@@ -39,10 +39,11 @@ function apiHeaders(env: Env, prefer?: string): Headers {
   return headers;
 }
 
-async function loadActiveStoreProducts(env: Env): Promise<StoreProductRecord[]> {
+async function loadActiveStoreProducts(env: Env, productId?: string): Promise<StoreProductRecord[]> {
+  const productFilter = productId ? `&product_id=eq.${encodeURIComponent(productId)}` : "";
   const [storesResponse, productsResponse] = await Promise.all([
     fetchWithRetry(apiUrl(env, API_TABLES.stores, "select=id,slug"), { headers: apiHeaders(env) }),
-    fetchWithRetry(apiUrl(env, API_TABLES.storeProducts, "select=id,product_id,store_id,location_id,url,external_name,image_url&active=eq.true"), { headers: apiHeaders(env) }),
+    fetchWithRetry(apiUrl(env, API_TABLES.storeProducts, `select=id,product_id,store_id,location_id,url,external_name,image_url&active=eq.true${productFilter}`), { headers: apiHeaders(env) }),
   ]);
   if (!storesResponse.ok) throw new Error(`No se pudieron cargar las cadenas: HTTP ${storesResponse.status}`);
   if (!productsResponse.ok) throw new Error(`No se pudieron cargar los productos: HTTP ${productsResponse.status}`);
@@ -55,8 +56,9 @@ async function loadActiveStoreProducts(env: Env): Promise<StoreProductRecord[]> 
   });
 }
 
-async function loadProductImages(env: Env): Promise<Map<string, ProductImageRecord>> {
-  const response = await fetchWithRetry(apiUrl(env, API_TABLES.products, "select=id,image_url,image_source_store_product_id,image_updated_at"), { headers: apiHeaders(env) });
+async function loadProductImages(env: Env, productId?: string): Promise<Map<string, ProductImageRecord>> {
+  const productFilter = productId ? `&id=eq.${encodeURIComponent(productId)}` : "";
+  const response = await fetchWithRetry(apiUrl(env, API_TABLES.products, `select=id,image_url,image_source_store_product_id,image_updated_at${productFilter}`), { headers: apiHeaders(env) });
   if (!response.ok) throw new Error(`No se pudieron cargar las imágenes de productos: HTTP ${response.status}`);
   const products = await response.json() as ProductImageRecord[];
   return new Map(products.map((product) => [product.id, product]));
@@ -118,8 +120,12 @@ function uruguayDate(now = new Date()): string {
   return `${values.year}-${values.month}-${values.day}`;
 }
 
-export async function runScrape(env: Env, now = new Date()): Promise<ScrapeSummary> {
-  const [records, productImages] = await Promise.all([loadActiveStoreProducts(env), loadProductImages(env)]);
+export interface ScrapeOptions {
+  productId?: string;
+}
+
+export async function runScrape(env: Env, now = new Date(), options: ScrapeOptions = {}): Promise<ScrapeSummary> {
+  const [records, productImages] = await Promise.all([loadActiveStoreProducts(env, options.productId), loadProductImages(env, options.productId)]);
   records.sort((left, right) => imagePriority(left.store_slug) - imagePriority(right.store_slug));
   const date = uruguayDate(now);
   const summary: ScrapeSummary = { attempted: records.length, saved: 0, failed: 0 };
