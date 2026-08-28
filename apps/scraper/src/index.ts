@@ -1,4 +1,5 @@
 import { getScraper } from "./stores";
+import { fetchWithRetry, sleep } from "./stores/base";
 import type { ScrapeSummary, StoreProductRecord } from "./types";
 
 const API_TABLES = {
@@ -22,6 +23,8 @@ const IMAGE_STORE_PRIORITY: Record<string, number> = {
   "red-express": 40,
 };
 
+const TIENDA_INGLESA_REQUEST_DELAY_MS = 500;
+
 function apiUrl(env: Env, table: string, query = "") {
   return `${env.SUPABASE_URL.replace(/\/$/, "")}/rest/v1/${table}${query ? `?${query}` : ""}`;
 }
@@ -38,8 +41,8 @@ function apiHeaders(env: Env, prefer?: string): Headers {
 
 async function loadActiveStoreProducts(env: Env): Promise<StoreProductRecord[]> {
   const [storesResponse, productsResponse] = await Promise.all([
-    fetch(apiUrl(env, API_TABLES.stores, "select=id,slug"), { headers: apiHeaders(env) }),
-    fetch(apiUrl(env, API_TABLES.storeProducts, "select=id,product_id,store_id,location_id,url,external_name,image_url&active=eq.true"), { headers: apiHeaders(env) }),
+    fetchWithRetry(apiUrl(env, API_TABLES.stores, "select=id,slug"), { headers: apiHeaders(env) }),
+    fetchWithRetry(apiUrl(env, API_TABLES.storeProducts, "select=id,product_id,store_id,location_id,url,external_name,image_url&active=eq.true"), { headers: apiHeaders(env) }),
   ]);
   if (!storesResponse.ok) throw new Error(`No se pudieron cargar las cadenas: HTTP ${storesResponse.status}`);
   if (!productsResponse.ok) throw new Error(`No se pudieron cargar los productos: HTTP ${productsResponse.status}`);
@@ -53,14 +56,14 @@ async function loadActiveStoreProducts(env: Env): Promise<StoreProductRecord[]> 
 }
 
 async function loadProductImages(env: Env): Promise<Map<string, ProductImageRecord>> {
-  const response = await fetch(apiUrl(env, API_TABLES.products, "select=id,image_url,image_source_store_product_id,image_updated_at"), { headers: apiHeaders(env) });
+  const response = await fetchWithRetry(apiUrl(env, API_TABLES.products, "select=id,image_url,image_source_store_product_id,image_updated_at"), { headers: apiHeaders(env) });
   if (!response.ok) throw new Error(`No se pudieron cargar las imágenes de productos: HTTP ${response.status}`);
   const products = await response.json() as ProductImageRecord[];
   return new Map(products.map((product) => [product.id, product]));
 }
 
 async function savePrice(env: Env, record: StoreProductRecord, price: number, date: string) {
-  const response = await fetch(apiUrl(env, API_TABLES.prices, "on_conflict=store_product_id,date"), {
+  const response = await fetchWithRetry(apiUrl(env, API_TABLES.prices, "on_conflict=store_product_id,date"), {
     method: "POST",
     headers: apiHeaders(env, "resolution=merge-duplicates,return=minimal"),
     body: JSON.stringify({ store_product_id: record.id, price, date, scraped_at: new Date().toISOString() }),
@@ -69,7 +72,7 @@ async function savePrice(env: Env, record: StoreProductRecord, price: number, da
 }
 
 async function saveStoreProductImage(env: Env, record: StoreProductRecord, imageUrl: string, fetchedAt: string) {
-  const response = await fetch(apiUrl(env, API_TABLES.storeProducts, `id=eq.${encodeURIComponent(record.id)}`), {
+  const response = await fetchWithRetry(apiUrl(env, API_TABLES.storeProducts, `id=eq.${encodeURIComponent(record.id)}`), {
     method: "PATCH",
     headers: apiHeaders(env, "return=minimal"),
     body: JSON.stringify({ image_url: imageUrl, image_fetched_at: fetchedAt }),
@@ -87,7 +90,7 @@ async function promoteProductImage(
   const current = productImages.get(record.product_id);
   if (!current || current.image_url) return;
 
-  const response = await fetch(apiUrl(env, API_TABLES.products, `id=eq.${encodeURIComponent(record.product_id)}&image_url=is.null`), {
+  const response = await fetchWithRetry(apiUrl(env, API_TABLES.products, `id=eq.${encodeURIComponent(record.product_id)}&image_url=is.null`), {
     method: "PATCH",
     headers: apiHeaders(env, "return=minimal"),
     body: JSON.stringify({
@@ -120,8 +123,14 @@ export async function runScrape(env: Env, now = new Date()): Promise<ScrapeSumma
   records.sort((left, right) => imagePriority(left.store_slug) - imagePriority(right.store_slug));
   const date = uruguayDate(now);
   const summary: ScrapeSummary = { attempted: records.length, saved: 0, failed: 0 };
+  let previousStoreSlug: string | undefined;
 
   for (const record of records) {
+    if (record.store_slug === "tienda-inglesa" && previousStoreSlug === record.store_slug) {
+      console.log(JSON.stringify({ event: "store_request_delay", store: record.store_slug, delay_ms: TIENDA_INGLESA_REQUEST_DELAY_MS }));
+      await sleep(TIENDA_INGLESA_REQUEST_DELAY_MS);
+    }
+
     try {
       const scraper = getScraper(record.store_slug);
       if (!scraper) throw new Error(`No hay adapter para ${record.store_slug}`);
@@ -143,6 +152,8 @@ export async function runScrape(env: Env, now = new Date()): Promise<ScrapeSumma
     } catch (error) {
       summary.failed += 1;
       console.error(JSON.stringify({ event: "scrape_failed", store: record.store_slug, store_product_id: record.id, url: record.url, timestamp: new Date().toISOString(), reason: error instanceof Error ? error.message : String(error) }));
+    } finally {
+      previousStoreSlug = record.store_slug;
     }
   }
   return summary;
