@@ -230,10 +230,12 @@ a { color: inherit; text-decoration: none; }
 .admin-links-fieldset { margin: 23px 0 0; padding: 0; border: 0; }
 .admin-links-fieldset legend { margin-bottom: 11px; color: #aec1c0; font-size: 10px; font-weight: 700; }
 .admin-links-list { display: grid; gap: 8px; }
-.admin-link-row { display: grid; grid-template-columns: 145px 1fr 35px; align-items: center; gap: 10px; }
+.admin-link-row { display: grid; grid-template-columns: 145px 1fr 35px; align-items: start; gap: 10px; }
 .admin-store-label { display: inline-flex; align-items: center; gap: 8px; color: #c4d3d0; font-size: 11px; font-weight: 700; }
 .admin-store-label .store-avatar { flex: 0 0 25px; }
+.admin-link-input-wrap { min-width: 0; display: grid; gap: 4px; }
 .admin-link-row input { min-height: 39px; font-size: 11px; }
+.admin-missing-link-warning { display: block; color: #ffc28f; font-size: 9px; line-height: 1.4; }
 .admin-open-link { display: grid; place-items: center; width: 35px; height: 35px; color: #9cf6d4; border: 1px solid rgba(156, 246, 212, .2); border-radius: 8px; font-weight: 800; transition: background .2s, transform .2s; }
 .admin-open-link:hover { background: rgba(156, 246, 212, .1); transform: translateY(-1px); }
 .admin-open-link.disabled { color: #59727d; border-color: rgba(224, 246, 240, .08); }
