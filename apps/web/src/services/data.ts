@@ -114,9 +114,9 @@ export async function updateProductSuggestion(id: string, title: string, categor
   if (error) throw error;
 }
 
-export async function approveProductSuggestion(id: string, title: string, categoryId: string, links: Array<{ store_id: string; url: string }>, expectedUpdatedAt: string): Promise<void> {
+export async function approveProductSuggestion(id: string, title: string, categoryId: string, links: Array<{ store_id: string; url: string }>, expectedUpdatedAt: string): Promise<string> {
   if (!supabase) throw new Error("Supabase no está configurado.");
-  const { error } = await supabase.rpc("approve_product_suggestion", {
+  const { data, error } = await supabase.rpc("approve_product_suggestion", {
     p_suggestion_id: id,
     p_title: title,
     p_category_id: categoryId,
@@ -124,6 +124,27 @@ export async function approveProductSuggestion(id: string, title: string, catego
     p_expected_updated_at: expectedUpdatedAt,
   });
   if (error) throw error;
+  return data as string;
+}
+
+export async function triggerProductScrape(productId: string): Promise<void> {
+  if (!supabase) throw new Error("Supabase no está configurado.");
+  const scraperUrl = import.meta.env.VITE_SCRAPER_URL?.trim().replace(/\/$/, "");
+  if (!scraperUrl) throw new Error("El endpoint del scraper no está configurado.");
+
+  const { data, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) throw sessionError;
+  if (!data.session?.access_token) throw new Error("La sesión de administrador expiró.");
+
+  const response = await fetch(`${scraperUrl}/scrape/product`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${data.session.access_token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ product_id: productId }),
+  });
+  if (!response.ok) throw new Error(`No pudimos iniciar la actualización de precios (HTTP ${response.status}).`);
 }
 
 export async function rejectProductSuggestion(id: string): Promise<void> {
