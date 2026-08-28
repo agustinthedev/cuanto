@@ -45,7 +45,7 @@ function linksError(links: LinkDraft[], stores: Store[]) {
   return null;
 }
 
-function StoreLinkFields({ links, stores, onChange, disabled = false }: { links: LinkDraft[]; stores: Store[]; onChange: (storeId: string, url: string) => void; disabled?: boolean }) {
+function StoreLinkFields({ links, stores, onChange, disabled = false, showMissingWarning = false }: { links: LinkDraft[]; stores: Store[]; onChange: (storeId: string, url: string) => void; disabled?: boolean; showMissingWarning?: boolean }) {
   return (
     <div className="admin-links-list">
       {stores.map((store) => {
@@ -54,15 +54,18 @@ function StoreLinkFields({ links, stores, onChange, disabled = false }: { links:
         return (
           <div className="admin-link-row" key={store.id}>
             <span className="admin-store-label"><span className={`store-avatar store-${store.slug}`}>{store.name.slice(0, 1)}</span>{store.name}</span>
-            <input
-              type="url"
-              value={link?.url ?? ""}
-              onChange={(event) => onChange(store.id, event.target.value)}
-              placeholder="https://..."
-              aria-label={`Link de ${store.name}`}
-              required
-              disabled={disabled}
-            />
+            <div className="admin-link-input-wrap">
+              <input
+                type="url"
+                value={link?.url ?? ""}
+                onChange={(event) => onChange(store.id, event.target.value)}
+                placeholder="https://..."
+                aria-label={`Link de ${store.name}`}
+                required
+                disabled={disabled}
+              />
+              {showMissingWarning && !link?.url.trim() && <small className="admin-missing-link-warning" role="status">⚠ No se encontró una coincidencia exacta para esta cadena.</small>}
+            </div>
             {validUrl ? <a className="admin-open-link" href={link?.url} target="_blank" rel="noreferrer noopener" aria-label={`Abrir link de ${store.name}`}>↗</a> : <span className="admin-open-link disabled" aria-hidden="true">↗</span>}
           </div>
         );
@@ -211,7 +214,7 @@ function SuggestionCard({ suggestion, categories, stores, onChanged }: { suggest
           <label>Título<input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={200} required disabled={!editable} /></label>
           <label>Categoría<select value={categoryId} onChange={(event) => setCategoryId(event.target.value)} required disabled={!editable}>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select><small className="admin-field-hint">{editable ? `Actual: ${categoryName}` : "Propuesta revisada; edición bloqueada"}</small></label>
         </div>
-        <fieldset className="admin-links-fieldset"><legend>Links por cadena</legend><div className={!editable ? "admin-readonly-links" : ""}><StoreLinkFields links={links} stores={stores} disabled={!editable} onChange={(storeId, url) => setLinks((current) => current.map((link) => link.storeId === storeId ? { ...link, url } : link))} /></div></fieldset>
+        <fieldset className="admin-links-fieldset"><legend>Links por cadena</legend><div className={!editable ? "admin-readonly-links" : ""}><StoreLinkFields links={links} stores={stores} disabled={!editable} showMissingWarning onChange={(storeId, url) => setLinks((current) => current.map((link) => link.storeId === storeId ? { ...link, url } : link))} /></div></fieldset>
         <div className="suggestion-actions">
           {editable && <button className="button button-secondary" type="submit" disabled={busyAction !== null}>{busyAction === "save" ? "Guardando..." : "Guardar cambios"}</button>}
           {suggestion.status === "pending" && <><button className="button button-approve" type="button" onClick={() => void handleApprove()} disabled={busyAction !== null}>{busyAction === "approve" ? "Aprobando..." : "Aprobar"}</button><button className="button button-reject" type="button" onClick={() => void handleReject()} disabled={busyAction !== null}>{busyAction === "reject" ? "Rechazando..." : "Rechazar"}</button></>}
