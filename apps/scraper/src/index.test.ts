@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { runScrape } from "./index";
+import worker, { runScrape } from "./index";
 
 describe("ejecución diaria", () => {
   afterEach(() => {
@@ -103,7 +103,54 @@ describe("ejecución diaria", () => {
     const storeProductsUrl = vi.mocked(fetch).mock.calls
       .map(([input]) => String(input))
       .find((url) => url.includes("/rest/v1/store_products"));
+    const productsUrl = vi.mocked(fetch).mock.calls
+      .map(([input]) => String(input))
+      .find((url) => url.includes("/rest/v1/products"));
     expect(storeProductsUrl).toContain("active=eq.true&product_id=eq.product-1");
+    expect(productsUrl).toContain("id=eq.product-1");
+    vi.unstubAllGlobals();
+  });
+
+  it("acepta un scrape puntual para un administrador autenticado", async () => {
+    const userId = "11111111-1111-4111-8111-111111111111";
+    const productId = "22222222-2222-4222-8222-222222222222";
+    const pendingTasks: Promise<unknown>[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/auth/v1/user")) return new Response(JSON.stringify({ id: userId }), { status: 200 });
+      if (url.includes("/rest/v1/admin_users")) return new Response(JSON.stringify([{ user_id: userId }]), { status: 200 });
+      if (url.includes("/rest/v1/stores")) return new Response(JSON.stringify([]), { status: 200 });
+      if (url.includes("/rest/v1/store_products")) return new Response(JSON.stringify([]), { status: 200 });
+      if (url.includes("/rest/v1/products")) return new Response(JSON.stringify([]), { status: 200 });
+      return new Response("Not found", { status: 404 });
+    }));
+
+    const response = await worker.fetch(
+      new Request("https://scraper.test/scrape/product", {
+        method: "POST",
+        headers: {
+          Origin: "http://localhost:5173",
+          Authorization: "Bearer user-token",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ product_id: productId }),
+      }),
+      {
+        SUPABASE_URL: "https://project.supabase.co",
+        SUPABASE_SERVICE_ROLE_KEY: "service-role",
+        CORS_ORIGIN: "http://localhost:5173",
+      },
+      { waitUntil: (task: Promise<unknown>) => { pendingTasks.push(task); } } as unknown as ExecutionContext,
+    );
+
+    expect(response.status).toBe(202);
+    expect(await response.json()).toEqual({ accepted: true, product_id: productId });
+    expect(pendingTasks).toHaveLength(1);
+    await Promise.all(pendingTasks);
+    const storeProductsUrl = vi.mocked(fetch).mock.calls
+      .map(([input]) => String(input))
+      .find((url) => url.includes("/rest/v1/store_products"));
+    expect(storeProductsUrl).toContain(`active=eq.true&product_id=eq.${productId}`);
     vi.unstubAllGlobals();
   });
 });
