@@ -39,12 +39,17 @@ function logRetry(input: RequestInfo | URL, attempt: number, nextAttempt: number
   }));
 }
 
-export async function fetchWithRetry(input: RequestInfo | URL, init?: RequestInit, attempts = DEFAULT_ATTEMPTS): Promise<Response> {
+export async function fetchWithRetry(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+  attempts = DEFAULT_ATTEMPTS,
+  shouldRetryResponse: (response: Response) => boolean = (response) => !response.ok,
+): Promise<Response> {
   let lastError: unknown;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
       const response = await fetch(input, init);
-      if (response.ok || attempt === attempts) return response;
+      if (response.ok || attempt === attempts || !shouldRetryResponse(response)) return response;
 
       await cancelResponseBody(response);
       lastError = new ScraperError(`Respuesta HTTP ${response.status}`);
