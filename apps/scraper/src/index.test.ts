@@ -153,4 +153,25 @@ describe("ejecución diaria", () => {
     expect(storeProductsUrl).toContain(`active=eq.true&product_id=eq.${productId}`);
     vi.unstubAllGlobals();
   });
+
+  it("rechaza el scrape puntual sin autenticación de administrador", async () => {
+    const response = await worker.fetch(
+      new Request("https://scraper.test/scrape/product", {
+        method: "POST",
+        headers: {
+          Origin: "http://localhost:5173",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ product_id: "22222222-2222-4222-8222-222222222222" }),
+      }),
+      {
+        SUPABASE_URL: "https://project.supabase.co",
+        SUPABASE_SERVICE_ROLE_KEY: "service-role",
+        CORS_ORIGIN: "http://localhost:5173",
+      },
+      { waitUntil: () => undefined } as unknown as ExecutionContext,
+    );
+
+    expect(response.status).toBe(401);
+  });
 });
