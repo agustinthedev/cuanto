@@ -11,6 +11,7 @@ import {
 } from "../services/data";
 import { StoreLogo } from "../components/StoreLogo";
 import type { Category, ProductSuggestion, ProductSuggestionStatus, Store } from "../services/types";
+import { isHttpUrl, productLinksError, serializeProductLinks } from "./adminProductLinks";
 
 type StatusFilter = ProductSuggestionStatus | "all";
 type LinkDraft = { storeId: string; url: string };
@@ -22,15 +23,6 @@ const statusLabels: Record<ProductSuggestionStatus, string> = {
   rejected: "Rechazado",
 };
 
-function isHttpUrl(value: string) {
-  try {
-    const url = new URL(value.trim());
-    return url.protocol === "http:" || url.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
-
 function initialLinks(stores: Store[], suggestion?: ProductSuggestion): LinkDraft[] {
   return stores.map((store) => ({
     storeId: store.id,
@@ -39,13 +31,7 @@ function initialLinks(stores: Store[], suggestion?: ProductSuggestion): LinkDraf
 }
 
 function linksError(links: LinkDraft[], stores: Store[]) {
-  if (!stores.length) return "No hay cadenas configuradas para cargar este producto.";
-  const missing = links.find((link) => !isHttpUrl(link.url));
-  if (missing) {
-    const store = stores.find((item) => item.id === missing.storeId);
-    return `Ingresá un link http(s) válido para ${store?.name ?? "cada cadena"}.`;
-  }
-  return null;
+  return productLinksError(links, stores);
 }
 
 function StoreLinkFields({ links, stores, onChange, disabled = false, showMissingWarning = false }: { links: LinkDraft[]; stores: Store[]; onChange: (storeId: string, url: string) => void; disabled?: boolean; showMissingWarning?: boolean }) {
@@ -64,7 +50,6 @@ function StoreLinkFields({ links, stores, onChange, disabled = false, showMissin
                 onChange={(event) => onChange(store.id, event.target.value)}
                 placeholder="https://..."
                 aria-label={`Link de ${store.name}`}
-                required
                 disabled={disabled}
               />
               {showMissingWarning && !link?.url.trim() && <small className="admin-missing-link-warning" role="status">⚠ No se encontró una coincidencia exacta para esta cadena.</small>}
@@ -115,7 +100,7 @@ function CreateProductModal({ categories, stores, onClose, onCreated }: { catego
     }
     setSaving(true);
     try {
-      await createProduct(title, categoryId || categories[0].id, links.map((link) => ({ store_id: link.storeId, url: link.url.trim() })));
+      await createProduct(title, categoryId || categories[0].id, serializeProductLinks(links));
       setTitle("");
       setCategoryId("");
       setLinks(initialLinks(stores));
@@ -170,7 +155,7 @@ function SuggestionCard({ suggestion, categories, stores, onChanged, onApprovalN
     }
     setBusyAction("save");
     try {
-      await updateProductSuggestion(suggestion.id, title, categoryId, links.map((link) => ({ store_id: link.storeId, url: link.url.trim() })));
+      await updateProductSuggestion(suggestion.id, title, categoryId, serializeProductLinks(links));
       await onChanged();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "No pudimos guardar los cambios.");
@@ -192,7 +177,7 @@ function SuggestionCard({ suggestion, categories, stores, onChanged, onApprovalN
         suggestion.id,
         title,
         categoryId,
-        links.map((link) => ({ store_id: link.storeId, url: link.url.trim() })),
+        serializeProductLinks(links),
         suggestion.updated_at,
       );
       let scrapeError: unknown = null;
