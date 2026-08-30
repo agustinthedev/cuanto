@@ -18,7 +18,10 @@ begin
 
   get diagnostics v_updated = row_count;
 
-  if v_updated = 0 and not exists (
+  -- This is a production-only backfill. Other environments may not have the
+  -- manually created listing or its observation, so absence is a no-op. Keep
+  -- failing when a matching observation exists with an unexpected value.
+  if v_updated = 0 and exists (
     select 1
     from public.prices p
     join public.store_products sp on sp.id = p.store_product_id
@@ -28,9 +31,9 @@ begin
       and s.slug = 'disco'
       and sp.url = 'https://www.disco.com.uy/product/cafe-bracafe-pack-ahorro-100-g/602401'
       and p.date = date '2026-08-28'
-      and p.price = 246.00
+      and p.price <> 246.00
   ) then
-    raise exception 'No se encontró el precio erróneo ni su corrección para Café BRACAFÉ en Disco';
+    raise exception 'El precio existente de Café BRACAFÉ en Disco no coincide con el valor esperado';
   end if;
 
   if v_updated > 1 then
