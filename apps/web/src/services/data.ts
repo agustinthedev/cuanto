@@ -15,7 +15,7 @@ import type {
   Store,
   StorePrice,
 } from "./types";
-import { demoAveragePrices, demoCategories, demoProducts, demoStats, demoStores, getDemoProductPageData } from "./demoData";
+import { demoAveragePrices, demoCategories, demoProducts, demoSuggestionStats, demoSuggestions, demoStats, demoStores, getDemoProductPageData } from "./demoData";
 
 const isDemoMode = import.meta.env.VITE_DEMO_MODE === "true";
 
@@ -105,7 +105,7 @@ export async function getAdminStores(): Promise<Store[]> {
 }
 
 export async function getProductSuggestions(): Promise<ProductSuggestion[]> {
-  if (isDemoMode) return [];
+  if (isDemoMode) return demoSuggestions;
   if (!supabase) throw new Error("Supabase no está configurado.");
   const { data, error } = await supabase.from("product_suggestions").select(suggestionSelect).order("created_at", { ascending: false });
   if (error) throw error;
@@ -113,6 +113,7 @@ export async function getProductSuggestions(): Promise<ProductSuggestion[]> {
 }
 
 export async function createProductSuggestion(title: string, categoryId: string, links: Array<{ store_id: string; url: string }>): Promise<void> {
+  if (isDemoMode) return;
   if (!supabase) throw new Error("Supabase no está configurado.");
   const { error } = await supabase.rpc("create_product_suggestion", {
     p_title: title,
@@ -123,6 +124,7 @@ export async function createProductSuggestion(title: string, categoryId: string,
 }
 
 export async function createProduct(name: string, categoryId: string, links: Array<{ store_id: string; url: string }>): Promise<string> {
+  if (isDemoMode) return "demo-created-product";
   if (!supabase) throw new Error("Supabase no está configurado.");
   const { data, error } = await supabase.rpc("create_product_with_links", {
     p_name: name,
@@ -140,6 +142,7 @@ export async function createProduct(name: string, categoryId: string, links: Arr
 }
 
 export async function updateProductSuggestion(id: string, title: string, categoryId: string, links: Array<{ store_id: string; url: string }>): Promise<void> {
+  if (isDemoMode) return;
   if (!supabase) throw new Error("Supabase no está configurado.");
   const { error } = await supabase.rpc("update_product_suggestion", {
     p_suggestion_id: id,
@@ -151,6 +154,7 @@ export async function updateProductSuggestion(id: string, title: string, categor
 }
 
 export async function approveProductSuggestion(id: string, title: string, categoryId: string, links: Array<{ store_id: string; url: string }>, expectedUpdatedAt: string): Promise<string> {
+  if (isDemoMode) return "demo-created-product";
   if (!supabase) throw new Error("Supabase no está configurado.");
   const { data, error } = await supabase.rpc("approve_product_suggestion", {
     p_suggestion_id: id,
@@ -164,6 +168,7 @@ export async function approveProductSuggestion(id: string, title: string, catego
 }
 
 export async function triggerProductScrape(productId: string): Promise<void> {
+  if (isDemoMode) return;
   if (!supabase) throw new Error("Supabase no está configurado.");
   const scraperUrl = import.meta.env.VITE_SCRAPER_URL?.trim().replace(/\/$/, "");
   if (!scraperUrl) throw new Error("El endpoint del scraper no está configurado.");
@@ -184,6 +189,7 @@ export async function triggerProductScrape(productId: string): Promise<void> {
 }
 
 export async function rejectProductSuggestion(id: string): Promise<void> {
+  if (isDemoMode) return;
   if (!supabase) throw new Error("Supabase no está configurado.");
   const { error } = await supabase.rpc("reject_product_suggestion", { p_suggestion_id: id });
   if (error) throw error;
@@ -269,7 +275,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
   if (isDemoMode) {
     return {
       stats: demoStats,
-      suggestions: { pending: 0, approved: 0, rejected: 0, total: 0 },
+      suggestions: demoSuggestionStats,
       observationHistory: demoAveragePrices.map((item) => ({ date: item.date, observation_count: item.observation_count })),
     };
   }
