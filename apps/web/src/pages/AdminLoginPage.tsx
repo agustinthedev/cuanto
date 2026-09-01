@@ -3,6 +3,8 @@ import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAdminAuth } from "../auth/AdminAuth";
 import { isSupabaseConfigured } from "../lib/supabase";
 
+const isDemoMode = import.meta.env.VITE_DEMO_MODE === "true";
+
 export function AdminLoginPage() {
   const { session, isAdmin, signIn } = useAdminAuth();
   const location = useLocation();
@@ -17,7 +19,7 @@ export function AdminLoginPage() {
     if (session && isAdmin) navigate(from, { replace: true });
   }, [from, isAdmin, navigate, session]);
 
-  if (session && isAdmin) return <Navigate to={from} replace />;
+  if ((session && isAdmin) || isDemoMode) return <Navigate to={from} replace />;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

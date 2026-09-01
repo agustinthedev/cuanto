@@ -2,6 +2,8 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 
+const isDemoMode = import.meta.env.VITE_DEMO_MODE === "true";
+
 interface AdminAuthContextValue {
   session: Session | null;
   loading: boolean;
@@ -18,6 +20,12 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
+    if (isDemoMode) {
+      setIsAdmin(true);
+      setLoading(false);
+      return;
+    }
+
     if (!supabase) {
       setLoading(false);
       return;

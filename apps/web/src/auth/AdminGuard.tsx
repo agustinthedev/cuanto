@@ -2,6 +2,8 @@ import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { isSupabaseConfigured } from "../lib/supabase";
 import { useAdminAuth } from "./AdminAuth";
 
+const isDemoMode = import.meta.env.VITE_DEMO_MODE === "true";
+
 export function AdminGuard() {
   const { session, loading, isAdmin, signOut } = useAdminAuth();
   const location = useLocation();
@@ -9,6 +11,8 @@ export function AdminGuard() {
   if (loading) {
     return <div className="container page-loading"><div className="loading-orb" /><p>Verificando acceso...</p></div>;
   }
+
+  if (isDemoMode) return <Outlet />;
 
   if (!isSupabaseConfigured || !session) {
     return <Navigate to="/admin/login" replace state={{ from: location.pathname }} />;
