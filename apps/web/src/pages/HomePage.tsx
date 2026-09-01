@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { CategoryIcon } from "../components/CategoryIcon";
 import { ProductCard } from "../components/ProductCard";
-import { ProductRail } from "../components/ProductRail";
 import { StoreLogo } from "../components/StoreLogo";
 import { StateMessage } from "../components/StateMessage";
 import { isSupabaseConfigured } from "../lib/supabase";
@@ -10,6 +9,7 @@ import { getCategories, getHomepageProducts, getHomepageStats } from "../service
 import type { Category, HomepageStats, Product } from "../services/types";
 
 const initialStats: HomepageStats = { products: 0, stores: 0, observations: 0, days: 0 };
+const HOMEPAGE_PRODUCT_LIMIT = 12;
 
 function number(value: number) {
   return new Intl.NumberFormat("es-UY").format(value);
@@ -66,6 +66,7 @@ export function HomePage() {
   }, [search, categoryId]);
 
   const leadProduct = products[0];
+  const visibleProducts = products.slice(0, HOMEPAGE_PRODUCT_LIMIT);
   const emptyCatalogCopy = categoryId
     ? { title: "No hay productos en esta categoría", text: "Probá con otra categoría para seguir comparando precios." }
     : search.trim()
@@ -175,17 +176,17 @@ export function HomePage() {
           <span className="catalog-count">{number(products.length)} productos</span>
         </div>
         {loading ? (
-          <ProductRail label="productos seguidos">
-            {[1, 2, 3, 4].map((item) => (
-              <div className="skeleton-card" key={item} />
+          <div className="product-grid homepage-product-grid" aria-label="Cargando productos seguidos">
+            {Array.from({ length: HOMEPAGE_PRODUCT_LIMIT }, (_, index) => (
+              <div className="skeleton-card" key={index} />
             ))}
-          </ProductRail>
+          </div>
         ) : products.length ? (
-          <ProductRail label="productos seguidos">
-            {products.map((product) => (
+          <div className="product-grid homepage-product-grid" aria-label="Productos seguidos">
+            {visibleProducts.map((product) => (
               <ProductCard key={product.id} product={product} />
             ))}
-          </ProductRail>
+          </div>
         ) : (
           <StateMessage title={emptyCatalogCopy.title} text={emptyCatalogCopy.text} />
         )}
