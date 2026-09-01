@@ -36,9 +36,14 @@ export const demoProducts: Product[] = [
   { id: "demo-yerba", name: "Yerba mate suave", brand: "Canarias", quantity: 1, unit: "kg", image_url: images.yerba, category: category("almacen"), created_at: "2026-08-23T09:00:00Z", current_price: 239, best_store: "Tienda Inglesa" },
   { id: "demo-shampoo", name: "Shampoo hidratación diaria", brand: "Pantene", quantity: 400, unit: "ml", image_url: images.shampoo, category: category("cuidado-personal"), created_at: "2026-08-22T09:00:00Z", current_price: 319, best_store: "Disco" },
   { id: "demo-cereal", name: "Cereal de avena y miel", brand: "Nestlé", quantity: 330, unit: "g", image_url: images.cereal, category: category("almacen"), created_at: "2026-08-21T09:00:00Z", current_price: 215, best_store: "Ta-Ta" },
+  { id: "demo-rice", name: "Arroz largo fino", brand: "El País", quantity: 1, unit: "kg", image_url: images.pasta, category: category("almacen"), created_at: "2026-08-20T09:00:00Z", current_price: 89, best_store: "Disco" },
+  { id: "demo-soda", name: "Agua mineral sin gas", brand: "Salus", quantity: 1.5, unit: "L", image_url: images.milk, category: category("bebidas"), created_at: "2026-08-19T09:00:00Z", current_price: 72, best_store: "Tienda Inglesa" },
+  { id: "demo-yogurt", name: "Yogur natural con frutilla", brand: "Conaprole", quantity: 1, unit: "kg", image_url: images.cereal, category: category("lacteos"), created_at: "2026-08-18T09:00:00Z", current_price: 198, best_store: "Ta-Ta" },
+  { id: "demo-floor-cleaner", name: "Limpiador de pisos lavanda", brand: "Ala", quantity: 900, unit: "ml", image_url: images.detergent, category: category("limpieza"), created_at: "2026-08-17T09:00:00Z", current_price: 169, best_store: "Disco" },
+  { id: "demo-toothpaste", name: "Crema dental protección total", brand: "Colgate", quantity: 90, unit: "g", image_url: images.shampoo, category: category("cuidado-personal"), created_at: "2026-08-16T09:00:00Z", current_price: 154, best_store: "Tienda Inglesa" },
 ];
 
-export const demoStats: HomepageStats = { products: 8, stores: 3, observations: 612, days: 14 };
+export const demoStats: HomepageStats = { products: 13, stores: 3, observations: 612, days: 14 };
 
 function suggestionLinks(suggestionId: string, urls: Array<string | null>): ProductSuggestionLink[] {
   return demoStores.map((store, index) => ({
