@@ -508,11 +508,11 @@ a { color: inherit; text-decoration: none; }
   .rail-arrow { display: grid; }
 }
 
-/* Airbnb-inspired consumer system from DESIGN.md. */
+/* Cuánto consumer system: Airbnb-inspired structure with the original brand green. */
 :root {
-  --color-primary: #ff385c;
-  --color-primary-active: #e00b41;
-  --color-primary-disabled: #ffd1da;
+  --color-primary: #08735b;
+  --color-primary-active: #075343;
+  --color-primary-disabled: #9cf6d4;
   --color-primary-error-text: #c13515;
   --color-primary-error-text-hover: #b32505;
   --color-luxe: #460479;
