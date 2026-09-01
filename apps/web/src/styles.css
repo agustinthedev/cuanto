@@ -639,8 +639,8 @@ a { color: inherit; }
 .catalog-section { margin-top: 64px; }
 .catalog-count { color: var(--color-muted); font-family: var(--font-primary); font-size: 13px; }
 .product-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 38px 24px; padding: 2px 0 10px; overflow: visible; }
-.product-card { width: 100%; flex-basis: auto; border: 0; border-radius: var(--radius-md); background: var(--color-surface-card); box-shadow: none; }
-.product-card:hover { border-color: transparent; box-shadow: none; }
+.product-card { width: 100%; flex-basis: auto; border: 1px solid var(--color-hairline-soft); border-radius: var(--radius-md); background: var(--color-surface-soft); box-shadow: 0 2px 7px rgba(34, 34, 34, .04); }
+.product-card:hover { border-color: var(--color-hairline); box-shadow: var(--shadow-soft); }
 .product-image-wrap { height: 226px; border-radius: var(--radius-md); background: var(--color-surface-strong); }
 .product-image-wrap::after { display: none; }
 .product-image { max-width: calc(100% - 36px); max-height: 194px; border-radius: var(--radius-sm); }
