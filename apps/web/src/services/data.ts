@@ -40,10 +40,14 @@ type HomepagePriceRow = Pick<LatestPrice, "product_id" | "price" | "store_name">
 
 export function attachLatestPrices(products: Product[], latestPrices: HomepagePriceRow[]): Product[] {
   const bestPriceByProduct = new Map<string, { price: number; store: string }>();
+  const comparisonStoresByProduct = new Map<string, Set<string>>();
 
   latestPrices.forEach((row) => {
     const price = Number(row.price);
     if (!Number.isFinite(price) || price <= 0 || !row.store_name) return;
+    const stores = comparisonStoresByProduct.get(row.product_id) ?? new Set<string>();
+    stores.add(row.store_name);
+    comparisonStoresByProduct.set(row.product_id, stores);
     const current = bestPriceByProduct.get(row.product_id);
     if (!current || price < current.price || (price === current.price && row.store_name.localeCompare(current.store, "es") < 0)) {
       bestPriceByProduct.set(row.product_id, { price, store: row.store_name });
@@ -52,7 +56,13 @@ export function attachLatestPrices(products: Product[], latestPrices: HomepagePr
 
   return products.map((product) => {
     const bestPrice = bestPriceByProduct.get(product.id);
-    return bestPrice ? { ...product, current_price: bestPrice.price, best_store: bestPrice.store } : product;
+    const comparisonCount = comparisonStoresByProduct.get(product.id)?.size ?? 0;
+    if (!bestPrice && !comparisonCount) return product;
+    return {
+      ...product,
+      ...(bestPrice ? { current_price: bestPrice.price, best_store: bestPrice.store } : {}),
+      comparison_count: comparisonCount,
+    };
   });
 }
 
@@ -186,7 +196,7 @@ export async function getHomepageProducts(filters?: { search?: string; categoryI
       const matchesSearch = !searchValue || `${product.name} ${product.brand ?? ""}`.toLocaleLowerCase("es-UY").includes(searchValue);
       const matchesCategory = !filters?.categoryId || product.category?.id === filters.categoryId;
       return matchesSearch && matchesCategory;
-    });
+    }).map((product) => ({ ...product, comparison_count: demoStores.length }));
   }
   if (!supabase) return [];
   let query = supabase.from("products").select(productSelect).order("created_at", { ascending: false }).limit(24);

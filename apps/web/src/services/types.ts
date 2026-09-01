@@ -43,6 +43,7 @@ export interface Product {
   created_at: string;
   current_price?: number;
   best_store?: string;
+  comparison_count?: number;
 }
 
 export interface LatestPrice {

@@ -32,9 +32,17 @@ describe("attachLatestPrices", () => {
       { product_id: "product-1", price: 100, store_name: "Disco" },
       { product_id: "product-1", price: 0, store_name: "Invalid" },
     ])).toEqual([
-      { ...products[0], current_price: 100, best_store: "Disco" },
+      { ...products[0], current_price: 100, best_store: "Disco", comparison_count: 2 },
       products[1],
     ]);
+  });
+
+  it("counts distinct chains with a valid latest price", () => {
+    expect(attachLatestPrices(products, [
+      { product_id: "product-1", price: 120, store_name: "Ta-Ta" },
+      { product_id: "product-1", price: 118, store_name: "Ta-Ta" },
+      { product_id: "product-1", price: 130, store_name: "Disco" },
+    ])[0]).toMatchObject({ comparison_count: 2 });
   });
 
   it("keeps products without a valid observation unchanged", () => {
