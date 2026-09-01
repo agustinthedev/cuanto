@@ -68,9 +68,16 @@ export function HomePage() {
   const leadProduct = products[0];
   return (
     <section className="consumer-home container">
+      <div className="home-intro">
+        <span className="section-kicker">Precios de supermercados en Uruguay</span>
+        <h1>Compará precios.<br /><em>Comprá con más claridad.</em></h1>
+        <p>Encontrá el mejor precio, compará cadenas y seguí la historia de cada producto.</p>
+      </div>
       <div className="consumer-search-row">
-        <div className="search-box">
-          <span className="search-icon">⌕</span>
+        <form className="search-box" onSubmit={(event) => event.preventDefault()}>
+          <span className="search-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.5" /><path d="m16 16 5 5" /></svg>
+          </span>
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -82,18 +89,20 @@ export function HomePage() {
               ×
             </button>
           )}
-        </div>
-        <span className="search-helper">Por nombre, marca o presentación</span>
+          <button className="search-orb" type="submit" aria-label="Buscar productos">→</button>
+        </form>
+        <span className="search-helper">Actualizamos los precios para que puedas elegir mejor.</span>
       </div>
 
       <div className="category-row category-scroller" aria-label="Filtrar por categoría">
-        <button className={!categoryId ? "category-chip selected" : "category-chip"} onClick={() => setCategoryId("")}>
+        <button type="button" className={!categoryId ? "category-chip selected" : "category-chip"} onClick={() => setCategoryId("")}>
           <CategoryIcon slug="all" />
           Todo
         </button>
         {categories.map((category) => (
           <button
             key={category.id}
+            type="button"
             className={categoryId === category.id ? "category-chip selected" : "category-chip"}
             onClick={() => setCategoryId(category.id)}
           >
@@ -107,9 +116,7 @@ export function HomePage() {
 
       <section className="discovery-section" aria-labelledby="discovery-title">
         <div className="consumer-section-heading">
-          <h2 id="discovery-title">
-            Joyas que encontramos <span>›</span>
-          </h2>
+          <div><span className="section-kicker">Una selección para vos</span><h2 id="discovery-title">Descubrí algo nuevo</h2></div>
           <span className="carousel-dots">
             <i className="active" />
             <i />
@@ -143,7 +150,7 @@ export function HomePage() {
             </div>
             <div className="discovery-footer">
               <span>{leadProduct ? "Mejor precio disponible" : "Explorá el catálogo"}</span>
-              <span>↗</span>
+              <span className="discovery-cta">Ver comparación <b>↗</b></span>
             </div>
           </div>
         </Link>
