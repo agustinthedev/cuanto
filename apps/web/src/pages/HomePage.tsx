@@ -66,6 +66,14 @@ export function HomePage() {
   }, [search, categoryId]);
 
   const leadProduct = products[0];
+  const emptyCatalogCopy = categoryId
+    ? { title: "No hay productos en esta categoría", text: "Probá con otra categoría para seguir comparando precios." }
+    : search.trim()
+      ? { title: "No encontramos ese producto", text: "Probá con otro nombre, marca o presentación." }
+      : isSupabaseConfigured
+        ? { title: "Todavía no hay productos para mostrar", text: "Cuando cargues el primer producto, va a aparecer acá." }
+        : { title: "El catálogo está listo para explorar", text: "Elegí una categoría o buscá un producto para empezar a comparar precios." };
+
   return (
     <section className="consumer-home container">
       <div className="home-intro">
@@ -179,14 +187,7 @@ export function HomePage() {
             ))}
           </ProductRail>
         ) : (
-          <StateMessage
-            title={isSupabaseConfigured ? "Todavía no hay productos para mostrar" : "El catálogo está listo para empezar"}
-            text={
-              isSupabaseConfigured
-                ? "Cuando cargues el primer producto en Supabase, va a aparecer acá."
-                : "Conectá tu proyecto Supabase y agregá productos curados para empezar a registrar precios reales."
-            }
-          />
+          <StateMessage title={emptyCatalogCopy.title} text={emptyCatalogCopy.text} />
         )}
       </section>
 
