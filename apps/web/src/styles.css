@@ -788,7 +788,7 @@ a { color: inherit; }
   .discovery-copy { padding: 28px 24px 26px; }
   .discovery-copy h3 { font-size: 28px; }
   .product-grid { grid-template-columns: 1fr; gap: 30px; }
-  .product-card { width: min(100%, 360px); }
+  .homepage-product-grid .product-card { width: min(100%, 360px); justify-self: center; }
   .product-image-wrap { height: 208px; }
   .data-summary-section { margin-top: 64px; padding: 28px 24px; }
   .data-summary-heading h2 { font-size: 24px; }
