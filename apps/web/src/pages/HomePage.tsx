@@ -9,7 +9,9 @@ import { getCategories, getHomepageProducts, getHomepageStats } from "../service
 import type { Category, HomepageStats, Product } from "../services/types";
 
 const initialStats: HomepageStats = { products: 0, stores: 0, observations: 0, days: 0 };
-const HOMEPAGE_PRODUCT_LIMIT = 12;
+const HOMEPAGE_DESKTOP_PRODUCT_LIMIT = 12;
+const HOMEPAGE_TABLET_PRODUCT_LIMIT = 8;
+const HOMEPAGE_MOBILE_PRODUCT_LIMIT = 5;
 
 function number(value: number) {
   return new Intl.NumberFormat("es-UY").format(value);
@@ -66,7 +68,10 @@ export function HomePage() {
   }, [search, categoryId]);
 
   const leadProduct = products[0];
-  const visibleProducts = products.slice(0, HOMEPAGE_PRODUCT_LIMIT);
+  const visibleProducts = products.slice(0, HOMEPAGE_DESKTOP_PRODUCT_LIMIT);
+  const hasDesktopOverflow = products.length > HOMEPAGE_DESKTOP_PRODUCT_LIMIT;
+  const hasTabletOverflow = products.length > HOMEPAGE_TABLET_PRODUCT_LIMIT;
+  const hasMobileOverflow = products.length > HOMEPAGE_MOBILE_PRODUCT_LIMIT;
   const emptyCatalogCopy = categoryId
     ? { title: "No hay productos en esta categoría", text: "Probá con otra categoría para seguir comparando precios." }
     : search.trim()
@@ -177,7 +182,7 @@ export function HomePage() {
         </div>
         {loading ? (
           <div className="product-grid homepage-product-grid" aria-label="Cargando productos seguidos">
-            {Array.from({ length: HOMEPAGE_PRODUCT_LIMIT }, (_, index) => (
+            {Array.from({ length: HOMEPAGE_DESKTOP_PRODUCT_LIMIT }, (_, index) => (
               <div className="skeleton-card" key={index} />
             ))}
           </div>
@@ -189,6 +194,20 @@ export function HomePage() {
           </div>
         ) : (
           <StateMessage title={emptyCatalogCopy.title} text={emptyCatalogCopy.text} />
+        )}
+        {!loading && (hasDesktopOverflow || hasTabletOverflow || hasMobileOverflow) && (
+          <div
+            className={[
+              "catalog-more-actions",
+              hasDesktopOverflow ? "has-desktop-overflow" : "",
+              hasTabletOverflow ? "has-tablet-overflow" : "",
+              hasMobileOverflow ? "has-mobile-overflow" : "",
+            ].filter(Boolean).join(" ")}
+          >
+            {hasDesktopOverflow && <Link className="catalog-more catalog-more-desktop" to="/productos">Ver todos los productos <span aria-hidden="true">→</span></Link>}
+            {hasTabletOverflow && <Link className="catalog-more catalog-more-tablet" to="/productos">Ver todos los productos <span aria-hidden="true">→</span></Link>}
+            {hasMobileOverflow && <Link className="catalog-more catalog-more-mobile" to="/productos">Ver todos los productos <span aria-hidden="true">→</span></Link>}
+          </div>
         )}
       </section>
 

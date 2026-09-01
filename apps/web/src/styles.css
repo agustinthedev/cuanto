@@ -666,6 +666,23 @@ a { color: inherit; }
 .state-message { padding: 24px; border-color: var(--color-hairline); border-radius: var(--radius-md); color: var(--color-muted); background: var(--color-surface-soft); }
 .state-icon { border-radius: var(--radius-full); color: var(--color-on-primary); background: var(--color-primary); }
 .state-message h3 { color: var(--color-ink); font-size: 16px; font-weight: 500; }
+.catalog-more-actions { display: none; justify-content: center; margin-top: 28px; }
+.catalog-more {
+  display: none;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 13px 20px;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-full);
+  color: var(--color-primary-active);
+  background: var(--color-canvas);
+  font-size: 14px;
+  font-weight: 500;
+  transition: color .2s, background .2s, border-color .2s;
+}
+.catalog-more:hover { color: var(--color-on-primary); background: var(--color-primary); border-color: var(--color-primary); }
+.catalog-more span { font-size: 18px; line-height: 1; }
 .state-message p { font-size: 14px; line-height: 1.5; }
 .inline-alert { border-color: var(--color-primary-disabled); border-radius: var(--radius-sm); color: var(--color-primary-error-text); background: #fff; font-size: 14px; }
 
@@ -786,6 +803,8 @@ a { color: inherit; }
 @media (min-width: 701px) and (max-width: 1050px) {
   .product-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 34px 20px; }
   .homepage-product-grid > :nth-child(n + 9) { display: none; }
+  .catalog-more-actions.has-tablet-overflow { display: flex; }
+  .catalog-more-tablet { display: inline-flex; }
 }
 
 @media (max-width: 430px) {
@@ -802,6 +821,13 @@ a { color: inherit; }
 
 @media (max-width: 700px) {
   .homepage-product-grid > :nth-child(n + 6) { display: none; }
+  .catalog-more-actions.has-mobile-overflow { display: flex; }
+  .catalog-more-mobile { display: inline-flex; }
+}
+
+@media (min-width: 1051px) {
+  .catalog-more-actions.has-desktop-overflow { display: flex; }
+  .catalog-more-desktop { display: inline-flex; }
 }
 
 /* Admin controls use the same readable type scale as the consumer UI. */
