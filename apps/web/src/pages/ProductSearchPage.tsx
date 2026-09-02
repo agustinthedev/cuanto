@@ -84,9 +84,9 @@ export function ProductSearchPage() {
       <Link className="back-link product-search-back-link" to="/"><span>‹</span> Volver a explorar</Link>
 
       <div className="product-search-intro">
-        <span className="section-kicker">Catálogo de precios</span>
-        <h1>Buscá productos</h1>
-        <p>Encontrá un producto, filtrá por categoría y ordená los resultados para comparar mejor.</p>
+        <span className="section-kicker">Catálogo</span>
+        <h1>Productos</h1>
+        <p>Buscá, filtrá y ordená los precios del catálogo seguido.</p>
       </div>
 
       <form className="product-search-form" onSubmit={(event) => { event.preventDefault(); updateParams({ search: searchInput }); }}>
@@ -108,6 +108,10 @@ export function ProductSearchPage() {
       </form>
 
       <div className="product-search-filters">
+        <div className="product-search-filter-heading">
+          <span>Filtrar por categoría</span>
+          {hasFilters && <button className="product-search-clear-filters" type="button" onClick={() => { setSearchInput(""); updateParams({ search: "", categoryId: "", sort: "relevance" }); }}>Limpiar filtros</button>}
+        </div>
         <div className="category-row category-scroller product-search-category-row" aria-label="Filtrar por categoría">
           <button type="button" className={!categoryId ? "category-chip selected" : "category-chip"} onClick={() => updateParams({ categoryId: "" })}>
             <CategoryIcon slug="all" />
@@ -129,11 +133,13 @@ export function ProductSearchPage() {
         <div className="product-search-sort-row">
           <label className="product-search-sort-control">
             <span>Ordenar por</span>
-            <select value={sort} onChange={(event) => updateParams({ sort: event.target.value as ProductSort })}>
-              {productSortOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
+            <span className="product-search-select-wrap">
+              <select value={sort} onChange={(event) => updateParams({ sort: event.target.value as ProductSort })}>
+                {productSortOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+              <span className="product-search-select-arrow" aria-hidden="true">⌄</span>
+            </span>
           </label>
-          {hasFilters && <button className="product-search-clear-filters" type="button" onClick={() => { setSearchInput(""); updateParams({ search: "", categoryId: "", sort: "relevance" }); }}>Limpiar filtros</button>}
         </div>
       </div>
 

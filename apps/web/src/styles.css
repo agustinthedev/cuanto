@@ -897,3 +897,31 @@ a { color: inherit; }
 @media (min-width: 1051px) {
   .product-search-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 38px 24px; }
 }
+
+/* Product search catalog surface: distinct from the homepage hero. */
+.product-search-page { padding-top: 24px; }
+.product-search-back-link { margin-bottom: 30px; }
+.product-search-intro { max-width: 720px; margin-bottom: 22px; }
+.product-search-intro .section-kicker { margin-bottom: 8px; color: var(--color-muted); font-weight: 500; }
+.product-search-intro h1 { font-size: clamp(30px, 7vw, 42px); font-weight: 600; letter-spacing: -.045em; }
+.product-search-intro p { margin-top: 8px; font-size: 14px; }
+.product-search-form { max-width: 760px; }
+.product-search-filters { margin-top: 28px; padding: 18px 18px 0; border: 1px solid var(--color-hairline); border-radius: var(--radius-lg); background: var(--color-surface-soft); box-shadow: none; }
+.product-search-filter-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; color: var(--color-ink); font-size: 13px; font-weight: 600; }
+.product-search-filter-heading .product-search-clear-filters { padding: 0; font-size: 12px; font-weight: 500; }
+.product-search-category-row { justify-content: flex-start; gap: 22px; margin: 0 -18px; padding: 18px 18px 16px; border-bottom: 0; }
+.product-search-category-row .category-chip { padding-bottom: 12px; }
+.product-search-sort-row { justify-content: flex-end; margin: 0 -18px; padding: 14px 18px 18px; border-top: 1px solid var(--color-hairline); }
+.product-search-sort-control { gap: 12px; color: var(--color-muted); font-size: 12px; font-weight: 500; }
+.product-search-select-wrap { position: relative; display: block; flex: 1; min-width: 0; max-width: 240px; }
+.product-search-sort-control select { width: 100%; min-height: 44px; max-width: none; appearance: none; padding: 10px 38px 10px 14px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-sm); color: var(--color-ink); background: var(--color-canvas); box-shadow: 0 2px 5px rgba(34, 34, 34, .04); cursor: pointer; font-size: 13px; font-weight: 500; }
+.product-search-sort-control select:hover { border-color: var(--color-ink); }
+.product-search-select-arrow { position: absolute; top: 50%; right: 14px; color: var(--color-muted); font-size: 17px; line-height: 1; pointer-events: none; transform: translateY(-55%); }
+.product-search-results-heading { margin-top: 36px; padding-bottom: 16px; border-bottom: 1px solid var(--color-hairline-soft); }
+
+@media (min-width: 701px) {
+  .product-search-page { padding-top: 40px; }
+  .product-search-filters { padding: 22px 24px 0; }
+  .product-search-category-row { margin-right: -24px; margin-left: -24px; padding-right: 24px; padding-left: 24px; }
+  .product-search-sort-row { margin-right: -24px; margin-left: -24px; padding-right: 24px; padding-left: 24px; }
+}
