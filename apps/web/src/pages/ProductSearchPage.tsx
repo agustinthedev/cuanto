@@ -30,7 +30,7 @@ export function ProductSearchPage() {
   const [productError, setProductError] = useState<string | null>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const requestKeyRef = useRef("");
-  const requestInFlightRef = useRef(false);
+  const requestInFlightRef = useRef<string | null>(null);
   const queryKey = `${search}\u0000${categoryId}\u0000${sort}`;
 
   useEffect(() => {
@@ -53,6 +53,7 @@ export function ProductSearchPage() {
   useEffect(() => {
     let cancelled = false;
     requestKeyRef.current = queryKey;
+    requestInFlightRef.current = null;
     setLoading(true);
     setLoadingMore(false);
     setProducts([]);
@@ -81,7 +82,8 @@ export function ProductSearchPage() {
     if (loading || loadingMore || !hasMore || requestInFlightRef.current) return;
     const requestKey = queryKey;
     const nextPage = page + 1;
-    requestInFlightRef.current = true;
+    requestInFlightRef.current = requestKey;
+    setProductError(null);
     setLoadingMore(true);
 
     try {
@@ -97,8 +99,10 @@ export function ProductSearchPage() {
     } catch {
       if (requestKeyRef.current === requestKey) setProductError("No pudimos cargar más productos. Intentá nuevamente.");
     } finally {
-      requestInFlightRef.current = false;
-      if (requestKeyRef.current === requestKey) setLoadingMore(false);
+      if (requestInFlightRef.current === requestKey) {
+        requestInFlightRef.current = null;
+        if (requestKeyRef.current === requestKey) setLoadingMore(false);
+      }
     }
   }, [categoryId, hasMore, loading, loadingMore, page, queryKey, search, sort]);
 
