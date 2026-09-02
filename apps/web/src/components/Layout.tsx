@@ -6,6 +6,7 @@ export function Layout({ children }: { children: ReactNode }) {
   const { isAdmin, signOut } = useAdminAuth();
   const location = useLocation();
   const isAdminArea = isAdmin && location.pathname.startsWith("/admin");
+  const isProductSearch = location.pathname === "/productos";
   const howItWorksHref = location.pathname === "/" ? "#como-funciona" : "/#como-funciona";
 
   return (
@@ -28,7 +29,7 @@ export function Layout({ children }: { children: ReactNode }) {
             </>}
           </nav>
           <div className="site-header-actions">
-            {isAdminArea ? <button className="header-sign-out" type="button" onClick={() => void signOut()}>Cerrar sesión</button> : <Link className="header-action" to="/#explorar">Ver productos</Link>}
+            {isAdminArea ? <button className="header-sign-out" type="button" onClick={() => void signOut()}>Cerrar sesión</button> : !isProductSearch && <Link className="header-action" to="/productos">Buscar productos</Link>}
           </div>
         </div>
       </header>

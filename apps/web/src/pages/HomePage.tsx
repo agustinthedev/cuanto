@@ -6,6 +6,7 @@ import { StoreLogo } from "../components/StoreLogo";
 import { StateMessage } from "../components/StateMessage";
 import { isSupabaseConfigured } from "../lib/supabase";
 import { getCategories, getHomepageProducts, getHomepageStats } from "../services/data";
+import { buildProductSearchUrl } from "../services/productSearch";
 import type { Category, HomepageStats, Product } from "../services/types";
 
 const initialStats: HomepageStats = { products: 0, stores: 0, observations: 0, days: 0 };
@@ -82,6 +83,7 @@ export function HomePage() {
   }, [search, categoryId]);
 
   const leadProduct = products.find((product) => product.id === discoveryProductId);
+  const productSearchUrl = buildProductSearchUrl(search, categoryId);
   const visibleProducts = products.slice(0, HOMEPAGE_DESKTOP_PRODUCT_LIMIT);
   const hasDesktopOverflow = products.length > HOMEPAGE_DESKTOP_PRODUCT_LIMIT;
   const hasTabletOverflow = products.length > HOMEPAGE_TABLET_PRODUCT_LIMIT;
@@ -218,9 +220,9 @@ export function HomePage() {
               hasMobileOverflow ? "has-mobile-overflow" : "",
             ].filter(Boolean).join(" ")}
           >
-            {hasDesktopOverflow && <Link className="catalog-more catalog-more-desktop" to="/productos">Ver todos los productos <span aria-hidden="true">→</span></Link>}
-            {hasTabletOverflow && <Link className="catalog-more catalog-more-tablet" to="/productos">Ver todos los productos <span aria-hidden="true">→</span></Link>}
-            {hasMobileOverflow && <Link className="catalog-more catalog-more-mobile" to="/productos">Ver todos los productos <span aria-hidden="true">→</span></Link>}
+            {hasDesktopOverflow && <Link className="catalog-more catalog-more-desktop" to={productSearchUrl}>Ver todos los productos <span aria-hidden="true">→</span></Link>}
+            {hasTabletOverflow && <Link className="catalog-more catalog-more-tablet" to={productSearchUrl}>Ver todos los productos <span aria-hidden="true">→</span></Link>}
+            {hasMobileOverflow && <Link className="catalog-more catalog-more-mobile" to={productSearchUrl}>Ver todos los productos <span aria-hidden="true">→</span></Link>}
           </div>
         )}
       </section>

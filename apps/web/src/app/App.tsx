@@ -7,6 +7,7 @@ import { AdminLoginPage } from "../pages/AdminLoginPage";
 import { AdminHomePage } from "../pages/AdminHomePage";
 import { HomePage } from "../pages/HomePage";
 import { ProductPage } from "../pages/ProductPage";
+import { ProductSearchPage } from "../pages/ProductSearchPage";
 import { ProductSuggestionsPage } from "../pages/ProductSuggestionsPage";
 
 function ScrollToTop() {
@@ -38,6 +39,7 @@ export function App() {
         <Layout>
           <Routes>
             <Route path="/" element={<HomePage />} />
+            <Route path="/productos" element={<ProductSearchPage />} />
             <Route path="/productos/:id" element={<ProductPage />} />
             <Route path="/admin/login" element={<AdminLoginPage />} />
             <Route path="/admin" element={<AdminGuard />}>
