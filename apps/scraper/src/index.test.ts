@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import worker, { runScrape } from "./index";
+import worker, { buildScrapeQueueMessages, dispatchDailyRun, performScrapeMessage, runScrape } from "./index";
 
 describe("ejecución diaria", () => {
   afterEach(() => {
@@ -228,5 +228,160 @@ describe("ejecución diaria", () => {
     );
 
     expect(response.status).toBe(401);
+  });
+});
+
+describe("flujo con Queue", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("agrupa las publicaciones por producto y conserva las imágenes actuales", () => {
+    const records = [
+      {
+        id: "store-product-disco",
+        product_id: "product-1",
+        store_id: "store-disco",
+        location_id: null,
+        url: "https://example.test/disco",
+        external_name: null,
+        image_url: "https://images.test/disco.jpg",
+        store_slug: "disco",
+      },
+      {
+        id: "store-product-tata",
+        product_id: "product-1",
+        store_id: "store-tata",
+        location_id: null,
+        url: "https://example.test/tata",
+        external_name: null,
+        image_url: null,
+        store_slug: "ta-ta",
+      },
+    ];
+
+    const messages = buildScrapeQueueMessages(
+      records,
+      new Map([["product-1", {
+        id: "product-1",
+        image_url: "https://images.test/product.jpg",
+        image_source_store_product_id: "store-product-disco",
+        image_updated_at: "2026-08-25T12:00:00.000Z",
+      }]]),
+      "run-1",
+      "2026-09-02",
+    );
+
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toMatchObject({ run_id: "run-1", date: "2026-09-02", product_id: "product-1", product_image_url: "https://images.test/product.jpg" });
+    expect(messages[0].store_products.map((record) => record.store_slug)).toEqual(["disco", "ta-ta"]);
+  });
+
+  it("despacha un mensaje por producto y el performer hace un bulk upsert de precios", async () => {
+    const sentBatches: unknown[] = [];
+    const queue = { sendBatch: vi.fn(async (messages: unknown[]) => { sentBatches.push(messages); }) };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/rest/v1/stores")) return new Response(JSON.stringify([{ id: "store-1", slug: "disco" }]), { status: 200 });
+      if (url.includes("/rest/v1/store_products")) return new Response(JSON.stringify([{
+        id: "store-product-1",
+        product_id: "product-1",
+        store_id: "store-1",
+        location_id: null,
+        url: "https://example.test/disco",
+        external_name: null,
+        image_url: null,
+      }]), { status: 200 });
+      if (url.includes("/rest/v1/products")) return new Response(JSON.stringify([{
+        id: "product-1",
+        image_url: null,
+        image_source_store_product_id: null,
+        image_updated_at: null,
+      }]), { status: 200 });
+      return new Response("Not found", { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const dispatched = await dispatchDailyRun(
+      {
+        SUPABASE_URL: "https://project.supabase.co",
+        SUPABASE_SERVICE_ROLE_KEY: "service-role",
+        SCRAPE_QUEUE: queue,
+      } as unknown as Env,
+      new Date("2026-09-02T07:00:00Z"),
+    );
+
+    expect(dispatched).toMatchObject({ date: "2026-09-02", products: 1, messages: 1 });
+    expect(sentBatches).toHaveLength(1);
+    expect((sentBatches[0] as Array<{ body: { product_id: string } }>)[0].body.product_id).toBe("product-1");
+
+    const savedPriceBodies: unknown[] = [];
+    const savedStoreImageBodies: unknown[] = [];
+    const savedProductImageBodies: unknown[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/rest/v1/prices")) {
+        savedPriceBodies.push(JSON.parse(String(init?.body)));
+        return new Response(null, { status: 201 });
+      }
+      if (url.includes("/rest/v1/store_products") && init?.method === "PATCH") {
+        savedStoreImageBodies.push(JSON.parse(String(init.body)));
+        return new Response(null, { status: 204 });
+      }
+      if (url.includes("/rest/v1/products") && init?.method === "PATCH") {
+        savedProductImageBodies.push(JSON.parse(String(init.body)));
+        return new Response(null, { status: 204 });
+      }
+      if (url === "https://example.test/disco") return new Response('<meta property="og:image" content="/images/product.jpg"><meta property="product:price:amount" content="1299.00">', { status: 200 });
+      if (url.includes("operationName=ValidateSession")) return new Response(JSON.stringify({ data: { validateSession: { channel: "test-channel", locale: "es-UY" } } }), { status: 200 });
+      if (url.includes("operationName=BrowserProductQuery")) return new Response(JSON.stringify({ data: { product: { offers: { offers: [{ listPrice: 1400 }] } } } }), { status: 200 });
+      return new Response("Not found", { status: 404 });
+    }));
+
+    const result = await performScrapeMessage(
+      {
+        SUPABASE_URL: "https://project.supabase.co",
+        SUPABASE_SERVICE_ROLE_KEY: "service-role",
+        SCRAPE_QUEUE: queue,
+      } as unknown as Env,
+      {
+        run_id: "run-1",
+        date: "2026-09-02",
+        product_id: "product-1",
+        product_image_url: null,
+        store_products: [
+          {
+            id: "store-product-1",
+            product_id: "product-1",
+            store_id: "store-1",
+            location_id: null,
+            url: "https://example.test/disco",
+            external_name: null,
+            image_url: null,
+            store_slug: "disco",
+          },
+          {
+            id: "store-product-2",
+            product_id: "product-1",
+            store_id: "store-2",
+            location_id: null,
+            url: "https://example.test/tata/producto-p",
+            external_name: null,
+            image_url: null,
+            store_slug: "ta-ta",
+          },
+        ],
+      },
+    );
+
+    expect(result).toEqual({ attempted: 2, saved: 2, failed: 0 });
+    expect(savedPriceBodies).toHaveLength(1);
+    expect(savedPriceBodies[0]).toEqual([
+      { store_product_id: "store-product-1", price: 1299, date: "2026-09-02", scraped_at: expect.any(String) },
+      { store_product_id: "store-product-2", price: 1400, date: "2026-09-02", scraped_at: expect.any(String) },
+    ]);
+    expect(savedStoreImageBodies).toHaveLength(1);
+    expect(savedProductImageBodies).toHaveLength(1);
   });
 });
