@@ -15,7 +15,7 @@ import type {
   Store,
   StorePrice,
 } from "./types";
-import { demoAveragePrices, demoCategories, demoProducts, demoStats, demoStores, getDemoProductPageData } from "./demoData";
+import { demoAveragePrices, demoCategories, demoProducts, demoSuggestionStats, demoSuggestions, demoStats, demoStores, getDemoProductPageData } from "./demoData";
 
 const isDemoMode = import.meta.env.VITE_DEMO_MODE === "true";
 
@@ -40,10 +40,14 @@ type HomepagePriceRow = Pick<LatestPrice, "product_id" | "price" | "store_name">
 
 export function attachLatestPrices(products: Product[], latestPrices: HomepagePriceRow[]): Product[] {
   const bestPriceByProduct = new Map<string, { price: number; store: string }>();
+  const comparisonStoresByProduct = new Map<string, Set<string>>();
 
   latestPrices.forEach((row) => {
     const price = Number(row.price);
     if (!Number.isFinite(price) || price <= 0 || !row.store_name) return;
+    const stores = comparisonStoresByProduct.get(row.product_id) ?? new Set<string>();
+    stores.add(row.store_name);
+    comparisonStoresByProduct.set(row.product_id, stores);
     const current = bestPriceByProduct.get(row.product_id);
     if (!current || price < current.price || (price === current.price && row.store_name.localeCompare(current.store, "es") < 0)) {
       bestPriceByProduct.set(row.product_id, { price, store: row.store_name });
@@ -52,7 +56,13 @@ export function attachLatestPrices(products: Product[], latestPrices: HomepagePr
 
   return products.map((product) => {
     const bestPrice = bestPriceByProduct.get(product.id);
-    return bestPrice ? { ...product, current_price: bestPrice.price, best_store: bestPrice.store } : product;
+    const comparisonCount = comparisonStoresByProduct.get(product.id)?.size ?? 0;
+    if (!bestPrice && !comparisonCount) return product;
+    return {
+      ...product,
+      ...(bestPrice ? { current_price: bestPrice.price, best_store: bestPrice.store } : {}),
+      comparison_count: comparisonCount,
+    };
   });
 }
 
@@ -95,7 +105,7 @@ export async function getAdminStores(): Promise<Store[]> {
 }
 
 export async function getProductSuggestions(): Promise<ProductSuggestion[]> {
-  if (isDemoMode) return [];
+  if (isDemoMode) return demoSuggestions;
   if (!supabase) throw new Error("Supabase no está configurado.");
   const { data, error } = await supabase
     .from("product_suggestions")
@@ -107,6 +117,7 @@ export async function getProductSuggestions(): Promise<ProductSuggestion[]> {
 }
 
 export async function createProductSuggestion(title: string, categoryId: string, links: Array<{ store_id: string; url: string }>): Promise<void> {
+  if (isDemoMode) return;
   if (!supabase) throw new Error("Supabase no está configurado.");
   const { error } = await supabase.rpc("create_product_suggestion", {
     p_title: title,
@@ -117,6 +128,7 @@ export async function createProductSuggestion(title: string, categoryId: string,
 }
 
 export async function createProduct(name: string, categoryId: string, links: Array<{ store_id: string; url: string }>): Promise<string> {
+  if (isDemoMode) return "demo-created-product";
   if (!supabase) throw new Error("Supabase no está configurado.");
   const { data, error } = await supabase.rpc("create_product_with_links", {
     p_name: name,
@@ -134,6 +146,7 @@ export async function createProduct(name: string, categoryId: string, links: Arr
 }
 
 export async function updateProductSuggestion(id: string, title: string, categoryId: string, links: Array<{ store_id: string; url: string }>): Promise<void> {
+  if (isDemoMode) return;
   if (!supabase) throw new Error("Supabase no está configurado.");
   const { error } = await supabase.rpc("update_product_suggestion", {
     p_suggestion_id: id,
@@ -145,6 +158,7 @@ export async function updateProductSuggestion(id: string, title: string, categor
 }
 
 export async function approveProductSuggestion(id: string, title: string, categoryId: string, links: Array<{ store_id: string; url: string }>, expectedUpdatedAt: string): Promise<string> {
+  if (isDemoMode) return "demo-created-product";
   if (!supabase) throw new Error("Supabase no está configurado.");
   const { data, error } = await supabase.rpc("approve_product_suggestion", {
     p_suggestion_id: id,
@@ -158,6 +172,7 @@ export async function approveProductSuggestion(id: string, title: string, catego
 }
 
 export async function triggerProductScrape(productId: string): Promise<void> {
+  if (isDemoMode) return;
   if (!supabase) throw new Error("Supabase no está configurado.");
   const scraperUrl = import.meta.env.VITE_SCRAPER_URL?.trim().replace(/\/$/, "");
   if (!scraperUrl) throw new Error("El endpoint del scraper no está configurado.");
@@ -178,6 +193,7 @@ export async function triggerProductScrape(productId: string): Promise<void> {
 }
 
 export async function rejectProductSuggestion(id: string): Promise<void> {
+  if (isDemoMode) return;
   if (!supabase) throw new Error("Supabase no está configurado.");
   const { error } = await supabase.rpc("reject_product_suggestion", { p_suggestion_id: id });
   if (error) throw error;
@@ -190,7 +206,7 @@ export async function getHomepageProducts(filters?: { search?: string; categoryI
       const matchesSearch = !searchValue || `${product.name} ${product.brand ?? ""}`.toLocaleLowerCase("es-UY").includes(searchValue);
       const matchesCategory = !filters?.categoryId || product.category?.id === filters.categoryId;
       return matchesSearch && matchesCategory;
-    });
+    }).map((product) => ({ ...product, comparison_count: demoStores.length }));
   }
   if (!supabase) return [];
   let query = supabase.from("products").select(productSelect).order("created_at", { ascending: false }).limit(24);
@@ -263,7 +279,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
   if (isDemoMode) {
     return {
       stats: demoStats,
-      suggestions: { pending: 0, approved: 0, rejected: 0, total: 0 },
+      suggestions: demoSuggestionStats,
       observationHistory: demoAveragePrices.map((item) => ({ date: item.date, observation_count: item.observation_count })),
     };
   }

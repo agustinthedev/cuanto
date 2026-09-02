@@ -1,4 +1,4 @@
-import type { AveragePrice, Category, HomepageStats, LatestPrice, Product, ProductPageData, Store, StorePrice } from "./types";
+import type { AdminSuggestionStats, AveragePrice, Category, HomepageStats, LatestPrice, Product, ProductPageData, ProductSuggestion, ProductSuggestionLink, Store, StorePrice } from "./types";
 
 export const demoCategories: Category[] = [
   { id: "category-almacen", name: "Almacén", slug: "almacen" },
@@ -36,9 +36,74 @@ export const demoProducts: Product[] = [
   { id: "demo-yerba", name: "Yerba mate suave", brand: "Canarias", quantity: 1, unit: "kg", image_url: images.yerba, category: category("almacen"), created_at: "2026-08-23T09:00:00Z", current_price: 239, best_store: "Tienda Inglesa" },
   { id: "demo-shampoo", name: "Shampoo hidratación diaria", brand: "Pantene", quantity: 400, unit: "ml", image_url: images.shampoo, category: category("cuidado-personal"), created_at: "2026-08-22T09:00:00Z", current_price: 319, best_store: "Disco" },
   { id: "demo-cereal", name: "Cereal de avena y miel", brand: "Nestlé", quantity: 330, unit: "g", image_url: images.cereal, category: category("almacen"), created_at: "2026-08-21T09:00:00Z", current_price: 215, best_store: "Ta-Ta" },
+  { id: "demo-rice", name: "Arroz largo fino", brand: "El País", quantity: 1, unit: "kg", image_url: images.pasta, category: category("almacen"), created_at: "2026-08-20T09:00:00Z", current_price: 89, best_store: "Disco" },
+  { id: "demo-soda", name: "Agua mineral sin gas", brand: "Salus", quantity: 1.5, unit: "L", image_url: images.milk, category: category("bebidas"), created_at: "2026-08-19T09:00:00Z", current_price: 72, best_store: "Tienda Inglesa" },
+  { id: "demo-yogurt", name: "Yogur natural con frutilla", brand: "Conaprole", quantity: 1, unit: "kg", image_url: images.cereal, category: category("lacteos"), created_at: "2026-08-18T09:00:00Z", current_price: 198, best_store: "Ta-Ta" },
+  { id: "demo-floor-cleaner", name: "Limpiador de pisos lavanda", brand: "Ala", quantity: 900, unit: "ml", image_url: images.detergent, category: category("limpieza"), created_at: "2026-08-17T09:00:00Z", current_price: 169, best_store: "Disco" },
+  { id: "demo-toothpaste", name: "Crema dental protección total", brand: "Colgate", quantity: 90, unit: "g", image_url: images.shampoo, category: category("cuidado-personal"), created_at: "2026-08-16T09:00:00Z", current_price: 154, best_store: "Tienda Inglesa" },
 ];
 
-export const demoStats: HomepageStats = { products: 8, stores: 3, observations: 612, days: 14 };
+export const demoStats: HomepageStats = { products: 13, stores: 3, observations: 612, days: 14 };
+
+function suggestionLinks(suggestionId: string, urls: Array<string | null>): ProductSuggestionLink[] {
+  return demoStores.map((store, index) => ({
+    id: `demo-link-${suggestionId}-${store.slug}`,
+    suggestion_id: suggestionId,
+    store_id: store.id,
+    url: urls[index] ?? "",
+    store,
+  }));
+}
+
+export const demoSuggestions: ProductSuggestion[] = [
+  {
+    id: "demo-suggestion-yerba",
+    title: "Yerba mate suave Canarias 1 kg",
+    category_id: "category-almacen",
+    category: category("almacen")!,
+    status: "pending",
+    created_at: "2026-08-29T10:00:00Z",
+    updated_at: "2026-08-29T10:00:00Z",
+    reviewed_at: null,
+    links: suggestionLinks("yerba", [
+      "https://www.disco.com.uy/yerba-canarias",
+      "https://www.tiendainglesa.com.uy/yerba-canarias",
+      "https://www.tata.com.uy/yerba-canarias",
+    ]),
+  },
+  {
+    id: "demo-suggestion-coffee",
+    title: "Café tostado molido clásico 250 g",
+    category_id: "category-almacen",
+    category: category("almacen")!,
+    status: "approved",
+    created_at: "2026-08-27T14:30:00Z",
+    updated_at: "2026-08-28T09:15:00Z",
+    reviewed_at: "2026-08-28T09:15:00Z",
+    links: suggestionLinks("coffee", [
+      "https://www.disco.com.uy/cafe-clasico",
+      "https://www.tiendainglesa.com.uy/cafe-clasico",
+      "https://www.tata.com.uy/cafe-clasico",
+    ]),
+  },
+  {
+    id: "demo-suggestion-detergent",
+    title: "Detergente concentrado Skip 3 L",
+    category_id: "category-limpieza",
+    category: category("limpieza")!,
+    status: "rejected",
+    created_at: "2026-08-24T11:45:00Z",
+    updated_at: "2026-08-25T16:20:00Z",
+    reviewed_at: "2026-08-25T16:20:00Z",
+    links: suggestionLinks("detergent", [
+      "https://www.disco.com.uy/skip-concentrado",
+      null,
+      "https://www.tata.com.uy/skip-concentrado",
+    ]),
+  },
+];
+
+export const demoSuggestionStats: AdminSuggestionStats = { pending: 1, approved: 1, rejected: 1, total: 3 };
 
 const dates = ["2026-08-22", "2026-08-23", "2026-08-24", "2026-08-25", "2026-08-26", "2026-08-27", "2026-08-28"];
 const storeFactor: Record<string, number[]> = {

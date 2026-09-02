@@ -28,19 +28,22 @@ export function Layout({ children }: { children: ReactNode }) {
             </>}
           </nav>
           <div className="site-header-actions">
-            {isAdminArea && <button className="header-sign-out" type="button" onClick={() => void signOut()}>Cerrar sesión</button>}
+            {isAdminArea ? <button className="header-sign-out" type="button" onClick={() => void signOut()}>Cerrar sesión</button> : <Link className="header-action" to="/#explorar">Ver productos</Link>}
           </div>
         </div>
       </header>
       <main>{children}</main>
       <footer className="site-footer container">
-        <Link className="footer-brand" to="/" aria-label="Volver al inicio de Cuánto.uy">
-          <span className="footer-mark">$</span>
-          <span>cuánto<span className="brand-domain">.uy</span></span>
-        </Link>
-        <div className="footer-copy">
-          <strong>Precios claros</strong>
-          <span>para decidir mejor en Uruguay.</span>
+        <div className="footer-main">
+          <Link className="footer-brand" to="/" aria-label="Volver al inicio de Cuánto.uy">
+            <span className="footer-mark">$</span>
+            <span>cuánto<span className="brand-domain">.uy</span></span>
+          </Link>
+          <p className="footer-copy"><strong>Precios claros</strong><span>para decidir mejor en Uruguay.</span></p>
+        </div>
+        <div className="footer-links">
+          <a href={howItWorksHref}>Cómo funciona</a>
+          <Link to="/#explorar">Explorar productos</Link>
         </div>
       </footer>
     </div>

@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { NormalizedProductImage } from "./NormalizedProductImage";
 import { StoreLogo } from "./StoreLogo";
 import type { Product } from "../services/types";
 
@@ -8,18 +9,24 @@ function money(value: number) {
 
 export function ProductCard({ product }: { product: Product }) {
   const hasPrice = typeof product.current_price === "number";
+  const comparisonLabel = product.comparison_count === 1
+    ? "1 cadena comparada"
+    : product.comparison_count
+      ? `${product.comparison_count} cadenas comparadas`
+      : "Sin precios recientes";
+
   return (
     <Link className="product-card" to={`/productos/${product.id}`}>
       <div className="product-image-wrap">
         {product.image_url ? (
-          <img src={product.image_url} alt="" className="product-image" loading="lazy" />
+          <NormalizedProductImage src={product.image_url} />
         ) : (
           <div className="product-placeholder" aria-hidden="true">
             <span>{product.name.slice(0, 1).toUpperCase()}</span>
           </div>
         )}
         <span className="card-arrow">↗</span>
-        <span className="card-image-label"><span className="live-dot" />Precio actual</span>
+        <span className="card-image-label"><span className="live-dot" />{comparisonLabel}</span>
       </div>
       <div className="product-card-body">
         <div className="card-topline"><span className="product-category">{product.category?.name ?? "Producto seguido"}</span>{product.best_store ? <span className="card-store"><StoreLogo name={product.best_store} compact /><span>{product.best_store}</span></span> : <span className="card-open">Ver detalle</span>}</div>
