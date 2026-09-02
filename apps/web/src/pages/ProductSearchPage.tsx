@@ -1,11 +1,13 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { CategoryIcon } from "../components/CategoryIcon";
 import { ProductCard } from "../components/ProductCard";
 import { StateMessage } from "../components/StateMessage";
 import { getCategories, getProductSearchProducts } from "../services/data";
-import { parseProductSort, productSortOptions, sortProducts, type ProductSort } from "../services/productSearch";
+import { parseProductSort, productSortOptions, type ProductSort } from "../services/productSearch";
 import type { Category, Product } from "../services/types";
+
+const PRODUCT_PAGE_SIZE = 24;
 
 function number(value: number) {
   return new Intl.NumberFormat("es-UY").format(value);
@@ -20,7 +22,16 @@ export function ProductSearchPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [categoryError, setCategoryError] = useState<string | null>(null);
+  const [productError, setProductError] = useState<string | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+  const requestKeyRef = useRef("");
+  const requestInFlightRef = useRef(false);
+  const queryKey = `${search}\u0000${categoryId}\u0000${sort}`;
 
   useEffect(() => {
     setSearchInput(search);
@@ -28,10 +39,11 @@ export function ProductSearchPage() {
 
   useEffect(() => {
     let cancelled = false;
+    setCategoryError(null);
 
     getCategories()
       .then((nextCategories) => !cancelled && setCategories(nextCategories))
-      .catch(() => !cancelled && setError("No pudimos cargar las categorías."));
+      .catch(() => !cancelled && setCategoryError("No pudimos cargar las categorías. Podés seguir viendo los resultados, pero los filtros no están disponibles."));
 
     return () => {
       cancelled = true;
@@ -40,18 +52,68 @@ export function ProductSearchPage() {
 
   useEffect(() => {
     let cancelled = false;
+    requestKeyRef.current = queryKey;
     setLoading(true);
-    setError(null);
+    setLoadingMore(false);
+    setProducts([]);
+    setTotal(0);
+    setPage(0);
+    setHasMore(false);
+    setProductError(null);
 
-    getProductSearchProducts({ search, categoryId })
-      .then((nextProducts) => !cancelled && setProducts(nextProducts))
-      .catch(() => !cancelled && setError("No pudimos cargar los productos."))
+    getProductSearchProducts({ search, categoryId }, { page: 0, pageSize: PRODUCT_PAGE_SIZE, sort })
+      .then((result) => {
+        if (cancelled || requestKeyRef.current !== queryKey) return;
+        setProducts(result.products);
+        setTotal(result.total);
+        setPage(result.page);
+        setHasMore(result.hasMore);
+      })
+      .catch(() => !cancelled && requestKeyRef.current === queryKey && setProductError("No pudimos cargar los productos."))
       .finally(() => !cancelled && setLoading(false));
 
     return () => {
       cancelled = true;
     };
-  }, [categoryId, search]);
+  }, [categoryId, queryKey, search, sort]);
+
+  const loadNextPage = useCallback(async () => {
+    if (loading || loadingMore || !hasMore || requestInFlightRef.current) return;
+    const requestKey = queryKey;
+    const nextPage = page + 1;
+    requestInFlightRef.current = true;
+    setLoadingMore(true);
+
+    try {
+      const result = await getProductSearchProducts(
+        { search, categoryId },
+        { page: nextPage, pageSize: PRODUCT_PAGE_SIZE, sort },
+      );
+      if (requestKeyRef.current !== requestKey) return;
+      setProducts((currentProducts) => [...currentProducts, ...result.products]);
+      setTotal(result.total);
+      setPage(result.page);
+      setHasMore(result.hasMore);
+    } catch {
+      if (requestKeyRef.current === requestKey) setProductError("No pudimos cargar más productos. Intentá nuevamente.");
+    } finally {
+      requestInFlightRef.current = false;
+      if (requestKeyRef.current === requestKey) setLoadingMore(false);
+    }
+  }, [categoryId, hasMore, loading, loadingMore, page, queryKey, search, sort]);
+
+  useEffect(() => {
+    const element = loadMoreRef.current;
+    if (!element || loading || loadingMore || !hasMore) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) void loadNextPage();
+      },
+      { rootMargin: "480px 0px" },
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [hasMore, loadNextPage, loading, loadingMore]);
 
   const updateParams = (updates: { search?: string; categoryId?: string; sort?: ProductSort }) => {
     const nextParams = new URLSearchParams(searchParams);
@@ -70,7 +132,6 @@ export function ProductSearchPage() {
     setSearchParams(nextParams, { replace: true });
   };
 
-  const sortedProducts = sortProducts(products, sort);
   const selectedCategory = categories.find((category) => category.id === categoryId);
   const hasFilters = Boolean(search || categoryId || sort !== "relevance");
   const resultTitle = search
@@ -141,6 +202,7 @@ export function ProductSearchPage() {
             </span>
           </label>
         </div>
+        {categoryError && <p className="product-search-category-error" role="status">{categoryError}</p>}
       </div>
 
       <div className="product-search-results-heading">
@@ -148,24 +210,34 @@ export function ProductSearchPage() {
           <span className="section-kicker">Resultados</span>
           <h2>{resultTitle}</h2>
         </div>
-        <span className="product-search-count">{loading ? "Buscando…" : `${number(sortedProducts.length)} productos`}</span>
+        <span className="product-search-count">{loading ? "Buscando…" : `${number(total)} productos`}</span>
       </div>
 
-      {error ? (
-        <StateMessage title="No pudimos cargar los productos" text={error} />
+      {productError && !products.length ? (
+        <StateMessage title="No pudimos cargar los productos" text={productError} />
       ) : loading ? (
         <div className="product-grid product-search-grid" aria-label="Cargando resultados">
           {Array.from({ length: 8 }, (_, index) => <div className="skeleton-card" key={index} />)}
         </div>
-      ) : sortedProducts.length ? (
+      ) : products.length ? (
         <div className="product-grid product-search-grid" aria-label="Resultados de productos">
-          {sortedProducts.map((product) => <ProductCard key={product.id} product={product} />)}
+          {products.map((product) => <ProductCard key={product.id} product={product} />)}
         </div>
       ) : (
         <StateMessage
           title={search ? "No encontramos ese producto" : categoryId ? "No hay productos en esta categoría" : "Todavía no hay productos para mostrar"}
           text={search ? "Probá con otro nombre o marca." : "Probá con otra categoría para seguir comparando precios."}
         />
+      )}
+
+      {productError && products.length > 0 && <p className="product-search-load-more-error" role="alert">{productError}</p>}
+      {hasMore && (
+        <div className="product-search-load-more">
+          <button className="product-search-load-more-button" type="button" onClick={() => void loadNextPage()} disabled={loadingMore}>
+            {loadingMore ? "Cargando productos…" : "Cargar más productos"}
+          </button>
+          <div ref={loadMoreRef} className="product-search-load-more-sentinel" aria-hidden="true" />
+        </div>
       )}
     </section>
   );
