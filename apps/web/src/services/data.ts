@@ -199,17 +199,19 @@ export async function rejectProductSuggestion(id: string): Promise<void> {
   if (error) throw error;
 }
 
-export async function getHomepageProducts(filters?: { search?: string; categoryId?: string }): Promise<Product[]> {
+async function getProducts(filters?: { search?: string; categoryId?: string }, limit?: number): Promise<Product[]> {
   if (isDemoMode) {
     const searchValue = filters?.search?.trim().toLocaleLowerCase("es-UY") ?? "";
-    return demoProducts.filter((product) => {
+    const products = demoProducts.filter((product) => {
       const matchesSearch = !searchValue || `${product.name} ${product.brand ?? ""}`.toLocaleLowerCase("es-UY").includes(searchValue);
       const matchesCategory = !filters?.categoryId || product.category?.id === filters.categoryId;
       return matchesSearch && matchesCategory;
     }).map((product) => ({ ...product, comparison_count: demoStores.length }));
+    return typeof limit === "number" ? products.slice(0, limit) : products;
   }
   if (!supabase) return [];
-  let query = supabase.from("products").select(productSelect).order("created_at", { ascending: false }).limit(24);
+  let query = supabase.from("products").select(productSelect).order("created_at", { ascending: false });
+  if (typeof limit === "number") query = query.limit(limit);
   if (filters?.search?.trim()) query = query.ilike("name", `%${filters.search.trim()}%`);
   if (filters?.categoryId) query = query.eq("category_id", filters.categoryId);
   const { data, error } = await query;
@@ -224,6 +226,14 @@ export async function getHomepageProducts(filters?: { search?: string; categoryI
   if (latestPricesError) throw latestPricesError;
 
   return attachLatestPrices(products, (latestPrices ?? []) as HomepagePriceRow[]);
+}
+
+export async function getHomepageProducts(filters?: { search?: string; categoryId?: string }): Promise<Product[]> {
+  return getProducts(filters, 24);
+}
+
+export async function getProductSearchProducts(filters?: { search?: string; categoryId?: string }): Promise<Product[]> {
+  return getProducts(filters, 100);
 }
 
 async function countRows(table: string, column = "id"): Promise<number> {
