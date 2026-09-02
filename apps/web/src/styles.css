@@ -601,7 +601,7 @@ a { color: inherit; }
 .search-helper { color: var(--color-muted); font-size: 13px; text-align: center; }
 
 .category-row { gap: 28px; padding: 30px 0 16px; border-bottom: 1px solid var(--color-hairline-soft); }
-.category-scroller { justify-content: center; }
+.category-scroller { justify-content: safe center; }
 .category-chip { position: relative; gap: 8px; padding: 8px 0 16px; border: 0; border-radius: 0; color: var(--color-muted); background: transparent; font-size: 14px; font-weight: 500; transition: color .2s; }
 .category-icon { width: 32px; height: 32px; color: currentColor; stroke-width: 1.4; }
 .category-chip::after { content: ''; position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; border-radius: var(--radius-full); background: transparent; }
