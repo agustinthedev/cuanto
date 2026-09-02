@@ -28,7 +28,7 @@ export function Layout({ children }: { children: ReactNode }) {
             </>}
           </nav>
           <div className="site-header-actions">
-            {isAdminArea ? <button className="header-sign-out" type="button" onClick={() => void signOut()}>Cerrar sesión</button> : <Link className="header-action" to="/#explorar">Ver productos</Link>}
+            {isAdminArea ? <button className="header-sign-out" type="button" onClick={() => void signOut()}>Cerrar sesión</button> : <Link className="header-action" to="/productos">Buscar productos</Link>}
           </div>
         </div>
       </header>
