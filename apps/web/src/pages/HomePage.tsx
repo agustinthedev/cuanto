@@ -25,8 +25,14 @@ function money(value: number) {
   }).format(value);
 }
 
+function randomProductId(products: Product[]) {
+  if (!products.length) return "";
+  return products[Math.floor(Math.random() * products.length)]?.id ?? "";
+}
+
 export function HomePage() {
   const [products, setProducts] = useState<Product[]>([]);
+  const [discoveryProductId, setDiscoveryProductId] = useState("");
   const [categories, setCategories] = useState<Category[]>([]);
   const [stats, setStats] = useState<HomepageStats>(initialStats);
   const [search, setSearch] = useState("");
@@ -56,7 +62,15 @@ export function HomePage() {
 
     const timer = window.setTimeout(() => {
       getHomepageProducts({ search, categoryId })
-        .then((nextProducts) => !cancelled && setProducts(nextProducts))
+        .then((nextProducts) => {
+          if (cancelled) return;
+          setProducts(nextProducts);
+          setDiscoveryProductId((currentId) => (
+            currentId && nextProducts.some((product) => product.id === currentId)
+              ? currentId
+              : randomProductId(nextProducts)
+          ));
+        })
         .catch(() => !cancelled && setError("No pudimos cargar los productos."))
         .finally(() => !cancelled && setLoading(false));
     }, 180);
@@ -67,7 +81,7 @@ export function HomePage() {
     };
   }, [search, categoryId]);
 
-  const leadProduct = products[0];
+  const leadProduct = products.find((product) => product.id === discoveryProductId);
   const visibleProducts = products.slice(0, HOMEPAGE_DESKTOP_PRODUCT_LIMIT);
   const hasDesktopOverflow = products.length > HOMEPAGE_DESKTOP_PRODUCT_LIMIT;
   const hasTabletOverflow = products.length > HOMEPAGE_TABLET_PRODUCT_LIMIT;
