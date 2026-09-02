@@ -1,6 +1,6 @@
 import { getScraper } from "./stores";
 import { fetchWithRetry, sleep } from "./stores/base";
-import type { ScrapeSummary, StoreProductRecord } from "./types";
+import type { ScrapeQueueMessage, ScrapeSummary, ScrapeResult, StoreProductRecord } from "./types";
 
 const API_TABLES = {
   products: "products",
@@ -24,6 +24,7 @@ const IMAGE_STORE_PRIORITY: Record<string, number> = {
 };
 
 const TIENDA_INGLESA_REQUEST_DELAY_MS = 500;
+const QUEUE_SEND_BATCH_SIZE = 100;
 
 function apiUrl(env: Env, table: string, query = "") {
   return `${env.SUPABASE_URL.replace(/\/$/, "")}/rest/v1/${table}${query ? `?${query}` : ""}`;
@@ -73,6 +74,24 @@ async function savePrice(env: Env, record: StoreProductRecord, price: number, da
   if (!response.ok) throw new Error(`No se pudo guardar el precio: HTTP ${response.status} ${await response.text()}`);
 }
 
+interface PriceUpsert {
+  store_product_id: string;
+  price: number;
+  date: string;
+  scraped_at: string;
+}
+
+async function savePrices(env: Env, rows: PriceUpsert[]) {
+  if (rows.length === 0) return;
+
+  const response = await fetchWithRetry(apiUrl(env, API_TABLES.prices, "on_conflict=store_product_id,date"), {
+    method: "POST",
+    headers: apiHeaders(env, "resolution=merge-duplicates,return=minimal"),
+    body: JSON.stringify(rows),
+  });
+  if (!response.ok) throw new Error(`No se pudieron guardar los precios: HTTP ${response.status} ${await response.text()}`);
+}
+
 async function saveStoreProductImage(env: Env, record: StoreProductRecord, imageUrl: string, fetchedAt: string) {
   const response = await fetchWithRetry(apiUrl(env, API_TABLES.storeProducts, `id=eq.${encodeURIComponent(record.id)}`), {
     method: "PATCH",
@@ -120,6 +139,175 @@ function uruguayDate(now = new Date()): string {
   return `${values.year}-${values.month}-${values.day}`;
 }
 
+function scrapeQueue(env: Env): Queue<ScrapeQueueMessage> {
+  const queue = env.SCRAPE_QUEUE;
+  if (!queue) throw new Error("La Queue de scraping no está configurada");
+  return queue;
+}
+
+export function buildScrapeQueueMessages(
+  records: StoreProductRecord[],
+  productImages: Map<string, ProductImageRecord>,
+  runId: string,
+  date: string,
+): ScrapeQueueMessage[] {
+  const recordsByProduct = new Map<string, StoreProductRecord[]>();
+  for (const record of records) {
+    const current = recordsByProduct.get(record.product_id) ?? [];
+    current.push(record);
+    recordsByProduct.set(record.product_id, current);
+  }
+
+  return [...recordsByProduct.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([productId, storeProducts]) => ({
+      run_id: runId,
+      date,
+      product_id: productId,
+      product_image_url: productImages.get(productId)?.image_url ?? null,
+      store_products: [...storeProducts].sort((left, right) => imagePriority(left.store_slug) - imagePriority(right.store_slug)),
+    }));
+}
+
+export interface DispatchSummary {
+  run_id: string;
+  date: string;
+  products: number;
+  store_products: number;
+  messages: number;
+}
+
+export async function dispatchDailyRun(env: Env, scheduledTime = new Date()): Promise<DispatchSummary> {
+  const [records, productImages] = await Promise.all([loadActiveStoreProducts(env), loadProductImages(env)]);
+  const date = uruguayDate(scheduledTime);
+  const messages = buildScrapeQueueMessages(records, productImages, scheduledTime.toISOString(), date);
+  const queue = scrapeQueue(env);
+
+  for (let index = 0; index < messages.length; index += QUEUE_SEND_BATCH_SIZE) {
+    const chunk = messages.slice(index, index + QUEUE_SEND_BATCH_SIZE);
+    await queue.sendBatch(chunk.map((body) => ({ body })));
+  }
+
+  return { run_id: scheduledTime.toISOString(), date, products: messages.length, store_products: records.length, messages: messages.length };
+}
+
+async function scrapeStoreProduct(env: Env, record: StoreProductRecord): Promise<ScrapeResult> {
+  const scraper = getScraper(record.store_slug);
+  if (!scraper) throw new Error(`No hay adapter para ${record.store_slug}`);
+
+  const result = await scraper.scrape(record, env);
+  if (!Number.isFinite(result.price) || result.price <= 0) throw new Error("El adapter devolvió un precio inválido");
+  return result;
+}
+
+function isScrapeQueueMessage(value: unknown): value is ScrapeQueueMessage {
+  if (!value || typeof value !== "object") return false;
+  const message = value as Partial<ScrapeQueueMessage>;
+  const storeProducts = message.store_products;
+  return typeof message.run_id === "string"
+    && typeof message.date === "string"
+    && typeof message.product_id === "string"
+    && (message.product_image_url === null || typeof message.product_image_url === "string")
+    && Array.isArray(storeProducts)
+    && storeProducts.length > 0
+    && storeProducts.every((record) => (
+      !!record
+      && typeof record === "object"
+      && typeof record.id === "string"
+      && typeof record.product_id === "string"
+      && record.product_id === message.product_id
+      && typeof record.store_id === "string"
+      && (record.location_id === null || typeof record.location_id === "string")
+      && typeof record.url === "string"
+      && (record.external_name === null || typeof record.external_name === "string")
+      && (record.image_url === null || typeof record.image_url === "string")
+      && typeof record.store_slug === "string"
+    ));
+}
+
+interface FailedStoreProduct {
+  record: StoreProductRecord;
+  error: unknown;
+}
+
+export async function performScrapeMessage(env: Env, message: ScrapeQueueMessage): Promise<ScrapeSummary> {
+  const records = [...message.store_products].sort((left, right) => imagePriority(left.store_slug) - imagePriority(right.store_slug));
+  const productImages = new Map<string, ProductImageRecord>([[message.product_id, {
+    id: message.product_id,
+    image_url: message.product_image_url,
+    image_source_store_product_id: null,
+    image_updated_at: null,
+  }]]);
+  const successful: Array<{ record: StoreProductRecord; result: ScrapeResult }> = [];
+  const failed: FailedStoreProduct[] = [];
+  let previousStoreSlug: string | undefined;
+
+  for (const record of records) {
+    if (record.store_slug === "tienda-inglesa" && previousStoreSlug === record.store_slug) {
+      console.log(JSON.stringify({ event: "store_request_delay", store: record.store_slug, delay_ms: TIENDA_INGLESA_REQUEST_DELAY_MS }));
+      await sleep(TIENDA_INGLESA_REQUEST_DELAY_MS);
+    }
+
+    try {
+      const result = await scrapeStoreProduct(env, record);
+      successful.push({ record, result });
+    } catch (error) {
+      failed.push({ record, error });
+      console.error(JSON.stringify({
+        event: "scrape_failed",
+        run_id: message.run_id,
+        store: record.store_slug,
+        store_product_id: record.id,
+        url: record.url,
+        timestamp: new Date().toISOString(),
+        reason: error instanceof Error ? error.message : String(error),
+      }));
+    } finally {
+      previousStoreSlug = record.store_slug;
+    }
+  }
+
+  await savePrices(env, successful.map(({ record, result }) => ({
+    store_product_id: record.id,
+    price: result.price,
+    date: message.date,
+    scraped_at: new Date().toISOString(),
+  })));
+
+  for (const { record, result } of successful) {
+    if (!result.imageUrl) continue;
+
+    const imageFetchedAt = new Date().toISOString();
+    try {
+      if (record.image_url !== result.imageUrl) {
+        await saveStoreProductImage(env, record, result.imageUrl, imageFetchedAt);
+      }
+      await promoteProductImage(env, record, result.imageUrl, imageFetchedAt, productImages);
+      console.log(JSON.stringify({ event: "product_image_saved", run_id: message.run_id, store: record.store_slug, store_product_id: record.id, product_id: record.product_id, image_url: result.imageUrl }));
+    } catch (error) {
+      console.error(JSON.stringify({ event: "product_image_failed", run_id: message.run_id, store: record.store_slug, store_product_id: record.id, product_id: record.product_id, reason: error instanceof Error ? error.message : String(error) }));
+    }
+  }
+
+  if (failed.length > 0) {
+    if (records.length === 1) {
+      throw failed[0].error instanceof Error ? failed[0].error : new Error(String(failed[0].error));
+    }
+
+    const queue = scrapeQueue(env);
+    const retryMessages = failed.map(({ record }) => ({
+      run_id: message.run_id,
+      date: message.date,
+      product_id: message.product_id,
+      product_image_url: message.product_image_url,
+      store_products: [record],
+    } satisfies ScrapeQueueMessage));
+    await queue.sendBatch(retryMessages.map((body) => ({ body })));
+  }
+
+  return { attempted: records.length, saved: successful.length, failed: failed.length };
+}
+
 export interface ScrapeOptions {
   productId?: string;
 }
@@ -138,10 +326,7 @@ export async function runScrape(env: Env, now = new Date(), options: ScrapeOptio
     }
 
     try {
-      const scraper = getScraper(record.store_slug);
-      if (!scraper) throw new Error(`No hay adapter para ${record.store_slug}`);
-      const result = await scraper.scrape(record, env);
-      if (!Number.isFinite(result.price) || result.price <= 0) throw new Error("El adapter devolvió un precio inválido");
+      const result = await scrapeStoreProduct(env, record);
       await savePrice(env, record, result.price, date);
       summary.saved += 1;
       if (result.imageUrl) {
@@ -240,9 +425,16 @@ async function handleProductScrape(request: Request, env: Env, ctx: ExecutionCon
 }
 
 export default {
-  async scheduled(_controller: ScheduledController, env: Env) {
-    const summary = await runScrape(env);
-    console.log(JSON.stringify({ event: "scrape_finished", ...summary }));
+  async scheduled(controller: ScheduledController, env: Env) {
+    const summary = await dispatchDailyRun(env, new Date(controller.scheduledTime));
+    console.log(JSON.stringify({ event: "scrape_dispatch_finished", ...summary }));
+  },
+  async queue(batch: MessageBatch<unknown>, env: Env) {
+    for (const message of batch.messages) {
+      if (!isScrapeQueueMessage(message.body)) throw new Error("El mensaje de scraping tiene un formato inválido");
+      const summary = await performScrapeMessage(env, message.body);
+      console.log(JSON.stringify({ event: "scrape_product_finished", ...summary, product_id: message.body.product_id, run_id: message.body.run_id }));
+    }
   },
   async fetch(request: Request, env: Env, ctx: ExecutionContext) {
     const url = new URL(request.url);
