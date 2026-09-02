@@ -9,6 +9,14 @@ export interface StoreProductRecord {
   store_slug: string;
 }
 
+export interface ScrapeQueueMessage {
+  run_id: string;
+  date: string;
+  product_id: string;
+  product_image_url: string | null;
+  store_products: StoreProductRecord[];
+}
+
 export interface ScrapeResult {
   price: number;
   source: "html" | "json";
