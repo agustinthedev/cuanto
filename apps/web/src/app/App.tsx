@@ -1,4 +1,5 @@
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { useLayoutEffect } from "react";
+import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
 import { AdminAuthProvider } from "../auth/AdminAuth";
 import { AdminGuard } from "../auth/AdminGuard";
 import { Layout } from "../components/Layout";
@@ -8,9 +9,31 @@ import { HomePage } from "../pages/HomePage";
 import { ProductPage } from "../pages/ProductPage";
 import { ProductSuggestionsPage } from "../pages/ProductSuggestionsPage";
 
+function ScrollToTop() {
+  const { pathname, hash } = useLocation();
+
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    const previousScrollBehavior = root.style.scrollBehavior;
+    root.style.scrollBehavior = "auto";
+
+    if (hash) {
+      const target = document.getElementById(decodeURIComponent(hash.slice(1)));
+      target?.scrollIntoView({ block: "start", inline: "nearest" });
+    } else {
+      window.scrollTo(0, 0);
+    }
+
+    root.style.scrollBehavior = previousScrollBehavior;
+  }, [hash, pathname]);
+
+  return null;
+}
+
 export function App() {
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <AdminAuthProvider>
         <Layout>
           <Routes>
