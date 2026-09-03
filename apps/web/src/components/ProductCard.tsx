@@ -1,6 +1,8 @@
-import { Link } from "react-router-dom";
+import type { MouseEvent } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { NormalizedProductImage } from "./NormalizedProductImage";
 import { StoreLogo } from "./StoreLogo";
+import type { ProductEntryNavigationState } from "../services/navigation";
 import type { Product } from "../services/types";
 
 function money(value: number) {
@@ -8,15 +10,26 @@ function money(value: number) {
 }
 
 export function ProductCard({ product }: { product: Product }) {
+  const location = useLocation();
+  const navigate = useNavigate();
   const hasPrice = typeof product.current_price === "number";
   const comparisonLabel = product.comparison_count === 1
     ? "1 cadena comparada"
     : product.comparison_count
       ? `${product.comparison_count} cadenas comparadas`
       : "Sin precios recientes";
+  const handleClick = (event: MouseEvent<HTMLAnchorElement>) => {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    const navigationState: ProductEntryNavigationState = {
+      returnTo: `${location.pathname}${location.search}${location.hash}`,
+      returnScrollY: window.scrollY,
+    };
+    navigate(`/productos/${product.id}`, { state: navigationState });
+  };
 
   return (
-    <Link className="product-card" to={`/productos/${product.id}`}>
+    <Link className="product-card" to={`/productos/${product.id}`} onClick={handleClick}>
       <div className="product-image-wrap">
         {product.image_url ? (
           <NormalizedProductImage src={product.image_url} />

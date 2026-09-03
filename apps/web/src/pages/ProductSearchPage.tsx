@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { CategoryIcon } from "../components/CategoryIcon";
 import { ProductCard } from "../components/ProductCard";
 import { StateMessage } from "../components/StateMessage";
 import { getCategories, getProductSearchProducts } from "../services/data";
+import type { ProductReturnNavigationState } from "../services/navigation";
 import { parseProductSort, productSortOptions, type ProductSort } from "../services/productSearch";
 import type { Category, Product } from "../services/types";
 
@@ -14,6 +15,7 @@ function number(value: number) {
 }
 
 export function ProductSearchPage() {
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const search = searchParams.get("q") ?? "";
   const categoryId = searchParams.get("category") ?? "";
@@ -31,11 +33,20 @@ export function ProductSearchPage() {
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const requestKeyRef = useRef("");
   const requestInFlightRef = useRef<string | null>(null);
+  const restoredScrollRef = useRef(false);
+  const returnState = location.state as ProductReturnNavigationState | null;
   const queryKey = `${search}\u0000${categoryId}\u0000${sort}`;
 
   useEffect(() => {
     setSearchInput(search);
   }, [search]);
+
+  useLayoutEffect(() => {
+    if (loading || restoredScrollRef.current || returnState?.restoreScrollY === undefined) return;
+    restoredScrollRef.current = true;
+    const frame = window.requestAnimationFrame(() => window.scrollTo(0, returnState.restoreScrollY));
+    return () => window.cancelAnimationFrame(frame);
+  }, [loading, returnState?.restoreScrollY]);
 
   useEffect(() => {
     let cancelled = false;
