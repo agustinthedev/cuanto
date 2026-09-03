@@ -107,9 +107,15 @@ export async function probeTiendaInglesaFallbackOrigin(record: StoreProductRecor
   }
 }
 
-async function fetchFromFallbackOrigins(record: StoreProductRecord, env: Env, preferredOrigins?: string[]): Promise<string> {
+async function fetchFromFallbackOrigins(
+  record: StoreProductRecord,
+  env: Env,
+  preferredOrigins?: string[],
+  previouslyFailedOrigins?: string[],
+): Promise<string> {
   const init = { headers: { "User-Agent": TIENDA_INGLESA_USER_AGENT } };
   const failedOrigins: string[] = [];
+  const previouslyFailed = new Set(previouslyFailedOrigins);
 
   for (const fallbackOrigin of orderedFallbackOrigins(env, preferredOrigins)) {
     let targetUrl: string;
@@ -125,11 +131,12 @@ async function fetchFromFallbackOrigins(record: StoreProductRecord, env: Env, pr
       continue;
     }
 
-    const response = await fetchWithRetry(targetUrl, init, undefined, (candidate) => candidate.status !== 403 && !candidate.ok);
+    const attempts = previouslyFailed.has(fallbackOrigin) ? 1 : undefined;
+    const response = await fetchWithRetry(targetUrl, init, attempts, (candidate) => candidate.status !== 403 && !candidate.ok);
     if (!response.ok) {
       await response.body?.cancel();
       failedOrigins.push(`${fallbackOrigin}: HTTP ${response.status}`);
-      console.warn(JSON.stringify({ event: "tienda_inglesa_alias_failed", origin: fallbackOrigin, target_url: targetUrl, status: response.status }));
+      console.warn(JSON.stringify({ event: "tienda_inglesa_alias_failed", origin: fallbackOrigin, target_url: targetUrl, status: response.status, attempts }));
       continue;
     }
 
@@ -143,9 +150,10 @@ async function fetchFromFallbackOrigins(record: StoreProductRecord, env: Env, pr
   throw new ScraperError(`No se pudo leer ningún alias de Tienda Inglesa para ${record.url}: ${failedOrigins.join("; ")}`);
 }
 
-async function fetchTiendaInglesaHtml(record: StoreProductRecord, env: Env, preferredOrigins?: string[]): Promise<string> {
+async function fetchTiendaInglesaHtml(record: StoreProductRecord, env: Env, context?: StoreScrapeContext): Promise<string> {
+  const { tiendaInglesaFallbackOrigins: preferredOrigins, tiendaInglesaPreviouslyFailedOrigins: previouslyFailedOrigins } = context ?? {};
   if (preferredOrigins?.length) {
-    return fetchFromFallbackOrigins(record, env, preferredOrigins);
+    return fetchFromFallbackOrigins(record, env, preferredOrigins, previouslyFailedOrigins);
   }
 
   const init = { headers: { "User-Agent": TIENDA_INGLESA_USER_AGENT } };
@@ -159,13 +167,13 @@ async function fetchTiendaInglesaHtml(record: StoreProductRecord, env: Env, pref
     console.warn(JSON.stringify({ event: "tienda_inglesa_primary_failed", source_url: record.url, status: response.status }));
   }
 
-  return fetchFromFallbackOrigins(record, env);
+  return fetchFromFallbackOrigins(record, env, undefined, previouslyFailedOrigins);
 }
 
 export const tiendaInglesaScraper: StoreScraper = {
   slug: "tienda-inglesa",
   async scrape(record: StoreProductRecord, env, context?: StoreScrapeContext): Promise<ScrapeResult> {
-    const html = await fetchTiendaInglesaHtml(record, env, context?.tiendaInglesaFallbackOrigins);
+    const html = await fetchTiendaInglesaHtml(record, env, context);
     return { price: parseTiendaInglesaHtml(html), source: "html", imageUrl: extractProductImageFromHtml(html, record.url) };
   },
 };

@@ -444,6 +444,7 @@ describe("flujo con Queue", () => {
       body: expect.objectContaining({
         product_id: "product-1",
         tienda_inglesa_fallback_origins: ["https://prod-web-green.tiendainglesa.com.uy", "https://prod-web-blue.tiendainglesa.com.uy"],
+        tienda_inglesa_previously_failed_origins: ["https://prod-web-blue.tiendainglesa.com.uy"],
       }),
     }]);
   });
@@ -498,6 +499,53 @@ describe("flujo con Queue", () => {
     await expect(scrape).resolves.toEqual({ attempted: 1, saved: 1, failed: 0 });
     expect(scraperUrls).toEqual([greenUrl, greenUrl, greenUrl, blueUrl]);
     expect(scraperUrls).not.toContain(canonicalUrl);
+  });
+
+  it("no reintenta un alias que el dispatcher ya encontró caído", async () => {
+    vi.useFakeTimers();
+    const canonicalUrl = "https://www.tiendainglesa.com.uy/supermercado/cafe.producto?1584835,,42";
+    const blueUrl = "https://prod-web-blue.tiendainglesa.com.uy/supermercado/cafe.producto?1584835,,42";
+    const greenUrl = "https://prod-web-green.tiendainglesa.com.uy/supermercado/cafe.producto?1584835,,42";
+    const scraperUrls: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === greenUrl || url === blueUrl) {
+        scraperUrls.push(url);
+        return new Response("Service unavailable", { status: 503 });
+      }
+      return new Response("Not found", { status: 404 });
+    }));
+
+    const scrape = performScrapeMessage(
+      {
+        SUPABASE_URL: "https://project.supabase.co",
+        SUPABASE_SERVICE_ROLE_KEY: "service-role",
+        SCRAPE_QUEUE: { sendBatch: vi.fn() },
+      } as unknown as Env,
+      {
+        run_id: "run-1",
+        date: "2026-09-02",
+        product_id: "product-1",
+        product_image_url: null,
+        tienda_inglesa_fallback_origins: ["https://prod-web-green.tiendainglesa.com.uy", "https://prod-web-blue.tiendainglesa.com.uy"],
+        tienda_inglesa_previously_failed_origins: ["https://prod-web-blue.tiendainglesa.com.uy"],
+        store_products: [{
+          id: "store-product-1",
+          product_id: "product-1",
+          store_id: "store-1",
+          location_id: null,
+          url: canonicalUrl,
+          external_name: "Café",
+          image_url: null,
+          store_slug: "tienda-inglesa",
+        }],
+      },
+    );
+    const rejection = expect(scrape).rejects.toThrow("No se pudo leer ningún alias de Tienda Inglesa");
+    await vi.runAllTimersAsync();
+
+    await rejection;
+    expect(scraperUrls).toEqual([greenUrl, greenUrl, greenUrl, blueUrl]);
   });
 
   it("mantiene el intervalo de Tienda Inglesa entre mensajes de Queue", async () => {
