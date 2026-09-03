@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { CategoryIcon } from "../components/CategoryIcon";
 import { ProductCard } from "../components/ProductCard";
 import { StateMessage } from "../components/StateMessage";
 import { getCategories, getProductSearchProducts } from "../services/data";
+import type { ProductReturnNavigationState } from "../services/navigation";
 import { parseProductSort, productSortOptions, type ProductSort } from "../services/productSearch";
 import type { Category, Product } from "../services/types";
 
@@ -14,6 +15,7 @@ function number(value: number) {
 }
 
 export function ProductSearchPage() {
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const search = searchParams.get("q") ?? "";
   const categoryId = searchParams.get("category") ?? "";
@@ -31,11 +33,23 @@ export function ProductSearchPage() {
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const requestKeyRef = useRef("");
   const requestInFlightRef = useRef<string | null>(null);
+  const restoredScrollRef = useRef(false);
+  const returnState = location.state as ProductReturnNavigationState | null;
   const queryKey = `${search}\u0000${categoryId}\u0000${sort}`;
+  const restorePage = typeof returnState?.restorePage === "number" && Number.isFinite(returnState.restorePage)
+    ? Math.max(0, Math.floor(returnState.restorePage))
+    : 0;
 
   useEffect(() => {
     setSearchInput(search);
   }, [search]);
+
+  useLayoutEffect(() => {
+    if (loading || restoredScrollRef.current || returnState?.restoreScrollY === undefined) return;
+    restoredScrollRef.current = true;
+    const frame = window.requestAnimationFrame(() => window.scrollTo(0, returnState.restoreScrollY));
+    return () => window.cancelAnimationFrame(frame);
+  }, [loading, returnState?.restoreScrollY]);
 
   useEffect(() => {
     let cancelled = false;
@@ -62,21 +76,38 @@ export function ProductSearchPage() {
     setHasMore(false);
     setProductError(null);
 
-    getProductSearchProducts({ search, categoryId }, { page: 0, pageSize: PRODUCT_PAGE_SIZE, sort })
-      .then((result) => {
-        if (cancelled || requestKeyRef.current !== queryKey) return;
-        setProducts(result.products);
+    const isCurrentRequest = () => !cancelled && requestKeyRef.current === queryKey;
+    const loadInitialPages = async () => {
+      try {
+        let result = await getProductSearchProducts({ search, categoryId }, { page: 0, pageSize: PRODUCT_PAGE_SIZE, sort });
+        if (!isCurrentRequest()) return;
+        let loadedProducts = result.products;
+        setProducts(loadedProducts);
         setTotal(result.total);
         setPage(result.page);
         setHasMore(result.hasMore);
-      })
-      .catch(() => !cancelled && requestKeyRef.current === queryKey && setProductError("No pudimos cargar los productos."))
-      .finally(() => !cancelled && setLoading(false));
+
+        for (let nextPage = 1; nextPage <= restorePage && result.hasMore; nextPage += 1) {
+          result = await getProductSearchProducts({ search, categoryId }, { page: nextPage, pageSize: PRODUCT_PAGE_SIZE, sort });
+          if (!isCurrentRequest()) return;
+          loadedProducts = [...loadedProducts, ...result.products];
+          setProducts(loadedProducts);
+          setTotal(result.total);
+          setPage(result.page);
+          setHasMore(result.hasMore);
+        }
+      } catch {
+        if (isCurrentRequest()) setProductError("No pudimos cargar los productos.");
+      } finally {
+        if (isCurrentRequest()) setLoading(false);
+      }
+    };
+    void loadInitialPages();
 
     return () => {
       cancelled = true;
     };
-  }, [categoryId, queryKey, search, sort]);
+  }, [categoryId, queryKey, restorePage, search, sort]);
 
   const loadNextPage = useCallback(async () => {
     if (loading || loadingMore || !hasMore || requestInFlightRef.current) return;
@@ -225,7 +256,7 @@ export function ProductSearchPage() {
         </div>
       ) : products.length ? (
         <div className="product-grid product-search-grid" aria-label="Resultados de productos">
-          {products.map((product) => <ProductCard key={product.id} product={product} />)}
+          {products.map((product) => <ProductCard key={product.id} product={product} returnPage={page} />)}
         </div>
       ) : (
         <StateMessage

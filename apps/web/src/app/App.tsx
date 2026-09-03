@@ -11,14 +11,19 @@ import { ProductSearchPage } from "../pages/ProductSearchPage";
 import { ProductSuggestionsPage } from "../pages/ProductSuggestionsPage";
 
 function ScrollToTop() {
-  const { pathname, hash } = useLocation();
+  const { pathname, search, hash, state } = useLocation();
+  const restoreScrollY = typeof (state as { restoreScrollY?: unknown } | null)?.restoreScrollY === "number"
+    ? (state as { restoreScrollY: number }).restoreScrollY
+    : null;
 
   useLayoutEffect(() => {
     const root = document.documentElement;
     const previousScrollBehavior = root.style.scrollBehavior;
     root.style.scrollBehavior = "auto";
 
-    if (hash) {
+    if (restoreScrollY !== null) {
+      window.scrollTo(0, restoreScrollY);
+    } else if (hash) {
       const target = document.getElementById(decodeURIComponent(hash.slice(1)));
       target?.scrollIntoView({ block: "start", inline: "nearest" });
     } else {
@@ -26,7 +31,7 @@ function ScrollToTop() {
     }
 
     root.style.scrollBehavior = previousScrollBehavior;
-  }, [hash, pathname]);
+  }, [hash, pathname, restoreScrollY, search]);
 
   return null;
 }
