@@ -8,6 +8,7 @@ export const PRODUCT_UNIT_OPTIONS = [
 
 export type ProductUnit = (typeof PRODUCT_UNIT_OPTIONS)[number]["value"];
 export const MIN_PRODUCT_QUANTITY = 0.001;
+export const PRODUCT_QUANTITY_DECIMAL_PLACES = 3;
 
 const productUnitValues = new Set<string>(PRODUCT_UNIT_OPTIONS.map((option) => option.value));
 
@@ -21,6 +22,11 @@ export function parseProductQuantity(value: string): number | null {
 
   const quantity = Number(normalizedValue);
   return Number.isFinite(quantity) && quantity >= MIN_PRODUCT_QUANTITY ? quantity : null;
+}
+
+export function normalizeProductQuantity(value: number): number {
+  const factor = 10 ** PRODUCT_QUANTITY_DECIMAL_PLACES;
+  return Math.round((value + Number.EPSILON) * factor) / factor;
 }
 
 export function productMeasurementError(quantity: string, unit: string): string | null {

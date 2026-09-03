@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isProductUnit, parseProductQuantity, productMeasurementError } from "./productMeasurement";
+import { isProductUnit, normalizeProductQuantity, parseProductQuantity, productMeasurementError } from "./productMeasurement";
 
 describe("product measurement helpers", () => {
   it("accepts the supported measurement units", () => {
@@ -13,6 +13,11 @@ describe("product measurement helpers", () => {
     expect(parseProductQuantity("0,75")).toBe(0.75);
     expect(parseProductQuantity("0")).toBeNull();
     expect(parseProductQuantity("0.0005")).toBeNull();
+  });
+
+  it("normalizes equivalent quantities to the database precision", () => {
+    expect([1, 1.0, 1.000].map(normalizeProductQuantity)).toEqual([1, 1, 1]);
+    expect(normalizeProductQuantity(1.2345)).toBe(1.235);
   });
 
   it("returns a validation message for invalid measurements", () => {

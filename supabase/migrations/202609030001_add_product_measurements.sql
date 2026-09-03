@@ -58,6 +58,18 @@ $$;
 
 revoke all on function public.normalize_product_unit(text) from public, anon, authenticated;
 
+create or replace function public.normalize_product_quantity(p_quantity numeric)
+returns numeric
+language sql
+immutable
+parallel safe
+set search_path = public
+as $$
+  select round(p_quantity, 3);
+$$;
+
+revoke all on function public.normalize_product_quantity(numeric) from public, anon, authenticated;
+
 drop function if exists public.create_product_suggestion(text, uuid, jsonb);
 create or replace function public.create_product_suggestion(
   p_title text,
@@ -73,6 +85,7 @@ set search_path = public
 as $$
 declare
   v_suggestion_id uuid;
+  v_quantity numeric;
   v_unit text;
 begin
   if not public.is_admin() then
@@ -86,6 +99,8 @@ begin
   if p_quantity is null or p_quantity = 'NaN'::numeric or p_quantity < 0.001 then
     raise exception 'The product quantity must be at least 0.001';
   end if;
+
+  v_quantity := public.normalize_product_quantity(p_quantity);
 
   v_unit := public.normalize_product_unit(p_unit);
   if v_unit is null then
@@ -102,7 +117,7 @@ begin
   end if;
 
   insert into public.product_suggestions (title, category_id, quantity, unit, created_by)
-  values (btrim(p_title), p_category_id, p_quantity, v_unit, auth.uid())
+  values (btrim(p_title), p_category_id, v_quantity, v_unit, auth.uid())
   returning id into v_suggestion_id;
 
   insert into public.product_suggestion_store_links (suggestion_id, store_id, url)
@@ -140,6 +155,7 @@ set search_path = public
 as $$
 declare
   v_link_count integer;
+  v_quantity numeric;
   v_unit text;
 begin
   if not public.is_admin() then
@@ -158,6 +174,8 @@ begin
     raise exception 'The product quantity must be at least 0.001';
   end if;
 
+  v_quantity := public.normalize_product_quantity(p_quantity);
+
   v_unit := public.normalize_product_unit(p_unit);
   if v_unit is null then
     raise exception 'The product unit must be one of kg, g, L, ml, or un';
@@ -172,7 +190,7 @@ begin
   end if;
 
   update public.product_suggestions
-  set title = btrim(p_title), category_id = p_category_id, quantity = p_quantity, unit = v_unit
+  set title = btrim(p_title), category_id = p_category_id, quantity = v_quantity, unit = v_unit
   where id = p_suggestion_id;
 
   delete from public.product_suggestion_store_links
@@ -213,6 +231,7 @@ declare
   v_suggestion public.product_suggestions%rowtype;
   v_product_id uuid;
   v_link_count integer;
+  v_quantity numeric;
   v_unit text;
 begin
   if not public.is_admin() then
@@ -240,6 +259,8 @@ begin
     raise exception 'The product quantity must be at least 0.001';
   end if;
 
+  v_quantity := public.normalize_product_quantity(p_quantity);
+
   v_unit := public.normalize_product_unit(p_unit);
   if v_unit is null then
     raise exception 'The product unit must be one of kg, g, L, ml, or un';
@@ -255,7 +276,7 @@ begin
 
   -- Save the values from the review form before publishing the suggestion.
   update public.product_suggestions
-  set title = btrim(p_title), category_id = p_category_id, quantity = p_quantity, unit = v_unit
+  set title = btrim(p_title), category_id = p_category_id, quantity = v_quantity, unit = v_unit
   where id = p_suggestion_id;
 
   delete from public.product_suggestion_store_links
@@ -279,7 +300,7 @@ begin
   -- can legitimately exist in different quantities or measurement units.
   perform pg_advisory_xact_lock(
     hashtextextended(
-      lower(btrim(v_suggestion.title)) || '|' || v_suggestion.category_id::text || '|' || v_suggestion.quantity::text || '|' || v_suggestion.unit,
+      lower(btrim(v_suggestion.title)) || '|' || v_suggestion.category_id::text || '|' || v_quantity::text || '|' || v_suggestion.unit,
       0::bigint
     )
   );
@@ -288,14 +309,14 @@ begin
   from public.products
   where lower(btrim(name)) = lower(btrim(v_suggestion.title))
     and category_id = v_suggestion.category_id
-    and quantity = v_suggestion.quantity
+    and quantity = v_quantity
     and unit = v_suggestion.unit
   order by created_at
   limit 1;
 
   if v_product_id is null then
     insert into public.products (name, quantity, unit, category_id)
-    values (v_suggestion.title, v_suggestion.quantity, v_suggestion.unit, v_suggestion.category_id)
+    values (v_suggestion.title, v_quantity, v_suggestion.unit, v_suggestion.category_id)
     returning id into v_product_id;
   end if;
 
@@ -337,6 +358,7 @@ declare
   v_product_id uuid;
   v_conflicting_url text;
   v_link_url text;
+  v_quantity numeric;
   v_unit text;
 begin
   if not public.is_admin() then
@@ -350,6 +372,8 @@ begin
   if p_quantity is null or p_quantity = 'NaN'::numeric or p_quantity < 0.001 then
     raise exception 'The product quantity must be at least 0.001';
   end if;
+
+  v_quantity := public.normalize_product_quantity(p_quantity);
 
   v_unit := public.normalize_product_unit(p_unit);
   if v_unit is null then
@@ -415,7 +439,7 @@ begin
   -- Serialize requests for the same product presentation before looking it up.
   perform pg_advisory_xact_lock(
     hashtextextended(
-      lower(btrim(p_name)) || '|' || p_category_id::text || '|' || p_quantity::text || '|' || v_unit,
+      lower(btrim(p_name)) || '|' || p_category_id::text || '|' || v_quantity::text || '|' || v_unit,
       0::bigint
     )
   );
@@ -434,14 +458,14 @@ begin
   from public.products
   where lower(btrim(name)) = lower(btrim(p_name))
     and category_id = p_category_id
-    and quantity = p_quantity
+    and quantity = v_quantity
     and unit = v_unit
   order by created_at
   limit 1;
 
   if v_product_id is null then
     insert into public.products (name, quantity, unit, category_id)
-    values (btrim(p_name), p_quantity, v_unit, p_category_id)
+    values (btrim(p_name), v_quantity, v_unit, p_category_id)
     returning id into v_product_id;
   end if;
 

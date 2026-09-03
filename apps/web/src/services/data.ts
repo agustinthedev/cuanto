@@ -15,7 +15,7 @@ import type {
   Store,
   StorePrice,
 } from "./types";
-import { isProductUnit, type ProductUnit } from "./productMeasurement";
+import { isProductUnit, normalizeProductQuantity, type ProductUnit } from "./productMeasurement";
 import { demoAveragePrices, demoCategories, demoProducts, demoSuggestionStats, demoSuggestions, demoStats, demoStores, getDemoProductPageData } from "./demoData";
 import { sortProducts, type ProductSort } from "./productSearch";
 
@@ -127,7 +127,7 @@ export async function createProductSuggestion(title: string, categoryId: string,
   const { error } = await supabase.rpc("create_product_suggestion", {
     p_title: title,
     p_category_id: categoryId,
-    p_quantity: quantity,
+    p_quantity: normalizeProductQuantity(quantity),
     p_unit: unit,
     p_links: links,
   });
@@ -140,7 +140,7 @@ export async function createProduct(name: string, categoryId: string, quantity: 
   const { data, error } = await supabase.rpc("create_product_with_links", {
     p_name: name,
     p_category_id: categoryId,
-    p_quantity: quantity,
+    p_quantity: normalizeProductQuantity(quantity),
     p_unit: unit,
     p_links: links,
   });
@@ -161,7 +161,7 @@ export async function updateProductSuggestion(id: string, title: string, categor
     p_suggestion_id: id,
     p_title: title,
     p_category_id: categoryId,
-    p_quantity: quantity,
+    p_quantity: normalizeProductQuantity(quantity),
     p_unit: unit,
     p_links: links,
   });
@@ -175,7 +175,7 @@ export async function approveProductSuggestion(id: string, title: string, catego
     p_suggestion_id: id,
     p_title: title,
     p_category_id: categoryId,
-    p_quantity: quantity,
+    p_quantity: normalizeProductQuantity(quantity),
     p_unit: unit,
     p_links: links,
     p_expected_updated_at: expectedUpdatedAt,
