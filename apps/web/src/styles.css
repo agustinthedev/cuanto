@@ -933,3 +933,29 @@ a { color: inherit; }
   .product-search-category-row { margin-right: -24px; margin-left: -24px; padding-right: 24px; padding-left: 24px; }
   .product-search-sort-row { margin-right: -24px; margin-left: -24px; padding-right: 24px; padding-left: 24px; }
 }
+
+/* Tags are admin-only metadata and use a controlled picker instead of free text. */
+.admin-tags-fieldset { margin: 23px 0 0; padding: 0; border: 0; }
+.admin-tags-fieldset legend { margin-bottom: 11px; color: var(--color-muted); font-size: 13px; font-weight: 600; }
+.admin-tags-picker { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 9px; align-items: center; }
+.admin-tags-picker select, .admin-tag-create-form input { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid var(--color-hairline); border-radius: var(--radius-sm); outline: 0; color: var(--color-ink); background: var(--color-canvas); font: inherit; font-size: 14px; }
+.admin-tags-picker select:focus, .admin-tag-create-form input:focus { border-color: var(--color-border-strong); box-shadow: 0 0 0 2px rgba(34, 34, 34, .08); }
+.admin-tag-create-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 10px 14px; border: 1px solid var(--color-primary); border-radius: var(--radius-sm); color: var(--color-primary); background: var(--color-canvas); font-size: 14px; font-weight: 500; white-space: nowrap; }
+.admin-tag-create-button:hover { color: var(--color-on-primary); background: var(--color-primary); }
+.admin-tag-create-button span { font-size: 18px; line-height: 1; }
+.admin-tags-list { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 11px; }
+.admin-tag-chip { display: inline-flex; align-items: center; gap: 7px; min-height: 32px; padding: 5px 7px 5px 11px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-full); color: var(--color-ink); background: var(--color-surface-soft); font-size: 13px; }
+.admin-tag-chip button { display: grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%; color: var(--color-muted); background: transparent; font-size: 17px; line-height: 1; }
+.admin-tag-chip button:hover { color: var(--color-danger, #b42318); background: var(--color-canvas); }
+.admin-tag-create-form { display: grid; grid-template-columns: minmax(0, 1fr) 44px 44px; gap: 8px; align-items: center; margin-top: 11px; }
+.admin-tag-icon-button { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 1px solid var(--color-hairline); border-radius: var(--radius-sm); font-size: 19px; font-weight: 600; line-height: 1; }
+.admin-tag-confirm-button { color: var(--color-primary); background: var(--color-canvas); }
+.admin-tag-confirm-button:hover { color: var(--color-on-primary); border-color: var(--color-primary); background: var(--color-primary); }
+.admin-tag-cancel-button { color: var(--color-muted); background: var(--color-canvas); }
+.admin-tag-cancel-button:hover { color: var(--color-ink); border-color: var(--color-border-strong); background: var(--color-surface-soft); }
+.admin-tag-create-error { grid-column: 1 / -1; color: var(--color-danger, #b42318); font-size: 12px; line-height: 1.4; }
+
+@media (max-width: 700px) {
+  .admin-tags-picker { grid-template-columns: 1fr; }
+  .admin-tag-create-button { width: 100%; }
+}

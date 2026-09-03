@@ -1,4 +1,4 @@
-import type { AdminSuggestionStats, AveragePrice, Category, HomepageStats, LatestPrice, Product, ProductPageData, ProductSuggestion, ProductSuggestionLink, Store, StorePrice } from "./types";
+import type { AdminSuggestionStats, AveragePrice, Category, HomepageStats, LatestPrice, Product, ProductPageData, ProductSuggestion, ProductSuggestionLink, Store, StorePrice, Tag } from "./types";
 
 export const demoCategories: Category[] = [
   { id: "category-almacen", name: "Almacén", slug: "almacen" },
@@ -12,6 +12,12 @@ export const demoStores: Store[] = [
   { id: "store-disco", name: "Disco", slug: "disco" },
   { id: "store-tienda-inglesa", name: "Tienda Inglesa", slug: "tienda-inglesa" },
   { id: "store-ta-ta", name: "Ta-Ta", slug: "ta-ta" },
+];
+
+export const demoTags: Tag[] = [
+  { id: "demo-tag-organico", name: "Orgánico" },
+  { id: "demo-tag-sin-tacc", name: "Sin TACC" },
+  { id: "demo-tag-oferta", name: "Oferta" },
 ];
 
 const images = {
@@ -72,6 +78,7 @@ export const demoSuggestions: ProductSuggestion[] = [
       "https://www.tiendainglesa.com.uy/yerba-canarias",
       "https://www.tata.com.uy/yerba-canarias",
     ]),
+    tags: [],
   },
   {
     id: "demo-suggestion-coffee",
@@ -89,6 +96,7 @@ export const demoSuggestions: ProductSuggestion[] = [
       "https://www.tiendainglesa.com.uy/cafe-clasico",
       "https://www.tata.com.uy/cafe-clasico",
     ]),
+    tags: [demoTags[0]],
   },
   {
     id: "demo-suggestion-detergent",
@@ -106,6 +114,7 @@ export const demoSuggestions: ProductSuggestion[] = [
       null,
       "https://www.tata.com.uy/skip-concentrado",
     ]),
+    tags: [demoTags[2]],
   },
 ];
 
