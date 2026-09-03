@@ -9,7 +9,7 @@ function money(value: number) {
   return new Intl.NumberFormat("es-UY", { style: "currency", currency: "UYU", maximumFractionDigits: 0 }).format(value);
 }
 
-export function ProductCard({ product }: { product: Product }) {
+export function ProductCard({ product, returnPage = 0 }: { product: Product; returnPage?: number }) {
   const location = useLocation();
   const navigate = useNavigate();
   const hasPrice = typeof product.current_price === "number";
@@ -24,6 +24,7 @@ export function ProductCard({ product }: { product: Product }) {
     const navigationState: ProductEntryNavigationState = {
       returnTo: `${location.pathname}${location.search}${location.hash}`,
       returnScrollY: window.scrollY,
+      returnPage,
     };
     navigate(`/productos/${product.id}`, { state: navigationState });
   };

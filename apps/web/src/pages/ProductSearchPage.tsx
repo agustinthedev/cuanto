@@ -36,6 +36,9 @@ export function ProductSearchPage() {
   const restoredScrollRef = useRef(false);
   const returnState = location.state as ProductReturnNavigationState | null;
   const queryKey = `${search}\u0000${categoryId}\u0000${sort}`;
+  const restorePage = typeof returnState?.restorePage === "number" && Number.isFinite(returnState.restorePage)
+    ? Math.max(0, Math.floor(returnState.restorePage))
+    : 0;
 
   useEffect(() => {
     setSearchInput(search);
@@ -73,21 +76,38 @@ export function ProductSearchPage() {
     setHasMore(false);
     setProductError(null);
 
-    getProductSearchProducts({ search, categoryId }, { page: 0, pageSize: PRODUCT_PAGE_SIZE, sort })
-      .then((result) => {
-        if (cancelled || requestKeyRef.current !== queryKey) return;
-        setProducts(result.products);
+    const isCurrentRequest = () => !cancelled && requestKeyRef.current === queryKey;
+    const loadInitialPages = async () => {
+      try {
+        let result = await getProductSearchProducts({ search, categoryId }, { page: 0, pageSize: PRODUCT_PAGE_SIZE, sort });
+        if (!isCurrentRequest()) return;
+        let loadedProducts = result.products;
+        setProducts(loadedProducts);
         setTotal(result.total);
         setPage(result.page);
         setHasMore(result.hasMore);
-      })
-      .catch(() => !cancelled && requestKeyRef.current === queryKey && setProductError("No pudimos cargar los productos."))
-      .finally(() => !cancelled && setLoading(false));
+
+        for (let nextPage = 1; nextPage <= restorePage && result.hasMore; nextPage += 1) {
+          result = await getProductSearchProducts({ search, categoryId }, { page: nextPage, pageSize: PRODUCT_PAGE_SIZE, sort });
+          if (!isCurrentRequest()) return;
+          loadedProducts = [...loadedProducts, ...result.products];
+          setProducts(loadedProducts);
+          setTotal(result.total);
+          setPage(result.page);
+          setHasMore(result.hasMore);
+        }
+      } catch {
+        if (isCurrentRequest()) setProductError("No pudimos cargar los productos.");
+      } finally {
+        if (isCurrentRequest()) setLoading(false);
+      }
+    };
+    void loadInitialPages();
 
     return () => {
       cancelled = true;
     };
-  }, [categoryId, queryKey, search, sort]);
+  }, [categoryId, queryKey, restorePage, search, sort]);
 
   const loadNextPage = useCallback(async () => {
     if (loading || loadingMore || !hasMore || requestInFlightRef.current) return;
@@ -236,7 +256,7 @@ export function ProductSearchPage() {
         </div>
       ) : products.length ? (
         <div className="product-grid product-search-grid" aria-label="Resultados de productos">
-          {products.map((product) => <ProductCard key={product.id} product={product} />)}
+          {products.map((product) => <ProductCard key={product.id} product={product} returnPage={page} />)}
         </div>
       ) : (
         <StateMessage

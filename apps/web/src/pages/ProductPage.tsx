@@ -36,7 +36,7 @@ export function ProductPage() {
   const entryState = location.state as Partial<ProductEntryNavigationState> | null;
   const returnTo = typeof entryState?.returnTo === "string" ? entryState.returnTo : "/";
   const returnState: ProductReturnNavigationState | undefined = typeof entryState?.returnScrollY === "number"
-    ? { restoreScrollY: entryState.returnScrollY }
+    ? { restoreScrollY: entryState.returnScrollY, restorePage: entryState.returnPage ?? 0 }
     : undefined;
   const bestLatest = [...latestPrices].sort((left, right) => Number(left.price) - Number(right.price))[0] ?? null;
   const bestPrice = bestLatest ? Number(bestLatest.price) : null;
