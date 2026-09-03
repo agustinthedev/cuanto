@@ -12,6 +12,11 @@ export interface Store {
   slug: string;
 }
 
+export interface Tag {
+  id: string;
+  name: string;
+}
+
 export type ProductSuggestionStatus = "pending" | "approved" | "rejected";
 
 export interface ProductSuggestionLink {
@@ -34,6 +39,7 @@ export interface ProductSuggestion {
   updated_at: string;
   reviewed_at: string | null;
   links: ProductSuggestionLink[];
+  tags: Tag[];
 }
 
 export interface Product {

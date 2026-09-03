@@ -14,16 +14,17 @@ import type {
   PriceObservationDay,
   Store,
   StorePrice,
+  Tag,
 } from "./types";
 import { isProductUnit, normalizeProductQuantity, type ProductUnit } from "./productMeasurement";
-import { demoAveragePrices, demoCategories, demoProducts, demoSuggestionStats, demoSuggestions, demoStats, demoStores, getDemoProductPageData } from "./demoData";
+import { demoAveragePrices, demoCategories, demoProducts, demoSuggestionStats, demoSuggestions, demoStats, demoStores, demoTags, getDemoProductPageData } from "./demoData";
 import { sortProducts, type ProductSort } from "./productSearch";
 
 const isDemoMode = import.meta.env.VITE_DEMO_MODE === "true";
 
 const productSelect = "id,name,brand,quantity,unit,image_url,created_at,category:categories(id,name,slug)";
 const productSearchSelect = "id,name,brand,quantity,unit,image_url,created_at,category_id,category_name,category_slug,current_price,best_store,comparison_count";
-const suggestionSelect = "id,title,category_id,quantity,unit,status,created_at,updated_at,reviewed_at,category:categories(id,name,slug),links:product_suggestion_store_links(id,suggestion_id,store_id,url,store:stores(id,name,slug))";
+const suggestionSelect = "id,title,category_id,quantity,unit,status,created_at,updated_at,reviewed_at,category:categories(id,name,slug),links:product_suggestion_store_links(id,suggestion_id,store_id,url,store:stores(id,name,slug)),tags:product_suggestion_tags(tag:tags(id,name))";
 
 function normalizeProduct(value: any): Product {
   const category = Array.isArray(value.category) ? value.category[0] : value.category;
@@ -78,6 +79,10 @@ function normalizeSuggestion(value: any): ProductSuggestion {
     url: link.url,
     store: Array.isArray(link.store) ? link.store[0] : link.store,
   }));
+  const tags = (value.tags ?? [])
+    .map((item: any) => Array.isArray(item.tag) ? item.tag[0] : item.tag)
+    .filter((tag: Tag | null | undefined): tag is Tag => Boolean(tag))
+    .map((tag: Tag) => ({ id: tag.id, name: tag.name }));
   return {
     id: value.id,
     title: value.title,
@@ -90,6 +95,7 @@ function normalizeSuggestion(value: any): ProductSuggestion {
     updated_at: value.updated_at,
     reviewed_at: value.reviewed_at ?? null,
     links,
+    tags,
   };
 }
 
@@ -107,6 +113,29 @@ export async function getAdminStores(): Promise<Store[]> {
   const { data, error } = await supabase.from("stores").select("id,name,slug").order("name");
   if (error) throw error;
   return (data ?? []) as Store[];
+}
+
+export async function getTags(): Promise<Tag[]> {
+  if (isDemoMode) return [...demoTags].sort((a, b) => a.name.localeCompare(b.name, "es"));
+  if (!supabase) throw new Error("Supabase no está configurado.");
+  const { data, error } = await supabase.from("tags").select("id,name").order("name");
+  if (error) throw error;
+  return (data ?? []) as Tag[];
+}
+
+export async function createTag(name: string): Promise<Tag> {
+  const trimmedName = name.trim();
+  if (isDemoMode) {
+    const existing = demoTags.find((tag) => tag.name.trim().toLocaleLowerCase("es-UY") === trimmedName.toLocaleLowerCase("es-UY"));
+    if (existing) return existing;
+    const tag = { id: `demo-tag-${trimmedName.toLocaleLowerCase("es-UY").replace(/[^a-z0-9]+/g, "-")}-${Date.now()}`, name: trimmedName };
+    demoTags.push(tag);
+    return tag;
+  }
+  if (!supabase) throw new Error("Supabase no está configurado.");
+  const { data, error } = await supabase.rpc("create_tag", { p_name: trimmedName });
+  if (error) throw error;
+  return data as Tag;
 }
 
 export async function getProductSuggestions(): Promise<ProductSuggestion[]> {
@@ -134,7 +163,7 @@ export async function createProductSuggestion(title: string, categoryId: string,
   if (error) throw error;
 }
 
-export async function createProduct(name: string, categoryId: string, quantity: number, unit: ProductUnit, links: Array<{ store_id: string; url: string }>): Promise<string> {
+export async function createProduct(name: string, categoryId: string, quantity: number, unit: ProductUnit, links: Array<{ store_id: string; url: string }>, tagIds: string[] = []): Promise<string> {
   if (isDemoMode) return "demo-created-product";
   if (!supabase) throw new Error("Supabase no está configurado.");
   const { data, error } = await supabase.rpc("create_product_with_links", {
@@ -143,6 +172,7 @@ export async function createProduct(name: string, categoryId: string, quantity: 
     p_quantity: normalizeProductQuantity(quantity),
     p_unit: unit,
     p_links: links,
+    p_tag_ids: tagIds,
   });
   if (error) {
     const duplicateLinkPrefix = "The store link is already assigned to another product or store: ";
@@ -154,7 +184,7 @@ export async function createProduct(name: string, categoryId: string, quantity: 
   return data as string;
 }
 
-export async function updateProductSuggestion(id: string, title: string, categoryId: string, quantity: number, unit: ProductUnit, links: Array<{ store_id: string; url: string }>): Promise<void> {
+export async function updateProductSuggestion(id: string, title: string, categoryId: string, quantity: number, unit: ProductUnit, links: Array<{ store_id: string; url: string }>, tagIds: string[] = []): Promise<void> {
   if (isDemoMode) return;
   if (!supabase) throw new Error("Supabase no está configurado.");
   const { error } = await supabase.rpc("update_product_suggestion", {
@@ -164,11 +194,12 @@ export async function updateProductSuggestion(id: string, title: string, categor
     p_quantity: normalizeProductQuantity(quantity),
     p_unit: unit,
     p_links: links,
+    p_tag_ids: tagIds,
   });
   if (error) throw error;
 }
 
-export async function approveProductSuggestion(id: string, title: string, categoryId: string, quantity: number, unit: ProductUnit, links: Array<{ store_id: string; url: string }>, expectedUpdatedAt: string): Promise<string> {
+export async function approveProductSuggestion(id: string, title: string, categoryId: string, quantity: number, unit: ProductUnit, links: Array<{ store_id: string; url: string }>, tagIds: string[], expectedUpdatedAt: string): Promise<string> {
   if (isDemoMode) return "demo-created-product";
   if (!supabase) throw new Error("Supabase no está configurado.");
   const { data, error } = await supabase.rpc("approve_product_suggestion", {
@@ -178,6 +209,7 @@ export async function approveProductSuggestion(id: string, title: string, catego
     p_quantity: normalizeProductQuantity(quantity),
     p_unit: unit,
     p_links: links,
+    p_tag_ids: tagIds,
     p_expected_updated_at: expectedUpdatedAt,
   });
   if (error) throw error;
