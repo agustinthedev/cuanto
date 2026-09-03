@@ -40,7 +40,6 @@ function MeasurementFields({ quantity, unit, onQuantityChange, onUnitChange, dis
     <>
       <label>Cantidad
         <input type="number" min="0.001" step="0.001" inputMode="decimal" value={quantity} onChange={(event) => onQuantityChange(event.target.value)} placeholder="Ej. 1,5" required disabled={disabled} />
-        <small className="admin-field-hint">Admite fracciones y decimales.</small>
       </label>
       <label>Unidad de medida
         <select value={unit} onChange={(event) => onUnitChange(event.target.value as ProductUnit)} required disabled={disabled}>
