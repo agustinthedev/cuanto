@@ -80,9 +80,7 @@ export function ProductTagSelector({ tags, selectedTagIds, onChange, onCreateTag
             </span>
           ))}
         </div>
-      ) : (
-        <small className="admin-field-hint">Podés asociar uno o varios tags al producto.</small>
-      )}
+      ) : null}
 
       {showCreateForm && !disabled && (
         <div className="admin-tag-create-form" role="group" aria-label="Crear un nuevo tag">
