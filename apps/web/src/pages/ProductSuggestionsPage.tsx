@@ -90,6 +90,7 @@ function CreateProductModal({ categories, stores, tags, onCreateTag, onClose, on
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [creatingTag, setCreatingTag] = useState(false);
 
   useEffect(() => {
     setLinks((current) => stores.map((store) => ({ storeId: store.id, url: current.find((link) => link.storeId === store.id)?.url ?? "" })));
@@ -98,7 +99,7 @@ function CreateProductModal({ categories, stores, tags, onCreateTag, onClose, on
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !saving) onClose();
+      if (event.key === "Escape" && !saving && !creatingTag) onClose();
     };
     document.body.style.overflow = "hidden";
     window.addEventListener("keydown", closeOnEscape);
@@ -106,10 +107,11 @@ function CreateProductModal({ categories, stores, tags, onCreateTag, onClose, on
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", closeOnEscape);
     };
-  }, [onClose, saving]);
+  }, [onClose, saving, creatingTag]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (saving || creatingTag) return;
     setError(null);
     if (!categoryId && !categories[0]?.id) {
       setError("Elegí una categoría antes de guardar.");
@@ -145,7 +147,7 @@ function CreateProductModal({ categories, stores, tags, onCreateTag, onClose, on
   }
 
   function handleBackdropClick(event: React.MouseEvent<HTMLDivElement>) {
-    if (event.target === event.currentTarget && !saving) onClose();
+    if (event.target === event.currentTarget && !saving && !creatingTag) onClose();
   }
 
   return (
@@ -153,18 +155,18 @@ function CreateProductModal({ categories, stores, tags, onCreateTag, onClose, on
       <section className="admin-modal" role="dialog" aria-modal="true" aria-labelledby="create-product-title">
         <div className="admin-modal-header">
           <div><span className="section-kicker">Carga manual</span><h2 id="create-product-title">Nuevo producto</h2><p>El producto se agrega directamente al catálogo, sin pasar por revisión.</p></div>
-          <button className="modal-close" type="button" onClick={onClose} disabled={saving} aria-label="Cerrar">×</button>
+          <button className="modal-close" type="button" onClick={onClose} disabled={saving || creatingTag} aria-label="Cerrar">×</button>
         </div>
         {error && <div className="inline-alert" role="alert">{error}</div>}
         <form onSubmit={handleSubmit}>
           <div className="admin-form-grid">
-            <label>Título del producto<input autoFocus value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Ej. Yerba mate 1 kg" maxLength={200} required /></label>
-            <label>Categoría<select value={categoryId || categories[0]?.id || ""} onChange={(event) => setCategoryId(event.target.value)} required><option value="" disabled>Seleccioná una categoría</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
-            <MeasurementFields quantity={quantity} unit={unit} onQuantityChange={setQuantity} onUnitChange={setUnit} />
+            <label>Título del producto<input autoFocus value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Ej. Yerba mate 1 kg" maxLength={200} required disabled={saving || creatingTag} /></label>
+            <label>Categoría<select value={categoryId || categories[0]?.id || ""} onChange={(event) => setCategoryId(event.target.value)} required disabled={saving || creatingTag}><option value="" disabled>Seleccioná una categoría</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
+            <MeasurementFields quantity={quantity} unit={unit} onQuantityChange={setQuantity} onUnitChange={setUnit} disabled={saving || creatingTag} />
           </div>
-          <ProductTagSelector tags={tags} selectedTagIds={selectedTagIds} onChange={setSelectedTagIds} onCreateTag={onCreateTag} />
-          <fieldset className="admin-links-fieldset"><legend>Links por cadena</legend><StoreLinkFields links={links} stores={stores} onChange={(storeId, url) => setLinks((current) => current.map((link) => link.storeId === storeId ? { ...link, url } : link))} /></fieldset>
-          <div className="admin-form-actions"><button className="button button-secondary" type="button" onClick={onClose} disabled={saving}>Cancelar</button><button className="button button-primary" type="submit" disabled={saving}>{saving ? "Creando..." : "Crear producto"}<span>＋</span></button></div>
+          <ProductTagSelector tags={tags} selectedTagIds={selectedTagIds} onChange={setSelectedTagIds} onCreateTag={onCreateTag} onBusyChange={setCreatingTag} disabled={saving} />
+          <fieldset className="admin-links-fieldset"><legend>Links por cadena</legend><StoreLinkFields links={links} stores={stores} disabled={saving || creatingTag} onChange={(storeId, url) => setLinks((current) => current.map((link) => link.storeId === storeId ? { ...link, url } : link))} /></fieldset>
+          <div className="admin-form-actions"><button className="button button-secondary" type="button" onClick={onClose} disabled={saving || creatingTag}>Cancelar</button><button className="button button-primary" type="submit" disabled={saving || creatingTag}>{saving ? "Creando..." : "Crear producto"}<span>＋</span></button></div>
         </form>
       </section>
     </div>
@@ -180,9 +182,11 @@ function SuggestionCard({ suggestion, categories, stores, tags, onCreateTag, onC
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>(() => suggestion.tags.map((tag) => tag.id));
   const [error, setError] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<"save" | "approve" | "reject" | null>(null);
+  const [creatingTag, setCreatingTag] = useState(false);
 
   async function handleSave(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (busyAction !== null || creatingTag) return;
     setError(null);
     const parsedQuantity = parseProductQuantity(quantity);
     const measurementValidation = productMeasurementError(quantity, unit);
@@ -207,6 +211,7 @@ function SuggestionCard({ suggestion, categories, stores, tags, onCreateTag, onC
   }
 
   async function handleApprove() {
+    if (busyAction !== null || creatingTag) return;
     setError(null);
     const parsedQuantity = parseProductQuantity(quantity);
     const measurementValidation = productMeasurementError(quantity, unit);
@@ -251,6 +256,7 @@ function SuggestionCard({ suggestion, categories, stores, tags, onCreateTag, onC
   }
 
   async function handleReject() {
+    if (busyAction !== null || creatingTag) return;
     if (!window.confirm("¿Rechazar esta propuesta?")) return;
     setError(null);
     setBusyAction("reject");
@@ -272,15 +278,15 @@ function SuggestionCard({ suggestion, categories, stores, tags, onCreateTag, onC
       {error && <div className="inline-alert" role="alert">{error}</div>}
       <form onSubmit={handleSave}>
         <div className="admin-form-grid">
-          <label>Título<input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={200} required disabled={!editable} /></label>
-          <label>Categoría<select value={categoryId} onChange={(event) => setCategoryId(event.target.value)} required disabled={!editable}>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select><small className="admin-field-hint">{editable ? `Actual: ${categoryName}` : "Propuesta revisada; edición bloqueada"}</small></label>
-          <MeasurementFields quantity={quantity} unit={unit} onQuantityChange={setQuantity} onUnitChange={setUnit} disabled={!editable} />
+          <label>Título<input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={200} required disabled={!editable || creatingTag} /></label>
+          <label>Categoría<select value={categoryId} onChange={(event) => setCategoryId(event.target.value)} required disabled={!editable || creatingTag}>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select><small className="admin-field-hint">{editable ? `Actual: ${categoryName}` : "Propuesta revisada; edición bloqueada"}</small></label>
+          <MeasurementFields quantity={quantity} unit={unit} onQuantityChange={setQuantity} onUnitChange={setUnit} disabled={!editable || creatingTag} />
         </div>
-        <ProductTagSelector tags={tags} selectedTagIds={selectedTagIds} onChange={setSelectedTagIds} onCreateTag={onCreateTag} disabled={!editable} />
-        <fieldset className="admin-links-fieldset"><legend>Links por cadena</legend><div className={!editable ? "admin-readonly-links" : ""}><StoreLinkFields links={links} stores={stores} disabled={!editable} showMissingWarning onChange={(storeId, url) => setLinks((current) => current.map((link) => link.storeId === storeId ? { ...link, url } : link))} /></div></fieldset>
+        <ProductTagSelector tags={tags} selectedTagIds={selectedTagIds} onChange={setSelectedTagIds} onCreateTag={onCreateTag} onBusyChange={setCreatingTag} disabled={!editable || busyAction !== null} />
+        <fieldset className="admin-links-fieldset"><legend>Links por cadena</legend><div className={!editable ? "admin-readonly-links" : ""}><StoreLinkFields links={links} stores={stores} disabled={!editable || creatingTag} showMissingWarning onChange={(storeId, url) => setLinks((current) => current.map((link) => link.storeId === storeId ? { ...link, url } : link))} /></div></fieldset>
         <div className="suggestion-actions">
-          {editable && <button className="button button-secondary" type="submit" disabled={busyAction !== null}>{busyAction === "save" ? "Guardando..." : "Guardar cambios"}</button>}
-          {suggestion.status === "pending" && <><button className="button button-approve" type="button" onClick={() => void handleApprove()} disabled={busyAction !== null}>{busyAction === "approve" ? "Aprobando..." : "Aprobar"}</button><button className="button button-reject" type="button" onClick={() => void handleReject()} disabled={busyAction !== null}>{busyAction === "reject" ? "Rechazando..." : "Rechazar"}</button></>}
+          {editable && <button className="button button-secondary" type="submit" disabled={busyAction !== null || creatingTag}>{busyAction === "save" ? "Guardando..." : "Guardar cambios"}</button>}
+          {suggestion.status === "pending" && <><button className="button button-approve" type="button" onClick={() => void handleApprove()} disabled={busyAction !== null || creatingTag}>{busyAction === "approve" ? "Aprobando..." : "Aprobar"}</button><button className="button button-reject" type="button" onClick={() => void handleReject()} disabled={busyAction !== null || creatingTag}>{busyAction === "reject" ? "Rechazando..." : "Rechazar"}</button></>}
         </div>
       </form>
     </article>

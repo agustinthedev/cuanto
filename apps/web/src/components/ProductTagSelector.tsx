@@ -1,15 +1,17 @@
-import { useState } from "react";
+import { useState, type SetStateAction } from "react";
 import type { Tag } from "../services/types";
+import { addProductTag, removeProductTag } from "./productTagSelection";
 
 interface ProductTagSelectorProps {
   tags: Tag[];
   selectedTagIds: string[];
-  onChange: (tagIds: string[]) => void;
+  onChange: (tagIds: SetStateAction<string[]>) => void;
   onCreateTag: (name: string) => Promise<Tag>;
+  onBusyChange?: (busy: boolean) => void;
   disabled?: boolean;
 }
 
-export function ProductTagSelector({ tags, selectedTagIds, onChange, onCreateTag, disabled = false }: ProductTagSelectorProps) {
+export function ProductTagSelector({ tags, selectedTagIds, onChange, onCreateTag, onBusyChange, disabled = false }: ProductTagSelectorProps) {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newTagName, setNewTagName] = useState("");
   const [creating, setCreating] = useState(false);
@@ -20,12 +22,12 @@ export function ProductTagSelector({ tags, selectedTagIds, onChange, onCreateTag
   const availableTags = tags.filter((tag) => !selectedTagIds.includes(tag.id));
 
   function addTag(tagId: string) {
-    if (!tagId || selectedTagIds.includes(tagId)) return;
-    onChange([...selectedTagIds, tagId]);
+    if (!tagId) return;
+    onChange((current) => addProductTag(current, tagId));
   }
 
   function removeTag(tagId: string) {
-    onChange(selectedTagIds.filter((item) => item !== tagId));
+    onChange((current) => removeProductTag(current, tagId));
   }
 
   async function handleCreateTag() {
@@ -36,15 +38,17 @@ export function ProductTagSelector({ tags, selectedTagIds, onChange, onCreateTag
     }
     setCreateError(null);
     setCreating(true);
+    onBusyChange?.(true);
     try {
       const tag = await onCreateTag(trimmedName);
-      if (!selectedTagIds.includes(tag.id)) onChange([...selectedTagIds, tag.id]);
+      onChange((current) => addProductTag(current, tag.id));
       setNewTagName("");
       setShowCreateForm(false);
     } catch (reason) {
       setCreateError(reason instanceof Error ? reason.message : "No pudimos crear el tag.");
     } finally {
       setCreating(false);
+      onBusyChange?.(false);
     }
   }
 
@@ -56,7 +60,7 @@ export function ProductTagSelector({ tags, selectedTagIds, onChange, onCreateTag
           aria-label="Agregar tag"
           value=""
           onChange={(event) => addTag(event.target.value)}
-          disabled={disabled || availableTags.length === 0}
+          disabled={disabled || creating || availableTags.length === 0}
         >
           <option value="">{availableTags.length ? "Seleccioná un tag" : "Todos los tags seleccionados"}</option>
           {availableTags.map((tag) => <option key={tag.id} value={tag.id}>{tag.name}</option>)}
@@ -76,7 +80,7 @@ export function ProductTagSelector({ tags, selectedTagIds, onChange, onCreateTag
           {selectedTags.map((tag) => (
             <span className="admin-tag-chip" key={tag.id}>
               {tag.name}
-              <button type="button" onClick={() => removeTag(tag.id)} disabled={disabled} aria-label={`Quitar tag ${tag.name}`}>×</button>
+              <button type="button" onClick={() => removeTag(tag.id)} disabled={disabled || creating} aria-label={`Quitar tag ${tag.name}`}>×</button>
             </span>
           ))}
         </div>
@@ -94,8 +98,8 @@ export function ProductTagSelector({ tags, selectedTagIds, onChange, onCreateTag
             aria-label="Nombre del nuevo tag"
             disabled={creating}
           />
-          <button className="button button-secondary" type="button" onClick={() => void handleCreateTag()} disabled={creating}>{creating ? "Creando..." : "Crear"}</button>
-          <button className="admin-tag-cancel-button" type="button" onClick={() => { setShowCreateForm(false); setNewTagName(""); setCreateError(null); }} disabled={creating}>Cancelar</button>
+          <button className="admin-tag-icon-button admin-tag-confirm-button" type="button" onClick={() => void handleCreateTag()} disabled={creating} aria-label={creating ? "Creando tag" : "Crear tag"} title={creating ? "Creando tag" : "Crear tag"}><span aria-hidden="true">{creating ? "…" : "✓"}</span></button>
+          <button className="admin-tag-icon-button admin-tag-cancel-button" type="button" onClick={() => { setShowCreateForm(false); setNewTagName(""); setCreateError(null); }} disabled={creating} aria-label="Cancelar creación del tag" title="Cancelar creación del tag"><span aria-hidden="true">×</span></button>
           {createError && <small className="admin-tag-create-error" role="alert">{createError}</small>}
         </div>
       )}
