@@ -240,10 +240,9 @@ export async function performScrapeMessage(env: Env, message: ScrapeQueueMessage
   }]]);
   const successful: Array<{ record: StoreProductRecord; result: ScrapeResult }> = [];
   const failed: FailedStoreProduct[] = [];
-  let previousStoreSlug: string | undefined;
 
   for (const record of records) {
-    if (record.store_slug === "tienda-inglesa" && previousStoreSlug === record.store_slug) {
+    if (record.store_slug === "tienda-inglesa") {
       console.log(JSON.stringify({ event: "store_request_delay", store: record.store_slug, delay_ms: TIENDA_INGLESA_REQUEST_DELAY_MS }));
       await sleep(TIENDA_INGLESA_REQUEST_DELAY_MS);
     }
@@ -262,8 +261,6 @@ export async function performScrapeMessage(env: Env, message: ScrapeQueueMessage
         timestamp: new Date().toISOString(),
         reason: error instanceof Error ? error.message : String(error),
       }));
-    } finally {
-      previousStoreSlug = record.store_slug;
     }
   }
 

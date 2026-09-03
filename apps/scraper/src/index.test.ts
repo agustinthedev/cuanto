@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import worker, { buildScrapeQueueMessages, dispatchDailyRun, performScrapeMessage, runScrape } from "./index";
+import type { ScrapeQueueMessage } from "./types";
 
 describe("ejecución diaria", () => {
   afterEach(() => {
@@ -233,6 +234,7 @@ describe("ejecución diaria", () => {
 
 describe("flujo con Queue", () => {
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
@@ -388,5 +390,51 @@ describe("flujo con Queue", () => {
     expect(calledUrls.some((url) => url.includes("operationName=BrowserProductQuery"))).toBe(false);
     expect(savedStoreImageBodies).toHaveLength(1);
     expect(savedProductImageBodies).toHaveLength(1);
+  });
+
+  it("mantiene el intervalo de Tienda Inglesa entre mensajes de Queue", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "https://example.test/tienda-inglesa") {
+        return new Response('<div data-config="{&quot;WProductUI_PARM&quot;:{&quot;Prices&quot;:[{&quot;Label&quot;:&quot;Precio&quot;,&quot;Price&quot;:1299}]}}"></div>', { status: 200 });
+      }
+      if (url.includes("/rest/v1/prices")) return new Response(null, { status: 201 });
+      return new Response("Not found", { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const env = {
+      SUPABASE_URL: "https://project.supabase.co",
+      SUPABASE_SERVICE_ROLE_KEY: "service-role",
+      SCRAPE_QUEUE: { sendBatch: vi.fn() },
+    } as unknown as Env;
+    const message = {
+      run_id: "run-1",
+      date: "2026-09-02",
+      product_id: "product-1",
+      product_image_url: null,
+      store_products: [{
+        id: "store-product-1",
+        product_id: "product-1",
+        store_id: "store-1",
+        location_id: null,
+        url: "https://example.test/tienda-inglesa",
+        external_name: null,
+        image_url: null,
+        store_slug: "tienda-inglesa",
+      }],
+    } satisfies ScrapeQueueMessage;
+
+    const first = performScrapeMessage(env, message);
+    await vi.advanceTimersByTimeAsync(500);
+    await first;
+
+    const second = performScrapeMessage(env, { ...message, product_id: "product-2" });
+    expect(fetchMock.mock.calls.filter(([input]) => String(input) === message.store_products[0].url)).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(500);
+    await second;
+
+    expect(fetchMock.mock.calls.filter(([input]) => String(input) === message.store_products[0].url)).toHaveLength(2);
   });
 });
