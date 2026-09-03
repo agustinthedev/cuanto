@@ -1,3 +1,5 @@
+import type { ProductUnit } from "./productMeasurement";
+
 export interface Category {
   id: string;
   name: string;
@@ -24,6 +26,8 @@ export interface ProductSuggestion {
   id: string;
   title: string;
   category_id: string;
+  quantity: number;
+  unit: ProductUnit;
   category: Category;
   status: ProductSuggestionStatus;
   created_at: string;
@@ -37,7 +41,7 @@ export interface Product {
   name: string;
   brand: string | null;
   quantity: number;
-  unit: string;
+  unit: ProductUnit;
   image_url: string | null;
   category: Category | null;
   created_at: string;

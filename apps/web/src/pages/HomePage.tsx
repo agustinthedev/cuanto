@@ -165,9 +165,7 @@ export function HomePage() {
             <span className="discovery-category">{leadProduct?.category?.name ?? "Catálogo seguido"}</span>
             <h3>{leadProduct?.name ?? "Tu próxima decisión, más clara"}</h3>
             <p>
-              {leadProduct
-                ? `${leadProduct.brand ? `${leadProduct.brand} · ` : ""}${leadProduct.quantity} ${leadProduct.unit}`
-                : "Abrí un producto para comparar cadenas y ver su historia."}
+              {leadProduct ? leadProduct.brand ?? "Producto de catálogo" : "Abrí un producto para comparar cadenas y ver su historia."}
             </p>
             <div className="discovery-price-row">
               {leadProduct?.current_price ? (

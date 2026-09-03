@@ -11,6 +11,7 @@ import {
 } from "../services/data";
 import { StoreLogo } from "../components/StoreLogo";
 import type { Category, ProductSuggestion, ProductSuggestionStatus, Store } from "../services/types";
+import { PRODUCT_UNIT_OPTIONS, parseProductQuantity, productMeasurementError, type ProductUnit } from "../services/productMeasurement";
 import { isHttpUrl, productLinksError, serializeProductLinks } from "./adminProductLinks";
 
 type StatusFilter = ProductSuggestionStatus | "all";
@@ -32,6 +33,22 @@ function initialLinks(stores: Store[], suggestion?: ProductSuggestion): LinkDraf
 
 function linksError(links: LinkDraft[], stores: Store[]) {
   return productLinksError(links, stores);
+}
+
+function MeasurementFields({ quantity, unit, onQuantityChange, onUnitChange, disabled = false }: { quantity: string; unit: ProductUnit; onQuantityChange: (quantity: string) => void; onUnitChange: (unit: ProductUnit) => void; disabled?: boolean }) {
+  return (
+    <>
+      <label>Cantidad
+        <input type="number" min="0.001" step="0.001" inputMode="decimal" value={quantity} onChange={(event) => onQuantityChange(event.target.value)} placeholder="Ej. 1,5" required disabled={disabled} />
+        <small className="admin-field-hint">Admite fracciones y decimales.</small>
+      </label>
+      <label>Unidad de medida
+        <select value={unit} onChange={(event) => onUnitChange(event.target.value as ProductUnit)} required disabled={disabled}>
+          {PRODUCT_UNIT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select>
+      </label>
+    </>
+  );
 }
 
 function StoreLinkFields({ links, stores, onChange, disabled = false, showMissingWarning = false }: { links: LinkDraft[]; stores: Store[]; onChange: (storeId: string, url: string) => void; disabled?: boolean; showMissingWarning?: boolean }) {
@@ -65,6 +82,8 @@ function StoreLinkFields({ links, stores, onChange, disabled = false, showMissin
 function CreateProductModal({ categories, stores, onClose, onCreated }: { categories: Category[]; stores: Store[]; onClose: () => void; onCreated: () => Promise<void> }) {
   const [title, setTitle] = useState("");
   const [categoryId, setCategoryId] = useState("");
+  const [quantity, setQuantity] = useState("1");
+  const [unit, setUnit] = useState<ProductUnit>("un");
   const [links, setLinks] = useState<LinkDraft[]>(() => initialLinks(stores));
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -93,6 +112,12 @@ function CreateProductModal({ categories, stores, onClose, onCreated }: { catego
       setError("Elegí una categoría antes de guardar.");
       return;
     }
+    const parsedQuantity = parseProductQuantity(quantity);
+    const measurementValidation = productMeasurementError(quantity, unit);
+    if (measurementValidation || parsedQuantity === null) {
+      setError(measurementValidation ?? "Ingresá una cantidad mayor o igual a 0,001.");
+      return;
+    }
     const linkValidation = linksError(links, stores);
     if (linkValidation) {
       setError(linkValidation);
@@ -100,9 +125,11 @@ function CreateProductModal({ categories, stores, onClose, onCreated }: { catego
     }
     setSaving(true);
     try {
-      await createProduct(title, categoryId || categories[0].id, serializeProductLinks(links));
+      await createProduct(title, categoryId || categories[0].id, parsedQuantity, unit, serializeProductLinks(links));
       setTitle("");
       setCategoryId("");
+      setQuantity("1");
+      setUnit("un");
       setLinks(initialLinks(stores));
       await onCreated();
       onClose();
@@ -129,6 +156,7 @@ function CreateProductModal({ categories, stores, onClose, onCreated }: { catego
           <div className="admin-form-grid">
             <label>Título del producto<input autoFocus value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Ej. Yerba mate 1 kg" maxLength={200} required /></label>
             <label>Categoría<select value={categoryId || categories[0]?.id || ""} onChange={(event) => setCategoryId(event.target.value)} required><option value="" disabled>Seleccioná una categoría</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
+            <MeasurementFields quantity={quantity} unit={unit} onQuantityChange={setQuantity} onUnitChange={setUnit} />
           </div>
           <fieldset className="admin-links-fieldset"><legend>Links por cadena</legend><StoreLinkFields links={links} stores={stores} onChange={(storeId, url) => setLinks((current) => current.map((link) => link.storeId === storeId ? { ...link, url } : link))} /></fieldset>
           <div className="admin-form-actions"><button className="button button-secondary" type="button" onClick={onClose} disabled={saving}>Cancelar</button><button className="button button-primary" type="submit" disabled={saving}>{saving ? "Creando..." : "Crear producto"}<span>＋</span></button></div>
@@ -141,6 +169,8 @@ function CreateProductModal({ categories, stores, onClose, onCreated }: { catego
 function SuggestionCard({ suggestion, categories, stores, onChanged, onApprovalNotice }: { suggestion: ProductSuggestion; categories: Category[]; stores: Store[]; onChanged: () => Promise<void>; onApprovalNotice: ApprovalNotice }) {
   const [title, setTitle] = useState(suggestion.title);
   const [categoryId, setCategoryId] = useState(suggestion.category_id);
+  const [quantity, setQuantity] = useState(String(suggestion.quantity));
+  const [unit, setUnit] = useState<ProductUnit>(suggestion.unit);
   const [links, setLinks] = useState<LinkDraft[]>(() => initialLinks(stores, suggestion));
   const [error, setError] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<"save" | "approve" | "reject" | null>(null);
@@ -148,6 +178,12 @@ function SuggestionCard({ suggestion, categories, stores, onChanged, onApprovalN
   async function handleSave(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    const parsedQuantity = parseProductQuantity(quantity);
+    const measurementValidation = productMeasurementError(quantity, unit);
+    if (measurementValidation || parsedQuantity === null) {
+      setError(measurementValidation ?? "Ingresá una cantidad mayor o igual a 0,001.");
+      return;
+    }
     const linkValidation = linksError(links, stores);
     if (linkValidation) {
       setError(linkValidation);
@@ -155,7 +191,7 @@ function SuggestionCard({ suggestion, categories, stores, onChanged, onApprovalN
     }
     setBusyAction("save");
     try {
-      await updateProductSuggestion(suggestion.id, title, categoryId, serializeProductLinks(links));
+      await updateProductSuggestion(suggestion.id, title, categoryId, parsedQuantity, unit, serializeProductLinks(links));
       await onChanged();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "No pudimos guardar los cambios.");
@@ -166,6 +202,12 @@ function SuggestionCard({ suggestion, categories, stores, onChanged, onApprovalN
 
   async function handleApprove() {
     setError(null);
+    const parsedQuantity = parseProductQuantity(quantity);
+    const measurementValidation = productMeasurementError(quantity, unit);
+    if (measurementValidation || parsedQuantity === null) {
+      setError(measurementValidation ?? "Ingresá una cantidad mayor o igual a 0,001.");
+      return;
+    }
     const linkValidation = linksError(links, stores);
     if (linkValidation) {
       setError(linkValidation);
@@ -177,6 +219,8 @@ function SuggestionCard({ suggestion, categories, stores, onChanged, onApprovalN
         suggestion.id,
         title,
         categoryId,
+        parsedQuantity,
+        unit,
         serializeProductLinks(links),
         suggestion.updated_at,
       );
@@ -223,6 +267,7 @@ function SuggestionCard({ suggestion, categories, stores, onChanged, onApprovalN
         <div className="admin-form-grid">
           <label>Título<input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={200} required disabled={!editable} /></label>
           <label>Categoría<select value={categoryId} onChange={(event) => setCategoryId(event.target.value)} required disabled={!editable}>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select><small className="admin-field-hint">{editable ? `Actual: ${categoryName}` : "Propuesta revisada; edición bloqueada"}</small></label>
+          <MeasurementFields quantity={quantity} unit={unit} onQuantityChange={setQuantity} onUnitChange={setUnit} disabled={!editable} />
         </div>
         <fieldset className="admin-links-fieldset"><legend>Links por cadena</legend><div className={!editable ? "admin-readonly-links" : ""}><StoreLinkFields links={links} stores={stores} disabled={!editable} showMissingWarning onChange={(storeId, url) => setLinks((current) => current.map((link) => link.storeId === storeId ? { ...link, url } : link))} /></div></fieldset>
         <div className="suggestion-actions">

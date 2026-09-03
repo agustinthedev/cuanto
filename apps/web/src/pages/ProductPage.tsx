@@ -44,7 +44,7 @@ export function ProductPage() {
         <div className="detail-copy">
           <div className="detail-topline"><span className="product-category">{product.category?.name ?? "Producto seguido"}</span><span className="detail-live-pill"><span className="live-dot" />Seguimiento activo</span></div>
           <h1>{product.name}</h1>
-          <p className="detail-meta">{product.brand ? `${product.brand} · ` : ""}{product.quantity} {product.unit}</p>
+          {product.brand && <p className="detail-meta">{product.brand}</p>}
           <div className="detail-highlight">
             <span>Mejor precio registrado hoy</span>
             <strong>{bestPrice === null ? "Sin precio todavía" : money(bestPrice)}</strong>

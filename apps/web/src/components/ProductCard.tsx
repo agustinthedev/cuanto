@@ -31,7 +31,7 @@ export function ProductCard({ product }: { product: Product }) {
       <div className="product-card-body">
         <div className="card-topline"><span className="product-category">{product.category?.name ?? "Producto seguido"}</span>{product.best_store ? <span className="card-store"><StoreLogo name={product.best_store} compact /><span>{product.best_store}</span></span> : <span className="card-open">Ver detalle</span>}</div>
         <h3>{product.name}</h3>
-        <p>{product.brand ? `${product.brand} · ` : ""}{product.quantity} {product.unit}</p>
+        {product.brand && <p>{product.brand}</p>}
         <div className="card-price-row">{hasPrice ? <strong>{money(product.current_price as number)}</strong> : <strong>Ver precios</strong>}</div>
         <div className="card-footer"><span>{hasPrice ? "Comparación disponible" : "Historial disponible"}</span><span>→</span></div>
       </div>
