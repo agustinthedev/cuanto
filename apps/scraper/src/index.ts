@@ -1,6 +1,7 @@
 import { getScraper } from "./stores";
 import { fetchWithRetry, sleep } from "./stores/base";
-import type { ScrapeQueueMessage, ScrapeSummary, ScrapeResult, StoreProductRecord } from "./types";
+import { probeTiendaInglesaFallbackOrigin, tiendaInglesaFallbackOrigins } from "./stores/tienda-inglesa";
+import type { ScrapeQueueMessage, ScrapeSummary, ScrapeResult, StoreProductRecord, StoreScrapeContext } from "./types";
 
 const API_TABLES = {
   products: "products",
@@ -150,6 +151,7 @@ export function buildScrapeQueueMessages(
   productImages: Map<string, ProductImageRecord>,
   runId: string,
   date: string,
+  tiendaInglesaOrigins?: string[],
 ): ScrapeQueueMessage[] {
   const recordsByProduct = new Map<string, StoreProductRecord[]>();
   for (const record of records) {
@@ -166,6 +168,9 @@ export function buildScrapeQueueMessages(
       product_id: productId,
       product_image_url: productImages.get(productId)?.image_url ?? null,
       store_products: [...storeProducts].sort((left, right) => imagePriority(left.store_slug) - imagePriority(right.store_slug)),
+      ...(storeProducts.some((record) => record.store_slug === "tienda-inglesa") && tiendaInglesaOrigins?.length
+        ? { tienda_inglesa_fallback_origins: tiendaInglesaOrigins }
+        : {}),
     }));
 }
 
@@ -177,10 +182,28 @@ export interface DispatchSummary {
   messages: number;
 }
 
+export async function selectTiendaInglesaFallbackOrigins(records: StoreProductRecord[], env: Env): Promise<string[]> {
+  const origins = tiendaInglesaFallbackOrigins(env);
+  const canary = records.find((record) => record.store_slug === "tienda-inglesa");
+  if (!canary || origins.length < 2) return origins;
+
+  for (const origin of origins) {
+    if (await probeTiendaInglesaFallbackOrigin(canary, origin)) {
+      const selectedOrigins = [origin, ...origins.filter((candidate) => candidate !== origin)];
+      console.log(JSON.stringify({ event: "tienda_inglesa_alias_selected", origin, canary_store_product_id: canary.id }));
+      return selectedOrigins;
+    }
+  }
+
+  console.warn(JSON.stringify({ event: "tienda_inglesa_alias_probe_exhausted", canary_store_product_id: canary.id, origins }));
+  return origins;
+}
+
 export async function dispatchDailyRun(env: Env, scheduledTime = new Date()): Promise<DispatchSummary> {
   const [records, productImages] = await Promise.all([loadActiveStoreProducts(env), loadProductImages(env)]);
   const date = uruguayDate(scheduledTime);
-  const messages = buildScrapeQueueMessages(records, productImages, scheduledTime.toISOString(), date);
+  const tiendaInglesaOrigins = await selectTiendaInglesaFallbackOrigins(records, env);
+  const messages = buildScrapeQueueMessages(records, productImages, scheduledTime.toISOString(), date, tiendaInglesaOrigins);
   const queue = scrapeQueue(env);
 
   for (let index = 0; index < messages.length; index += QUEUE_SEND_BATCH_SIZE) {
@@ -191,11 +214,11 @@ export async function dispatchDailyRun(env: Env, scheduledTime = new Date()): Pr
   return { run_id: scheduledTime.toISOString(), date, products: messages.length, store_products: records.length, messages: messages.length };
 }
 
-async function scrapeStoreProduct(env: Env, record: StoreProductRecord): Promise<ScrapeResult> {
+async function scrapeStoreProduct(env: Env, record: StoreProductRecord, context?: StoreScrapeContext): Promise<ScrapeResult> {
   const scraper = getScraper(record.store_slug);
   if (!scraper) throw new Error(`No hay adapter para ${record.store_slug}`);
 
-  const result = await scraper.scrape(record, env);
+  const result = await scraper.scrape(record, env, context);
   if (!Number.isFinite(result.price) || result.price <= 0) throw new Error("El adapter devolvió un precio inválido");
   return result;
 }
@@ -208,6 +231,8 @@ function isScrapeQueueMessage(value: unknown): value is ScrapeQueueMessage {
     && typeof message.date === "string"
     && typeof message.product_id === "string"
     && (message.product_image_url === null || typeof message.product_image_url === "string")
+    && (message.tienda_inglesa_fallback_origins === undefined
+      || (Array.isArray(message.tienda_inglesa_fallback_origins) && message.tienda_inglesa_fallback_origins.every((origin) => typeof origin === "string")))
     && Array.isArray(storeProducts)
     && storeProducts.length > 0
     && storeProducts.every((record) => (
@@ -248,7 +273,9 @@ export async function performScrapeMessage(env: Env, message: ScrapeQueueMessage
     }
 
     try {
-      const result = await scrapeStoreProduct(env, record);
+      const result = await scrapeStoreProduct(env, record, {
+        tiendaInglesaFallbackOrigins: message.tienda_inglesa_fallback_origins,
+      });
       successful.push({ record, result });
     } catch (error) {
       failed.push({ record, error });
@@ -298,6 +325,7 @@ export async function performScrapeMessage(env: Env, message: ScrapeQueueMessage
       product_id: message.product_id,
       product_image_url: message.product_image_url,
       store_products: [record],
+      ...(message.tienda_inglesa_fallback_origins ? { tienda_inglesa_fallback_origins: message.tienda_inglesa_fallback_origins } : {}),
     } satisfies ScrapeQueueMessage));
     await queue.sendBatch(retryMessages.map((body) => ({ body })));
   }

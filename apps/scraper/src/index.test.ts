@@ -75,7 +75,7 @@ describe("ejecución diaria", () => {
         { id: "product-2", image_url: null, image_source_store_product_id: null, image_updated_at: null },
       ]), { status: 200 });
       if (url.includes("/rest/v1/prices")) return new Response(null, { status: 201 });
-      if (url.startsWith("https://example.test/")) return new Response("<strong>$ 10</strong>", { status: 200 });
+      if (url.startsWith("https://example.test/")) return new Response('{"WProductUI_PARM":{"Prices":[{"Label":"Precio","Price":10}]}}', { status: 200 });
       return new Response("Not found", { status: 404 });
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -401,6 +401,103 @@ describe("flujo con Queue", () => {
     expect(calledUrls.some((url) => url.includes("operationName=BrowserProductQuery"))).toBe(false);
     expect(savedStoreImageBodies).toHaveLength(1);
     expect(savedProductImageBodies).toHaveLength(1);
+  });
+
+  it("elige el alias sano de Tienda Inglesa y lo incluye en sus mensajes", async () => {
+    const canonicalUrl = "https://www.tiendainglesa.com.uy/supermercado/cafe.producto?1584835,,42";
+    const blueUrl = "https://prod-web-blue.tiendainglesa.com.uy/supermercado/cafe.producto?1584835,,42";
+    const greenUrl = "https://prod-web-green.tiendainglesa.com.uy/supermercado/cafe.producto?1584835,,42";
+    const queue = { sendBatch: vi.fn(async () => undefined) };
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/rest/v1/stores")) return new Response(JSON.stringify([{ id: "store-1", slug: "tienda-inglesa" }]), { status: 200 });
+      if (url.includes("/rest/v1/store_products")) return new Response(JSON.stringify([{
+        id: "store-product-1",
+        product_id: "product-1",
+        store_id: "store-1",
+        location_id: null,
+        url: canonicalUrl,
+        external_name: "Café",
+        image_url: null,
+      }]), { status: 200 });
+      if (url.includes("/rest/v1/products")) return new Response(JSON.stringify([{
+        id: "product-1",
+        image_url: null,
+        image_source_store_product_id: null,
+        image_updated_at: null,
+      }]), { status: 200 });
+      if (url === blueUrl) return new Response("Service unavailable", { status: 503 });
+      if (url === greenUrl) return new Response('{"W0032AV27ProductUI_PARM":{"Prices":[{"Label":"Precio","Price":123.45}]}}', { status: 200 });
+      return new Response("Not found", { status: 404 });
+    }));
+
+    await dispatchDailyRun(
+      {
+        SUPABASE_URL: "https://project.supabase.co",
+        SUPABASE_SERVICE_ROLE_KEY: "service-role",
+        SCRAPE_QUEUE: queue,
+      } as unknown as Env,
+      new Date("2026-09-02T07:00:00Z"),
+    );
+
+    expect(queue.sendBatch).toHaveBeenCalledWith([{
+      body: expect.objectContaining({
+        product_id: "product-1",
+        tienda_inglesa_fallback_origins: ["https://prod-web-green.tiendainglesa.com.uy", "https://prod-web-blue.tiendainglesa.com.uy"],
+      }),
+    }]);
+  });
+
+  it("usa el otro alias si el elegido para Tienda Inglesa falla durante el consumo", async () => {
+    vi.useFakeTimers();
+    const canonicalUrl = "https://www.tiendainglesa.com.uy/supermercado/cafe.producto?1584835,,42";
+    const blueUrl = "https://prod-web-blue.tiendainglesa.com.uy/supermercado/cafe.producto?1584835,,42";
+    const greenUrl = "https://prod-web-green.tiendainglesa.com.uy/supermercado/cafe.producto?1584835,,42";
+    const scraperUrls: string[] = [];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === greenUrl) {
+        scraperUrls.push(url);
+        return new Response("Service unavailable", { status: 503 });
+      }
+      if (url === blueUrl) {
+        scraperUrls.push(url);
+        return new Response('{"W0032AV27ProductUI_PARM":{"Prices":[{"Label":"Precio","Price":123.45}]}}', { status: 200 });
+      }
+      if (url.includes("/rest/v1/prices")) return new Response(null, { status: 201 });
+      return new Response("Not found", { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const scrape = performScrapeMessage(
+      {
+        SUPABASE_URL: "https://project.supabase.co",
+        SUPABASE_SERVICE_ROLE_KEY: "service-role",
+        SCRAPE_QUEUE: { sendBatch: vi.fn() },
+      } as unknown as Env,
+      {
+        run_id: "run-1",
+        date: "2026-09-02",
+        product_id: "product-1",
+        product_image_url: null,
+        tienda_inglesa_fallback_origins: ["https://prod-web-green.tiendainglesa.com.uy", "https://prod-web-blue.tiendainglesa.com.uy"],
+        store_products: [{
+          id: "store-product-1",
+          product_id: "product-1",
+          store_id: "store-1",
+          location_id: null,
+          url: canonicalUrl,
+          external_name: "Café",
+          image_url: null,
+          store_slug: "tienda-inglesa",
+        }],
+      },
+    );
+    await vi.runAllTimersAsync();
+
+    await expect(scrape).resolves.toEqual({ attempted: 1, saved: 1, failed: 0 });
+    expect(scraperUrls).toEqual([greenUrl, greenUrl, greenUrl, blueUrl]);
+    expect(scraperUrls).not.toContain(canonicalUrl);
   });
 
   it("mantiene el intervalo de Tienda Inglesa entre mensajes de Queue", async () => {

@@ -15,6 +15,7 @@ export interface ScrapeQueueMessage {
   product_id: string;
   product_image_url: string | null;
   store_products: StoreProductRecord[];
+  tienda_inglesa_fallback_origins?: string[];
 }
 
 export interface ScrapeResult {
@@ -23,9 +24,13 @@ export interface ScrapeResult {
   imageUrl?: string;
 }
 
+export interface StoreScrapeContext {
+  tiendaInglesaFallbackOrigins?: string[];
+}
+
 export interface StoreScraper {
   slug: string;
-  scrape(record: StoreProductRecord, env: Env): Promise<ScrapeResult>;
+  scrape(record: StoreProductRecord, env: Env, context?: StoreScrapeContext): Promise<ScrapeResult>;
 }
 
 export interface ScrapeSummary {
