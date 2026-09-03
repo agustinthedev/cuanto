@@ -15,6 +15,7 @@ import type {
   Store,
   StorePrice,
 } from "./types";
+import { isProductUnit, normalizeProductQuantity, type ProductUnit } from "./productMeasurement";
 import { demoAveragePrices, demoCategories, demoProducts, demoSuggestionStats, demoSuggestions, demoStats, demoStores, getDemoProductPageData } from "./demoData";
 import { sortProducts, type ProductSort } from "./productSearch";
 
@@ -22,7 +23,7 @@ const isDemoMode = import.meta.env.VITE_DEMO_MODE === "true";
 
 const productSelect = "id,name,brand,quantity,unit,image_url,created_at,category:categories(id,name,slug)";
 const productSearchSelect = "id,name,brand,quantity,unit,image_url,created_at,category_id,category_name,category_slug,current_price,best_store,comparison_count";
-const suggestionSelect = "id,title,category_id,status,created_at,updated_at,reviewed_at,category:categories(id,name,slug),links:product_suggestion_store_links(id,suggestion_id,store_id,url,store:stores(id,name,slug))";
+const suggestionSelect = "id,title,category_id,quantity,unit,status,created_at,updated_at,reviewed_at,category:categories(id,name,slug),links:product_suggestion_store_links(id,suggestion_id,store_id,url,store:stores(id,name,slug))";
 
 function normalizeProduct(value: any): Product {
   const category = Array.isArray(value.category) ? value.category[0] : value.category;
@@ -31,7 +32,7 @@ function normalizeProduct(value: any): Product {
     name: value.name,
     brand: value.brand ?? null,
     quantity: Number(value.quantity),
-    unit: value.unit,
+    unit: isProductUnit(value.unit) ? value.unit : "un",
     image_url: value.image_url ?? null,
     category: category ?? null,
     created_at: value.created_at,
@@ -81,6 +82,8 @@ function normalizeSuggestion(value: any): ProductSuggestion {
     id: value.id,
     title: value.title,
     category_id: value.category_id,
+    quantity: Number(value.quantity),
+    unit: isProductUnit(value.unit) ? value.unit : "un",
     category,
     status: value.status,
     created_at: value.created_at,
@@ -118,23 +121,27 @@ export async function getProductSuggestions(): Promise<ProductSuggestion[]> {
   return (data ?? []).map(normalizeSuggestion);
 }
 
-export async function createProductSuggestion(title: string, categoryId: string, links: Array<{ store_id: string; url: string }>): Promise<void> {
+export async function createProductSuggestion(title: string, categoryId: string, quantity: number, unit: ProductUnit, links: Array<{ store_id: string; url: string }>): Promise<void> {
   if (isDemoMode) return;
   if (!supabase) throw new Error("Supabase no está configurado.");
   const { error } = await supabase.rpc("create_product_suggestion", {
     p_title: title,
     p_category_id: categoryId,
+    p_quantity: normalizeProductQuantity(quantity),
+    p_unit: unit,
     p_links: links,
   });
   if (error) throw error;
 }
 
-export async function createProduct(name: string, categoryId: string, links: Array<{ store_id: string; url: string }>): Promise<string> {
+export async function createProduct(name: string, categoryId: string, quantity: number, unit: ProductUnit, links: Array<{ store_id: string; url: string }>): Promise<string> {
   if (isDemoMode) return "demo-created-product";
   if (!supabase) throw new Error("Supabase no está configurado.");
   const { data, error } = await supabase.rpc("create_product_with_links", {
     p_name: name,
     p_category_id: categoryId,
+    p_quantity: normalizeProductQuantity(quantity),
+    p_unit: unit,
     p_links: links,
   });
   if (error) {
@@ -147,25 +154,29 @@ export async function createProduct(name: string, categoryId: string, links: Arr
   return data as string;
 }
 
-export async function updateProductSuggestion(id: string, title: string, categoryId: string, links: Array<{ store_id: string; url: string }>): Promise<void> {
+export async function updateProductSuggestion(id: string, title: string, categoryId: string, quantity: number, unit: ProductUnit, links: Array<{ store_id: string; url: string }>): Promise<void> {
   if (isDemoMode) return;
   if (!supabase) throw new Error("Supabase no está configurado.");
   const { error } = await supabase.rpc("update_product_suggestion", {
     p_suggestion_id: id,
     p_title: title,
     p_category_id: categoryId,
+    p_quantity: normalizeProductQuantity(quantity),
+    p_unit: unit,
     p_links: links,
   });
   if (error) throw error;
 }
 
-export async function approveProductSuggestion(id: string, title: string, categoryId: string, links: Array<{ store_id: string; url: string }>, expectedUpdatedAt: string): Promise<string> {
+export async function approveProductSuggestion(id: string, title: string, categoryId: string, quantity: number, unit: ProductUnit, links: Array<{ store_id: string; url: string }>, expectedUpdatedAt: string): Promise<string> {
   if (isDemoMode) return "demo-created-product";
   if (!supabase) throw new Error("Supabase no está configurado.");
   const { data, error } = await supabase.rpc("approve_product_suggestion", {
     p_suggestion_id: id,
     p_title: title,
     p_category_id: categoryId,
+    p_quantity: normalizeProductQuantity(quantity),
+    p_unit: unit,
     p_links: links,
     p_expected_updated_at: expectedUpdatedAt,
   });
@@ -236,7 +247,7 @@ function normalizeSearchProduct(value: any): Product {
     name: value.name,
     brand: value.brand ?? null,
     quantity: Number(value.quantity),
-    unit: value.unit,
+    unit: isProductUnit(value.unit) ? value.unit : "un",
     image_url: value.image_url ?? null,
     category: value.category_id
       ? { id: value.category_id, name: value.category_name ?? "", slug: value.category_slug ?? "" }
