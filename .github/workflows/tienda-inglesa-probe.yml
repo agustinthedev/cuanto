@@ -1,0 +1,48 @@
+name: Tienda Inglesa probe
+
+on:
+  workflow_dispatch:
+    inputs:
+      urls:
+        description: "Optional HTTPS Tienda Inglesa URLs, one per line"
+        required: false
+        type: string
+        default: |
+          https://www.tiendainglesa.com.uy/supermercado/fideos-fusilli-barilla-500-gr.producto?100512,,42
+          https://www.tiendainglesa.com.uy/supermercado/aceite-de-girasol-alto-oleico-optimo-900-ml.producto?10518,,42
+          https://www.tiendainglesa.com.uy/supermercado/manteca-con-sal-conaprole-200-gr.producto?1489,,42
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: Probe product pages
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Probe Tienda Inglesa origins
+        env:
+          TI_TEST_URLS: ${{ inputs.urls }}
+        run: |
+          set -o pipefail
+          node apps/scraper/scripts/tienda-inglesa-probe.mjs | tee tienda-inglesa-probe.txt
+
+      - name: Add probe results to summary
+        if: always()
+        run: |
+          {
+            echo "## Tienda Inglesa probe"
+            echo
+            echo '```text'
+            cat tienda-inglesa-probe.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
