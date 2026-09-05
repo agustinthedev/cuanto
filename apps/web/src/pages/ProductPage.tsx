@@ -1,8 +1,9 @@
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { AverageChart, PriceBarChart, StoreChart } from "../components/PriceChart";
 import { StateMessage } from "../components/StateMessage";
 import { getProductPageData } from "../services/data";
+import type { ProductEntryNavigationState, ProductReturnNavigationState } from "../services/navigation";
 import type { ProductPageData } from "../services/types";
 
 const emptyData: ProductPageData = { product: null, latestPrices: [], averagePrices: [], storePrices: [] };
@@ -13,6 +14,7 @@ function money(value: number) {
 
 export function ProductPage() {
   const { id } = useParams<{ id: string }>();
+  const location = useLocation();
   const [data, setData] = useState<ProductPageData>(emptyData);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -31,12 +33,17 @@ export function ProductPage() {
   if (!data.product) return <div className="container page-state"><StateMessage title="Producto no encontrado" text="Este producto todavía no forma parte del catálogo seguido." /></div>;
 
   const { product, latestPrices, averagePrices, storePrices } = data;
+  const entryState = location.state as Partial<ProductEntryNavigationState> | null;
+  const returnTo = typeof entryState?.returnTo === "string" ? entryState.returnTo : "/";
+  const returnState: ProductReturnNavigationState | undefined = typeof entryState?.returnScrollY === "number"
+    ? { restoreScrollY: entryState.returnScrollY, restorePage: entryState.returnPage ?? 0 }
+    : undefined;
   const bestLatest = [...latestPrices].sort((left, right) => Number(left.price) - Number(right.price))[0] ?? null;
   const bestPrice = bestLatest ? Number(bestLatest.price) : null;
 
   return (
     <div className="container product-page">
-      <Link className="back-link" to="/"><span>‹</span> Volver a explorar</Link>
+      <Link className="back-link" to={returnTo} state={returnState}><span>‹</span> Volver a explorar</Link>
       <section className="product-hero-card">
         <div className="detail-image-wrap">
           {product.image_url ? <img src={product.image_url} alt={product.name} className="detail-image" /> : <div className="detail-placeholder">{product.name.slice(0, 1).toUpperCase()}</div>}
@@ -44,7 +51,7 @@ export function ProductPage() {
         <div className="detail-copy">
           <div className="detail-topline"><span className="product-category">{product.category?.name ?? "Producto seguido"}</span><span className="detail-live-pill"><span className="live-dot" />Seguimiento activo</span></div>
           <h1>{product.name}</h1>
-          <p className="detail-meta">{product.brand ? `${product.brand} · ` : ""}{product.quantity} {product.unit}</p>
+          {product.brand && <p className="detail-meta">{product.brand}</p>}
           <div className="detail-highlight">
             <span>Mejor precio registrado hoy</span>
             <strong>{bestPrice === null ? "Sin precio todavía" : money(bestPrice)}</strong>

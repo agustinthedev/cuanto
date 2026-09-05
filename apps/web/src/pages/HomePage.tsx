@@ -2,14 +2,17 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { CategoryIcon } from "../components/CategoryIcon";
 import { ProductCard } from "../components/ProductCard";
-import { ProductRail } from "../components/ProductRail";
 import { StoreLogo } from "../components/StoreLogo";
 import { StateMessage } from "../components/StateMessage";
 import { isSupabaseConfigured } from "../lib/supabase";
 import { getCategories, getHomepageProducts, getHomepageStats } from "../services/data";
+import { buildProductSearchUrl } from "../services/productSearch";
 import type { Category, HomepageStats, Product } from "../services/types";
 
 const initialStats: HomepageStats = { products: 0, stores: 0, observations: 0, days: 0 };
+const HOMEPAGE_DESKTOP_PRODUCT_LIMIT = 12;
+const HOMEPAGE_TABLET_PRODUCT_LIMIT = 8;
+const HOMEPAGE_MOBILE_PRODUCT_LIMIT = 5;
 
 function number(value: number) {
   return new Intl.NumberFormat("es-UY").format(value);
@@ -23,8 +26,14 @@ function money(value: number) {
   }).format(value);
 }
 
+function randomProductId(products: Product[]) {
+  if (!products.length) return "";
+  return products[Math.floor(Math.random() * products.length)]?.id ?? "";
+}
+
 export function HomePage() {
   const [products, setProducts] = useState<Product[]>([]);
+  const [discoveryProductId, setDiscoveryProductId] = useState("");
   const [categories, setCategories] = useState<Category[]>([]);
   const [stats, setStats] = useState<HomepageStats>(initialStats);
   const [search, setSearch] = useState("");
@@ -54,7 +63,15 @@ export function HomePage() {
 
     const timer = window.setTimeout(() => {
       getHomepageProducts({ search, categoryId })
-        .then((nextProducts) => !cancelled && setProducts(nextProducts))
+        .then((nextProducts) => {
+          if (cancelled) return;
+          setProducts(nextProducts);
+          setDiscoveryProductId((currentId) => (
+            currentId && nextProducts.some((product) => product.id === currentId)
+              ? currentId
+              : randomProductId(nextProducts)
+          ));
+        })
         .catch(() => !cancelled && setError("No pudimos cargar los productos."))
         .finally(() => !cancelled && setLoading(false));
     }, 180);
@@ -65,12 +82,32 @@ export function HomePage() {
     };
   }, [search, categoryId]);
 
-  const leadProduct = products[0];
+  const leadProduct = products.find((product) => product.id === discoveryProductId);
+  const productSearchUrl = buildProductSearchUrl(search, categoryId);
+  const visibleProducts = products.slice(0, HOMEPAGE_DESKTOP_PRODUCT_LIMIT);
+  const hasDesktopOverflow = products.length > HOMEPAGE_DESKTOP_PRODUCT_LIMIT;
+  const hasTabletOverflow = products.length > HOMEPAGE_TABLET_PRODUCT_LIMIT;
+  const hasMobileOverflow = products.length > HOMEPAGE_MOBILE_PRODUCT_LIMIT;
+  const emptyCatalogCopy = categoryId
+    ? { title: "No hay productos en esta categoría", text: "Probá con otra categoría para seguir comparando precios." }
+    : search.trim()
+      ? { title: "No encontramos ese producto", text: "Probá con otro nombre, marca o presentación." }
+      : isSupabaseConfigured
+        ? { title: "Todavía no hay productos para mostrar", text: "Cuando cargues el primer producto, va a aparecer acá." }
+        : { title: "El catálogo está listo para explorar", text: "Elegí una categoría o buscá un producto para empezar a comparar precios." };
+
   return (
     <section className="consumer-home container">
+      <div className="home-intro">
+        <span className="section-kicker">Precios de supermercados en Uruguay</span>
+        <h1>Compará precios.<br /><em>Comprá con más claridad.</em></h1>
+        <p>Encontrá el mejor precio, compará cadenas y seguí la historia de cada producto.</p>
+      </div>
       <div className="consumer-search-row">
-        <div className="search-box">
-          <span className="search-icon">⌕</span>
+        <form className="search-box" onSubmit={(event) => event.preventDefault()}>
+          <span className="search-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.5" /><path d="m16 16 5 5" /></svg>
+          </span>
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -82,18 +119,20 @@ export function HomePage() {
               ×
             </button>
           )}
-        </div>
-        <span className="search-helper">Por nombre, marca o presentación</span>
+          <button className="search-orb" type="submit" aria-label="Buscar productos">→</button>
+        </form>
+        <span className="search-helper">Actualizamos los precios para que puedas elegir mejor.</span>
       </div>
 
       <div className="category-row category-scroller" aria-label="Filtrar por categoría">
-        <button className={!categoryId ? "category-chip selected" : "category-chip"} onClick={() => setCategoryId("")}>
+        <button type="button" className={!categoryId ? "category-chip selected" : "category-chip"} onClick={() => setCategoryId("")}>
           <CategoryIcon slug="all" />
           Todo
         </button>
         {categories.map((category) => (
           <button
             key={category.id}
+            type="button"
             className={categoryId === category.id ? "category-chip selected" : "category-chip"}
             onClick={() => setCategoryId(category.id)}
           >
@@ -107,9 +146,7 @@ export function HomePage() {
 
       <section className="discovery-section" aria-labelledby="discovery-title">
         <div className="consumer-section-heading">
-          <h2 id="discovery-title">
-            Joyas que encontramos <span>›</span>
-          </h2>
+          <div><span className="section-kicker">Una selección para vos</span><h2 id="discovery-title">Descubrí algo nuevo</h2></div>
           <span className="carousel-dots">
             <i className="active" />
             <i />
@@ -128,9 +165,7 @@ export function HomePage() {
             <span className="discovery-category">{leadProduct?.category?.name ?? "Catálogo seguido"}</span>
             <h3>{leadProduct?.name ?? "Tu próxima decisión, más clara"}</h3>
             <p>
-              {leadProduct
-                ? `${leadProduct.brand ? `${leadProduct.brand} · ` : ""}${leadProduct.quantity} ${leadProduct.unit}`
-                : "Abrí un producto para comparar cadenas y ver su historia."}
+              {leadProduct ? leadProduct.brand ?? "Producto de catálogo" : "Abrí un producto para comparar cadenas y ver su historia."}
             </p>
             <div className="discovery-price-row">
               {leadProduct?.current_price ? (
@@ -143,7 +178,7 @@ export function HomePage() {
             </div>
             <div className="discovery-footer">
               <span>{leadProduct ? "Mejor precio disponible" : "Explorá el catálogo"}</span>
-              <span>↗</span>
+              <span className="discovery-cta">Ver comparación <b>↗</b></span>
             </div>
           </div>
         </Link>
@@ -160,26 +195,33 @@ export function HomePage() {
           <span className="catalog-count">{number(products.length)} productos</span>
         </div>
         {loading ? (
-          <ProductRail label="productos seguidos">
-            {[1, 2, 3, 4].map((item) => (
-              <div className="skeleton-card" key={item} />
+          <div className="product-grid homepage-product-grid" aria-label="Cargando productos seguidos">
+            {Array.from({ length: HOMEPAGE_DESKTOP_PRODUCT_LIMIT }, (_, index) => (
+              <div className="skeleton-card" key={index} />
             ))}
-          </ProductRail>
+          </div>
         ) : products.length ? (
-          <ProductRail label="productos seguidos">
-            {products.map((product) => (
+          <div className="product-grid homepage-product-grid" aria-label="Productos seguidos">
+            {visibleProducts.map((product) => (
               <ProductCard key={product.id} product={product} />
             ))}
-          </ProductRail>
+          </div>
         ) : (
-          <StateMessage
-            title={isSupabaseConfigured ? "Todavía no hay productos para mostrar" : "El catálogo está listo para empezar"}
-            text={
-              isSupabaseConfigured
-                ? "Cuando cargues el primer producto en Supabase, va a aparecer acá."
-                : "Conectá tu proyecto Supabase y agregá productos curados para empezar a registrar precios reales."
-            }
-          />
+          <StateMessage title={emptyCatalogCopy.title} text={emptyCatalogCopy.text} />
+        )}
+        {!loading && (hasDesktopOverflow || hasTabletOverflow || hasMobileOverflow) && (
+          <div
+            className={[
+              "catalog-more-actions",
+              hasDesktopOverflow ? "has-desktop-overflow" : "",
+              hasTabletOverflow ? "has-tablet-overflow" : "",
+              hasMobileOverflow ? "has-mobile-overflow" : "",
+            ].filter(Boolean).join(" ")}
+          >
+            {hasDesktopOverflow && <Link className="catalog-more catalog-more-desktop" to={productSearchUrl}>Ver todos los productos <span aria-hidden="true">→</span></Link>}
+            {hasTabletOverflow && <Link className="catalog-more catalog-more-tablet" to={productSearchUrl}>Ver todos los productos <span aria-hidden="true">→</span></Link>}
+            {hasMobileOverflow && <Link className="catalog-more catalog-more-mobile" to={productSearchUrl}>Ver todos los productos <span aria-hidden="true">→</span></Link>}
+          </div>
         )}
       </section>
 

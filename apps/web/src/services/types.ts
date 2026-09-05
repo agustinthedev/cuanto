@@ -1,3 +1,5 @@
+import type { ProductUnit } from "./productMeasurement";
+
 export interface Category {
   id: string;
   name: string;
@@ -8,6 +10,11 @@ export interface Store {
   id: string;
   name: string;
   slug: string;
+}
+
+export interface Tag {
+  id: string;
+  name: string;
 }
 
 export type ProductSuggestionStatus = "pending" | "approved" | "rejected";
@@ -24,12 +31,15 @@ export interface ProductSuggestion {
   id: string;
   title: string;
   category_id: string;
+  quantity: number;
+  unit: ProductUnit;
   category: Category;
   status: ProductSuggestionStatus;
   created_at: string;
   updated_at: string;
   reviewed_at: string | null;
   links: ProductSuggestionLink[];
+  tags: Tag[];
 }
 
 export interface Product {
@@ -37,12 +47,13 @@ export interface Product {
   name: string;
   brand: string | null;
   quantity: number;
-  unit: string;
+  unit: ProductUnit;
   image_url: string | null;
   category: Category | null;
   created_at: string;
   current_price?: number;
   best_store?: string;
+  comparison_count?: number;
 }
 
 export interface LatestPrice {
