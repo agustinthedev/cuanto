@@ -5,6 +5,7 @@ import { AdminGuard } from "../auth/AdminGuard";
 import { Layout } from "../components/Layout";
 import { AdminLoginPage } from "../pages/AdminLoginPage";
 import { AdminHomePage } from "../pages/AdminHomePage";
+import { AdminProductsPage } from "../pages/AdminProductsPage";
 import { HomePage } from "../pages/HomePage";
 import { ProductPage } from "../pages/ProductPage";
 import { ProductSearchPage } from "../pages/ProductSearchPage";
@@ -49,6 +50,7 @@ export function App() {
             <Route path="/admin/login" element={<AdminLoginPage />} />
             <Route path="/admin" element={<AdminGuard />}>
               <Route index element={<AdminHomePage />} />
+              <Route path="productos" element={<AdminProductsPage />} />
               <Route path="productos-sugeridos" element={<ProductSuggestionsPage />} />
             </Route>
             <Route path="*" element={<HomePage />} />

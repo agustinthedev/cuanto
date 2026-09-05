@@ -22,6 +22,7 @@ export function Layout({ children }: { children: ReactNode }) {
           <nav className={isAdminArea ? "site-nav admin-site-nav" : "site-nav"} aria-label="Navegación principal">
             {isAdminArea ? <>
               <NavLink to="/admin" end className={({ isActive }) => (isActive ? "active" : "")}>Resumen</NavLink>
+              <NavLink to="/admin/productos" end className={({ isActive }) => (isActive ? "active" : "")}>Productos</NavLink>
               <NavLink to="/admin/productos-sugeridos" className={({ isActive }) => (isActive ? "active" : "")}>Sugerencias</NavLink>
             </> : <>
               <NavLink to="/" end className={({ isActive }) => (isActive ? "active" : "")}>Explorar</NavLink>

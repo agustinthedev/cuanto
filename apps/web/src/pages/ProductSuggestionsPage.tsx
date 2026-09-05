@@ -18,7 +18,7 @@ import { PRODUCT_UNIT_OPTIONS, parseProductQuantity, productMeasurementError, ty
 import { isHttpUrl, productLinksError, serializeProductLinks } from "./adminProductLinks";
 
 type StatusFilter = ProductSuggestionStatus | "all";
-type LinkDraft = { storeId: string; url: string };
+export type LinkDraft = { storeId: string; url: string };
 type ApprovalNotice = (message: string, tone: "success" | "error") => void;
 
 const statusLabels: Record<ProductSuggestionStatus, string> = {
@@ -38,7 +38,7 @@ function linksError(links: LinkDraft[], stores: Store[]) {
   return productLinksError(links, stores);
 }
 
-function MeasurementFields({ quantity, unit, onQuantityChange, onUnitChange, disabled = false }: { quantity: string; unit: ProductUnit; onQuantityChange: (quantity: string) => void; onUnitChange: (unit: ProductUnit) => void; disabled?: boolean }) {
+export function MeasurementFields({ quantity, unit, onQuantityChange, onUnitChange, disabled = false }: { quantity: string; unit: ProductUnit; onQuantityChange: (quantity: string) => void; onUnitChange: (unit: ProductUnit) => void; disabled?: boolean }) {
   return (
     <>
       <label>Cantidad
@@ -53,7 +53,7 @@ function MeasurementFields({ quantity, unit, onQuantityChange, onUnitChange, dis
   );
 }
 
-function StoreLinkFields({ links, stores, onChange, disabled = false, showMissingWarning = false }: { links: LinkDraft[]; stores: Store[]; onChange: (storeId: string, url: string) => void; disabled?: boolean; showMissingWarning?: boolean }) {
+export function StoreLinkFields({ links, stores, onChange, disabled = false, showMissingWarning = false }: { links: LinkDraft[]; stores: Store[]; onChange: (storeId: string, url: string) => void; disabled?: boolean; showMissingWarning?: boolean }) {
   return (
     <div className="admin-links-list">
       {stores.map((store) => {
