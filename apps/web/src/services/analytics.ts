@@ -45,8 +45,8 @@ export interface TrackSearchInput {
 }
 
 let cachedIdentity: AnalyticsIdentity | null = null;
+let cachedSessionLastActivity: number | null = null;
 let currentPageViewReferrer: PageViewReferrer | null = null;
-const trackedPageViewKeys = new Set<string>();
 
 function browserStorage(): AnalyticsStorage | null {
   try {
@@ -94,22 +94,30 @@ export function getOrCreateAnalyticsIdentity(options: {
   now?: number;
   uuid?: () => string;
 } = {}): AnalyticsIdentity {
-  if (cachedIdentity) return cachedIdentity;
-
   const storage = options.storage === undefined ? browserStorage() : options.storage;
   const now = options.now ?? Date.now();
   const uuid = options.uuid ?? browserUuid;
+  const storedLastActivity = storage ? readTimestamp(storage) : null;
+  const lastActivity = storedLastActivity ?? cachedSessionLastActivity;
+  const sessionIsExpired = lastActivity !== null && now - lastActivity > SESSION_INACTIVITY_MS;
+
+  if (cachedIdentity && !sessionIsExpired) return cachedIdentity;
+  if (sessionIsExpired) cachedIdentity = null;
+
   const storedAnonId = storage?.getItem(ANON_ID_STORAGE_KEY) ?? null;
   const anonId = hasValue(storedAnonId) && isUuid(storedAnonId) ? storedAnonId : uuid();
   if (anonId !== storedAnonId) storage?.setItem(ANON_ID_STORAGE_KEY, anonId);
 
   const storedSessionId = storage?.getItem(SESSION_ID_STORAGE_KEY) ?? null;
-  const lastActivity = storage ? readTimestamp(storage) : null;
-  const sessionIsExpired = lastActivity !== null && now - lastActivity > SESSION_INACTIVITY_MS;
   const sessionId = !hasValue(storedSessionId) || !isUuid(storedSessionId) || sessionIsExpired ? uuid() : storedSessionId;
 
   if (sessionId !== storedSessionId) storage?.setItem(SESSION_ID_STORAGE_KEY, sessionId);
-  if (!lastActivity || sessionIsExpired) storage?.setItem(SESSION_LAST_ACTIVITY_STORAGE_KEY, String(now));
+  if (!lastActivity || sessionIsExpired) {
+    storage?.setItem(SESSION_LAST_ACTIVITY_STORAGE_KEY, String(now));
+    cachedSessionLastActivity = now;
+  } else {
+    cachedSessionLastActivity = lastActivity;
+  }
 
   cachedIdentity = { anonId, sessionId };
   return cachedIdentity;
@@ -117,8 +125,8 @@ export function getOrCreateAnalyticsIdentity(options: {
 
 export function resetAnalyticsStateForTests() {
   cachedIdentity = null;
+  cachedSessionLastActivity = null;
   currentPageViewReferrer = null;
-  trackedPageViewKeys.clear();
 }
 
 export function normalizeSearchQuery(query: string): string {
@@ -212,7 +220,9 @@ export async function trackEvent(input: {
     const identity = getOrCreateAnalyticsIdentity();
     const referrer = input.referrer ?? { referrer: null, referrerPath: null, referrerType: "direct" as const };
     const storage = browserStorage();
-    storage?.setItem(SESSION_LAST_ACTIVITY_STORAGE_KEY, String(Date.now()));
+    const now = Date.now();
+    storage?.setItem(SESSION_LAST_ACTIVITY_STORAGE_KEY, String(now));
+    cachedSessionLastActivity = now;
     if (!supabase) return;
 
     const { error } = await supabase.from("analytics_events").insert({
@@ -232,12 +242,6 @@ export async function trackEvent(input: {
 }
 
 export async function trackPageView(input: TrackPageViewInput): Promise<void> {
-  if (input.dedupeKey && trackedPageViewKeys.has(input.dedupeKey)) return;
-  if (input.dedupeKey) {
-    trackedPageViewKeys.add(input.dedupeKey);
-    if (trackedPageViewKeys.size > 100) trackedPageViewKeys.delete(trackedPageViewKeys.values().next().value as string);
-  }
-
   currentPageViewReferrer = input.referrer ?? { referrer: null, referrerPath: null, referrerType: "direct" };
 
   await trackEvent({

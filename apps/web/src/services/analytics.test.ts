@@ -58,6 +58,22 @@ describe("analytics identity", () => {
     expect(storage.getItem(SESSION_ID_STORAGE_KEY)).toBe(secondSessionId);
     expect(storage.getItem(SESSION_LAST_ACTIVITY_STORAGE_KEY)).toBe(String(1000 + SESSION_INACTIVITY_MS + 1));
   });
+
+  it("rotates a cached session after inactivity without a page reload", () => {
+    const storage = new MemoryStorage();
+    resetAnalyticsStateForTests();
+
+    const first = getOrCreateAnalyticsIdentity({ storage, now: 1000, uuid: () => firstSessionId });
+    const expired = getOrCreateAnalyticsIdentity({
+      storage,
+      now: 1000 + SESSION_INACTIVITY_MS + 1,
+      uuid: () => secondSessionId,
+    });
+
+    expect(first.sessionId).toBe(firstSessionId);
+    expect(expired.sessionId).toBe(secondSessionId);
+    expect(storage.getItem(SESSION_LAST_ACTIVITY_STORAGE_KEY)).toBe(String(1000 + SESSION_INACTIVITY_MS + 1));
+  });
 });
 
 describe("analytics referrers and query normalization", () => {
