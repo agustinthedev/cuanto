@@ -9,6 +9,16 @@ export interface StoreProductRecord {
   store_slug: string;
 }
 
+export interface ScrapeQueueMessage {
+  run_id: string;
+  date: string;
+  product_id: string;
+  product_image_url: string | null;
+  store_products: StoreProductRecord[];
+  tienda_inglesa_fallback_origins?: string[];
+  tienda_inglesa_previously_failed_origins?: string[];
+}
+
 export interface ScrapeResult {
   price: number;
   source: "html" | "json";
@@ -20,13 +30,15 @@ export interface ElDoradoSession {
   cookie: string;
 }
 
-export interface ScrapeContext {
+export interface StoreScrapeContext {
+  tiendaInglesaFallbackOrigins?: string[];
+  tiendaInglesaPreviouslyFailedOrigins?: string[];
   elDoradoSession?: ElDoradoSession;
 }
 
 export interface StoreScraper {
   slug: string;
-  scrape(record: StoreProductRecord, env: Env, context?: ScrapeContext): Promise<ScrapeResult>;
+  scrape(record: StoreProductRecord, env: Env, context?: StoreScrapeContext): Promise<ScrapeResult>;
 }
 
 export interface ScrapeSummary {

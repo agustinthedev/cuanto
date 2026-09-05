@@ -109,11 +109,16 @@ function replaceOrigin(sourceUrl, origin) {
   return source.toString();
 }
 
-function configuredUrls() {
-  const input = process.env.TI_TEST_URLS?.trim();
-  const urls = (input ? input.split(/\r?\n/) : DEFAULT_URLS)
+function splitConfiguredUrls(input) {
+  return input
+    .split(/(?:\r?\n)+|(?=https:\/\/)/)
     .map((value) => value.trim())
     .filter(Boolean);
+}
+
+function configuredUrls() {
+  const input = process.env.TI_TEST_URLS?.trim();
+  const urls = input ? splitConfiguredUrls(input) : DEFAULT_URLS;
 
   if (urls.length === 0) throw new Error("No se configuraron URLs para probar");
   if (urls.some((url) => !isAllowedUrl(url))) {

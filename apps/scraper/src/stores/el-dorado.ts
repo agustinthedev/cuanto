@@ -1,5 +1,5 @@
 import { extractJsonPrice } from "../price";
-import type { ElDoradoSession, ScrapeContext, ScrapeResult, StoreProductRecord, StoreScraper } from "../types";
+import type { ElDoradoSession, ScrapeResult, StoreProductRecord, StoreScrapeContext, StoreScraper } from "../types";
 import { extractProductImageFromPayload, fetchWithRetry, ScraperError } from "./base";
 
 export const EL_DORADO_ORIGIN = "https://www.eldorado.com.uy";
@@ -126,7 +126,7 @@ async function createRegionalSession(): Promise<ElDoradoSession> {
   return { origin: EL_DORADO_ORIGIN, cookie };
 }
 
-async function regionalSession(context: ScrapeContext): Promise<ElDoradoSession> {
+async function regionalSession(context: StoreScrapeContext): Promise<ElDoradoSession> {
   if (context.elDoradoSession) return context.elDoradoSession;
   const session = await createRegionalSession();
   context.elDoradoSession = session;
@@ -135,7 +135,7 @@ async function regionalSession(context: ScrapeContext): Promise<ElDoradoSession>
 
 export const elDoradoScraper: StoreScraper = {
   slug: "el-dorado",
-  async scrape(record: StoreProductRecord, _env: Env, context: ScrapeContext = {}): Promise<ScrapeResult> {
+  async scrape(record: StoreProductRecord, _env: Env, context: StoreScrapeContext = {}): Promise<ScrapeResult> {
     const slug = extractElDoradoSlug(record.url);
     const session = await regionalSession(context);
     const payload = await fetchWithRetry(productApiUrl(slug), { headers: headersWithCookie(session.cookie) })

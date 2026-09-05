@@ -1,20 +1,25 @@
 import { extractJsonPrice } from "../price";
 import type { ScrapeResult, StoreProductRecord, StoreScraper } from "../types";
-import { extractProductImageFromPayload, requireResponseJson } from "./base";
+import { extractProductImageFromHtml, fetchWithRetry, requireResponseJson, ScraperError } from "./base";
 
-const TATA_HEADERS = {
-  Accept: "application/json",
+const TATA_HTML_HEADERS = {
+  Accept: "text/html,application/xhtml+xml",
   "User-Agent": "Cuanto.uy price tracker/0.1 (+https://cuanto.uy)",
 };
-
+const TATA_GRAPHQL_HEADERS = {
+  Accept: "application/json",
+  "User-Agent": TATA_HTML_HEADERS["User-Agent"],
+};
 const TATA_MONTEVIDEO_SESSION = {
-  currency: { code: "$", symbol: "$" },
+  currency: { code: "UYU", symbol: "$" },
   locale: "es-UY",
   channel: JSON.stringify({ salesChannel: "4", regionId: "" }),
   country: "URY",
   postalCode: "11800",
   person: null,
 };
+const TATA_MONTEVIDEO_COUNTRY = "URY";
+const TATA_MONTEVIDEO_POSTAL_CODE = "11800";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -26,6 +31,13 @@ function tataGraphqlUrl(rawUrl: string, operationName: string, variables: unknow
   const url = new URL("/api/graphql", rawUrl);
   url.searchParams.set("operationName", operationName);
   url.searchParams.set("variables", JSON.stringify(variables));
+  return url.toString();
+}
+
+function tataLocalityUrl(rawUrl: string): string {
+  const url = new URL(rawUrl);
+  url.searchParams.set("country", TATA_MONTEVIDEO_COUNTRY);
+  url.searchParams.set("postalCode", TATA_MONTEVIDEO_POSTAL_CODE);
   return url.toString();
 }
 
@@ -44,11 +56,8 @@ function extractTataDataValue(html: string, testId: string): string | undefined 
 }
 
 export function parseTataHtml(html: string): number {
-  const listPrice = extractTataDataValue(html, "list-price");
-  const displayedPrice = extractTataDataValue(html, "price");
-  if (listPrice || displayedPrice) return extractJsonPrice(listPrice, displayedPrice);
-
-  const prices: unknown[] = [];
+  const listPrices: unknown[] = [extractTataDataValue(html, "list-price")];
+  const regularPrices: unknown[] = [extractTataDataValue(html, "price")];
   const scripts = html.matchAll(/<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi);
 
   for (const match of scripts) {
@@ -62,57 +71,53 @@ export function parseTataHtml(html: string): number {
       for (const offer of offerList) {
         if (!offer || typeof offer !== "object") continue;
         const offerRecord = offer as Record<string, unknown>;
-        prices.push(offerRecord.listPrice, offerRecord.price);
+        listPrices.push(offerRecord.listPrice);
+        regularPrices.push(offerRecord.price);
       }
     } catch {
       // Ignore unrelated or malformed JSON-LD blocks and keep looking.
     }
   }
 
-  if (prices.length === 0) throw new Error("Ta-Ta no incluyó el precio en el HTML");
-  return extractJsonPrice(...prices);
+  if (listPrices.some((value) => value !== undefined && value !== null && value !== "")) return extractJsonPrice(...listPrices);
+  return extractJsonPrice(...regularPrices);
 }
 
-export function parseTataGraphqlProduct(payload: unknown): number {
-  const data = asRecord(asRecord(payload)?.data);
-  const product = asRecord(data?.product);
-  const offers = asRecord(product?.offers);
-  const offerList = offers?.offers;
-  const firstOffer = Array.isArray(offerList) ? asRecord(offerList[0]) : null;
-
-  if (!firstOffer) throw new Error("Ta-Ta no devolvió ofertas para el producto");
-  return extractJsonPrice(firstOffer.listPrice, firstOffer.price);
-}
-
-async function fetchTataMontevideoChannel(rawUrl: string): Promise<{ channel: string; locale: string }> {
+async function fetchTataMontevideoSession(rawUrl: string): Promise<void> {
   const payload = await requireResponseJson(tataGraphqlUrl(rawUrl, "ValidateSession", {
     session: TATA_MONTEVIDEO_SESSION,
     search: "",
-  }), { headers: TATA_HEADERS });
+  }), { headers: TATA_GRAPHQL_HEADERS });
   const session = asRecord(asRecord(payload)?.data)?.validateSession;
-  const channel = asRecord(session)?.channel;
-  const locale = asRecord(session)?.locale;
+  const sessionRecord = asRecord(session);
 
-  if (typeof channel !== "string" || typeof locale !== "string") {
-    throw new Error("Ta-Ta no devolvió el contexto de Montevideo");
+  if (
+    sessionRecord?.country !== TATA_MONTEVIDEO_COUNTRY
+    || sessionRecord.postalCode !== TATA_MONTEVIDEO_POSTAL_CODE
+    || typeof sessionRecord.channel !== "string"
+    || typeof sessionRecord.locale !== "string"
+  ) {
+    throw new ScraperError("Ta-Ta no confirmó el contexto de Montevideo y Ciudad de la Costa");
   }
+}
 
-  return { channel, locale };
+async function fetchTataHtml(rawUrl: string): Promise<string> {
+  const response = await fetchWithRetry(
+    tataLocalityUrl(rawUrl),
+    { headers: TATA_HTML_HEADERS },
+    undefined,
+    (candidate) => candidate.status === 429 || candidate.status >= 500,
+  );
+  if (!response.ok) throw new ScraperError(`No se pudo leer ${rawUrl}: HTTP ${response.status}`);
+  return response.text();
 }
 
 export const tataScraper: StoreScraper = {
   slug: "ta-ta",
   async scrape(record: StoreProductRecord): Promise<ScrapeResult> {
-    const slug = extractTataSlug(record.url);
-    const session = await fetchTataMontevideoChannel(record.url);
-    const payload = await requireResponseJson(tataGraphqlUrl(record.url, "BrowserProductQuery", {
-      locator: [
-        { key: "slug", value: slug },
-        { key: "channel", value: session.channel },
-        { key: "locale", value: session.locale },
-      ],
-    }), { headers: TATA_HEADERS });
-
-    return { price: parseTataGraphqlProduct(payload), source: "json", imageUrl: extractProductImageFromPayload(payload, record.url) };
+    extractTataSlug(record.url);
+    await fetchTataMontevideoSession(record.url);
+    const html = await fetchTataHtml(record.url);
+    return { price: parseTataHtml(html), source: "html", imageUrl: extractProductImageFromHtml(html, record.url) };
   },
 };

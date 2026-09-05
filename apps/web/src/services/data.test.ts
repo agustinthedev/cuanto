@@ -1,5 +1,15 @@
-import { describe, expect, it } from "vitest";
-import { attachLatestPrices } from "./data";
+import { describe, expect, it, vi } from "vitest";
+
+const { mockFrom, mockRpc } = vi.hoisted(() => ({
+  mockFrom: vi.fn(),
+  mockRpc: vi.fn(),
+}));
+
+vi.mock("../lib/supabase", () => ({
+  supabase: { from: mockFrom, rpc: mockRpc },
+}));
+
+import { attachLatestPrices, getHomepageStats } from "./data";
 import type { Product } from "./types";
 
 const products: Product[] = [
@@ -50,5 +60,17 @@ describe("attachLatestPrices", () => {
       { product_id: "product-2", price: Number.NaN, store_name: "Disco" },
       { product_id: "unknown", price: 80, store_name: "Ta-Ta" },
     ])).toEqual(products);
+  });
+});
+
+describe("getHomepageStats", () => {
+  it("uses the database aggregate for active stores", async () => {
+    mockFrom.mockImplementation(() => ({
+      select: vi.fn(() => Promise.resolve({ count: 1, error: null })),
+    }));
+    mockRpc.mockResolvedValueOnce({ data: 2, error: null });
+
+    await expect(getHomepageStats()).resolves.toEqual({ products: 1, stores: 2, observations: 1, days: 1 });
+    expect(mockRpc).toHaveBeenCalledWith("count_active_stores");
   });
 });

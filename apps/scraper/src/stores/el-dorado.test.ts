@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import productPayload from "../fixtures/eldorado-product.json";
-import type { ScrapeContext, StoreProductRecord } from "../types";
+import type { StoreProductRecord, StoreScrapeContext } from "../types";
 import { EL_DORADO_ORIGIN, EL_DORADO_REGION_ID, elDoradoScraper } from "./el-dorado";
 
 const regionIdEncoded = btoa(EL_DORADO_REGION_ID);
@@ -41,7 +41,7 @@ describe("adapter de El Dorado", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const context: ScrapeContext = {};
+    const context: StoreScrapeContext = {};
     const first = await elDoradoScraper.scrape(record("one", "https://www.eldorado.com.uy/queso-el-dorado-muzzarella-kg/p"), {} as Env, context);
     const second = await elDoradoScraper.scrape(record("two", "https://www.eldorado.com.uy/papa-rosada-kg/p"), {} as Env, context);
 

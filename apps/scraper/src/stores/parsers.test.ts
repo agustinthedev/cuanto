@@ -6,7 +6,7 @@ import { parseDiscoHtml } from "./disco";
 import { extractElDoradoSlug, parseElDoradoProduct } from "./el-dorado";
 import { parseRedExpressJson } from "./red-express";
 import { parseTiendaInglesaHtml } from "./tienda-inglesa";
-import { extractTataSlug, parseTataGraphqlProduct, parseTataHtml } from "./tata";
+import { extractTataSlug, parseTataHtml } from "./tata";
 import { extractProductImageFromHtml, extractProductImageFromPayload } from "./base";
 
 const fixture = (name: string) => readFileSync(fileURLToPath(new URL(`../fixtures/${name}`, import.meta.url)), "utf8");
@@ -71,10 +71,13 @@ describe("adapters de supermercados", () => {
     expect(parseTataHtml(fixture("tata-product-promo.html"))).toBe(230);
   });
 
-  it("extrae el precio original del producto desde la API de Ta-Ta", () => {
-    expect(parseTataGraphqlProduct({
-      data: { product: { offers: { offers: [{ price: 207, listPrice: 230 }] } } },
-    })).toBe(230);
+  it("prioriza el precio original del JSON-LD si el HTML solo muestra el precio promocional", () => {
+    expect(parseTataHtml(`
+      <span data-testid="price" data-value="207">$ 207,00</span>
+      <script type="application/ld+json">
+        {"@type":"Product","offers":{"offers":[{"price":207,"listPrice":230}]}}
+      </script>
+    `)).toBe(230);
   });
 
   it("extrae la imagen de producto desde metadatos HTML y resuelve rutas relativas", () => {
