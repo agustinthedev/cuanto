@@ -70,10 +70,6 @@ export function attachLatestPrices(products: Product[], latestPrices: HomepagePr
   });
 }
 
-export function countDistinctStoreIds(rows: Array<{ store_id: string | null }>): number {
-  return new Set(rows.map((row) => row.store_id).filter((storeId): storeId is string => Boolean(storeId))).size;
-}
-
 function normalizeSuggestion(value: any): ProductSuggestion {
   const category = Array.isArray(value.category) ? value.category[0] : value.category;
   const links = (value.links ?? []).map((link: any): ProductSuggestionLink => ({
@@ -370,9 +366,9 @@ async function countRows(table: string, column = "id"): Promise<number> {
 
 async function countActiveStores(): Promise<number> {
   if (!supabase) return 0;
-  const { data, error } = await supabase.from("store_products").select("store_id").eq("active", true);
+  const { data, error } = await supabase.rpc("count_active_stores");
   if (error) throw error;
-  return countDistinctStoreIds(data ?? []);
+  return Number(data ?? 0);
 }
 
 async function countSuggestions(status?: ProductSuggestionStatus): Promise<number> {
