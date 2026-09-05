@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { productLinksError, serializeProductLinks } from "./adminProductLinks";
+import { productLinksError, serializeProductLinks, serializeSuggestionLinks } from "./adminProductLinks";
 import type { Store } from "../services/types";
 
 const stores: Store[] = [
@@ -32,5 +32,18 @@ describe("product link validation", () => {
       { storeId: "disco", url: "no-es-un-link" },
       { storeId: "tata", url: "https://tata.example/producto" },
     ], stores)).toBe("Ingresá un link http(s) válido para Disco.");
+  });
+
+  it("preserves links for stores hidden from the active form", () => {
+    expect(serializeSuggestionLinks([
+      { storeId: "disco", url: "https://disco.example/actualizado" },
+      { storeId: "tata", url: "" },
+    ], [
+      { store_id: "disco", url: "https://disco.example/anterior" },
+      { store_id: "tienda-inglesa", url: "https://tiendainglesa.example/producto" },
+    ])).toEqual([
+      { store_id: "disco", url: "https://disco.example/actualizado" },
+      { store_id: "tienda-inglesa", url: "https://tiendainglesa.example/producto" },
+    ]);
   });
 });
