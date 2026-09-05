@@ -75,6 +75,20 @@ describe("analytics identity", () => {
     expect(expired.sessionId).toBe(secondSessionId);
     expect(storage.getItem(SESSION_LAST_ACTIVITY_STORAGE_KEY)).toBe(String(1000 + SESSION_INACTIVITY_MS + 1));
   });
+
+  it("refreshes a cached identity when another tab rotates the shared session", () => {
+    const storage = new MemoryStorage();
+    resetAnalyticsStateForTests();
+
+    const first = getOrCreateAnalyticsIdentity({ storage, now: 1000, uuid: () => firstSessionId });
+    storage.setItem(SESSION_ID_STORAGE_KEY, secondSessionId);
+    storage.setItem(SESSION_LAST_ACTIVITY_STORAGE_KEY, String(2000));
+
+    const refreshed = getOrCreateAnalyticsIdentity({ storage, now: 2000, uuid: () => firstSessionId });
+
+    expect(first.sessionId).toBe(firstSessionId);
+    expect(refreshed.sessionId).toBe(secondSessionId);
+  });
 });
 
 describe("analytics referrers and query normalization", () => {

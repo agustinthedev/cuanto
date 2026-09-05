@@ -99,15 +99,20 @@ export function getOrCreateAnalyticsIdentity(options: {
   const storedLastActivity = storage ? readTimestamp(storage) : null;
   const lastActivity = storedLastActivity ?? cachedSessionLastActivity;
   const sessionIsExpired = lastActivity !== null && now - lastActivity > SESSION_INACTIVITY_MS;
-
-  if (cachedIdentity && !sessionIsExpired) return cachedIdentity;
-  if (sessionIsExpired) cachedIdentity = null;
-
   const storedAnonId = storage?.getItem(ANON_ID_STORAGE_KEY) ?? null;
+  const storedSessionId = storage?.getItem(SESSION_ID_STORAGE_KEY) ?? null;
+  const cacheMatchesStorage = !storage || (
+    storedAnonId === cachedIdentity?.anonId && storedSessionId === cachedIdentity?.sessionId
+  );
+
+  // A different tab can rotate the shared session while this tab keeps an
+  // in-memory identity. Never return that stale identity when storage changed.
+  if (cachedIdentity && !sessionIsExpired && cacheMatchesStorage) return cachedIdentity;
+  if (cachedIdentity && (sessionIsExpired || !cacheMatchesStorage)) cachedIdentity = null;
+
   const anonId = hasValue(storedAnonId) && isUuid(storedAnonId) ? storedAnonId : uuid();
   if (anonId !== storedAnonId) storage?.setItem(ANON_ID_STORAGE_KEY, anonId);
 
-  const storedSessionId = storage?.getItem(SESSION_ID_STORAGE_KEY) ?? null;
   const sessionId = !hasValue(storedSessionId) || !isUuid(storedSessionId) || sessionIsExpired ? uuid() : storedSessionId;
 
   if (sessionId !== storedSessionId) storage?.setItem(SESSION_ID_STORAGE_KEY, sessionId);
