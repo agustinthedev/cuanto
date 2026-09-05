@@ -117,7 +117,7 @@ function normalizeProductLink(value: any): ProductLink {
 }
 
 function normalizeAdminProduct(value: any): AdminProduct {
-  const rawLinks = (value.links ?? []).map(normalizeProductLink);
+  const rawLinks: ProductLink[] = (value.links ?? []).map(normalizeProductLink);
   const linksByStore = new Map<string, ProductLink>();
   for (const link of rawLinks) {
     if (link.location_id !== null) continue;
