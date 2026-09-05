@@ -7,6 +7,7 @@ import { isHttpUrl, productLinksError, serializeProductLinks } from "./adminProd
 import { createTag, getAdminStores, getAdminProducts, getCategories, getTags, updateProduct } from "../services/data";
 import { parseProductQuantity, productMeasurementError, type ProductUnit } from "../services/productMeasurement";
 import type { AdminProduct, Category, Store, Tag } from "../services/types";
+import { matchesAdminProductSearch } from "./adminProductSearch";
 
 function initialLinks(product: AdminProduct, stores: Store[]): LinkDraft[] {
   return stores.map((store) => ({
@@ -88,7 +89,7 @@ function ReadonlyProductDetails({ product, stores }: { product: AdminProduct; st
   );
 }
 
-function AdminProductAccordion({ product, categories, stores, tags, onCreateTag, onChanged }: { product: AdminProduct; categories: Category[]; stores: Store[]; tags: Tag[]; onCreateTag: (name: string) => Promise<Tag>; onChanged: () => Promise<void> }) {
+function AdminProductAccordion({ product, categories, stores, tags, onCreateTag, onChanged, hidden = false }: { product: AdminProduct; categories: Category[]; stores: Store[]; tags: Tag[]; onCreateTag: (name: string) => Promise<Tag>; onChanged: () => Promise<void>; hidden?: boolean }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(product.name);
@@ -171,7 +172,7 @@ function AdminProductAccordion({ product, categories, stores, tags, onCreateTag,
   }
 
   return (
-    <article className={`admin-product-item${open ? " is-open" : ""}`}>
+    <article className={`admin-product-item${open ? " is-open" : ""}`} hidden={hidden}>
       <div className="admin-product-summary-row">
         <button className="admin-product-summary" type="button" onClick={() => setOpen((current) => !current)} aria-expanded={open} aria-controls={panelId}>
           <span className="admin-product-chevron"><ChevronIcon open={open} /></span>
@@ -207,6 +208,7 @@ export function AdminProductsPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [stores, setStores] = useState<Store[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
+  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -235,18 +237,31 @@ export function AdminProductsPage() {
     return tag;
   }
 
+  const filteredProducts = products.filter((product) => matchesAdminProductSearch(product, search));
+  const visibleProductIds = new Set(filteredProducts.map((product) => product.id));
+
   return (
     <div className="container admin-page admin-products-page">
       <div className="admin-page-header">
-        <div><span className="section-kicker">Admin / catálogo</span><h1>Productos</h1><p>Consultá y actualizá la información de los productos que forman parte del catálogo.</p></div>
+        <div><span className="section-kicker">Admin / Productos</span><h1>Productos</h1><p>Consultá y actualizá la información de los productos que forman parte del catálogo.</p></div>
       </div>
 
       <div className="admin-stats" aria-label="Resumen del catálogo"><div><strong>{products.length}</strong><span>Productos en catálogo</span></div><div><strong>{stores.length}</strong><span>Cadenas configuradas</span></div><div><strong>{tags.length}</strong><span>Tags disponibles</span></div></div>
 
+      <div className="admin-products-search">
+        <label htmlFor="admin-products-search-input">Buscar productos</label>
+        <div className="admin-products-search-control">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 5 5" /></svg>
+          <input id="admin-products-search-input" type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nombre, marca, categoría o tag" />
+          {search && <button type="button" onClick={() => setSearch("")} aria-label="Limpiar búsqueda" title="Limpiar búsqueda">×</button>}
+        </div>
+        {!loading && <p className="admin-products-search-count">{filteredProducts.length} de {products.length} productos</p>}
+      </div>
+
       {error && <div className="inline-alert" role="alert">{error}</div>}
       <section className="admin-products-section" aria-labelledby="admin-products-list-title">
         <div className="admin-card-heading"><div><span className="section-kicker">Catálogo actual</span><h2 id="admin-products-list-title">Productos cargados</h2></div><span className="section-note">Seleccioná uno para ver el detalle</span></div>
-        {loading ? <div className="admin-loading"><div className="loading-orb" /><p>Cargando productos...</p></div> : products.length ? <div className="admin-product-list">{products.map((product) => <AdminProductAccordion key={product.id} product={product} categories={categories} stores={stores} tags={tags} onCreateTag={handleCreateTag} onChanged={loadData} />)}</div> : <div className="state-message"><div className="state-icon">◌</div><div><h3>Todavía no hay productos</h3><p>Los productos aprobados o creados desde el panel van a aparecer acá.</p></div></div>}
+        {loading ? <div className="admin-loading"><div className="loading-orb" /><p>Cargando productos...</p></div> : products.length ? <><div className="admin-product-list">{products.map((product) => <AdminProductAccordion key={product.id} product={product} categories={categories} stores={stores} tags={tags} onCreateTag={handleCreateTag} onChanged={loadData} hidden={!visibleProductIds.has(product.id)} />)}</div>{!filteredProducts.length && <div className="state-message admin-products-no-results"><div className="state-icon">⌕</div><div><h3>No encontramos productos</h3><p>Probá con otro nombre, marca, categoría o tag.</p></div></div>}</> : <div className="state-message"><div className="state-icon">◌</div><div><h3>Todavía no hay productos</h3><p>Los productos aprobados o creados desde el panel van a aparecer acá.</p></div></div>}
       </section>
     </div>
   );

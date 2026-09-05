@@ -961,6 +961,18 @@ a { color: inherit; }
 }
 
 /* Admin catalog: products are compact until an operator opens one. */
+.admin-products-search { max-width: 720px; margin: 0 0 30px; }
+.admin-products-search > label { display: block; margin-bottom: 9px; color: var(--color-ink); font-size: 13px; font-weight: 600; }
+.admin-products-search-control { display: flex; align-items: center; gap: 11px; min-height: 52px; padding: 4px 7px 4px 15px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-full); background: var(--color-canvas); box-shadow: var(--shadow-soft); transition: border-color .2s, box-shadow .2s; }
+.admin-products-search-control:focus-within { border-color: var(--color-ink); box-shadow: 0 0 0 2px var(--color-ink), var(--shadow-soft); }
+.admin-products-search-control > svg { flex: 0 0 20px; width: 20px; height: 20px; fill: none; stroke: var(--color-muted); stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
+.admin-products-search-control > input { flex: 1; min-width: 0; min-height: 40px; padding: 0; border: 0; outline: 0; color: var(--color-ink); background: transparent; font-size: 14px; }
+.admin-products-search-control > input::placeholder { color: var(--color-muted); }
+.admin-products-search-control > input::-webkit-search-cancel-button { display: none; }
+.admin-products-search-control > button { display: grid; flex: 0 0 34px; place-items: center; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 50%; color: var(--color-muted); background: transparent; font-size: 23px; line-height: 1; cursor: pointer; }
+.admin-products-search-control > button:hover { color: var(--color-ink); background: var(--color-surface-soft); }
+.admin-products-search-count { margin: 8px 0 0; color: var(--color-muted); font-size: 12px; }
+.admin-products-no-results { margin-top: 12px; }
 .admin-products-section { padding-top: 4px; }
 .admin-products-section > .admin-card-heading { margin-bottom: 18px; }
 .admin-product-list { display: grid; gap: 10px; }
@@ -1000,6 +1012,7 @@ a { color: inherit; }
 .admin-product-form-actions { align-items: center; }
 
 @media (max-width: 700px) {
+  .admin-products-search { margin-bottom: 26px; }
   .admin-product-summary { padding: 17px 16px; }
   .admin-product-summary-title { font-size: 15px; }
   .admin-product-edit-button { margin-right: 12px; }
