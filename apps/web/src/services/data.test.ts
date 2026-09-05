@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockFrom, mockRpc } = vi.hoisted(() => ({
   mockFrom: vi.fn(),
@@ -9,8 +9,13 @@ vi.mock("../lib/supabase", () => ({
   supabase: { from: mockFrom, rpc: mockRpc },
 }));
 
-import { attachLatestPrices, getHomepageStats } from "./data";
+import { attachLatestPrices, getAdminStores, getHomepageStats } from "./data";
 import type { Product } from "./types";
+
+beforeEach(() => {
+  mockFrom.mockReset();
+  mockRpc.mockReset();
+});
 
 const products: Product[] = [
   {
@@ -72,5 +77,27 @@ describe("getHomepageStats", () => {
 
     await expect(getHomepageStats()).resolves.toEqual({ products: 1, stores: 2, observations: 1, days: 1 });
     expect(mockRpc).toHaveBeenCalledWith("count_active_stores");
+  });
+});
+
+describe("getAdminStores", () => {
+  it("requests only active stores", async () => {
+    const query = {
+      select: vi.fn(),
+      eq: vi.fn(),
+      order: vi.fn(),
+    };
+    query.select.mockReturnValue(query);
+    query.eq.mockReturnValue(query);
+    query.order.mockResolvedValue({
+      data: [{ id: "store-disco", name: "Disco", slug: "disco", active: true }],
+      error: null,
+    });
+    mockFrom.mockReturnValue(query);
+
+    await expect(getAdminStores()).resolves.toEqual([{ id: "store-disco", name: "Disco", slug: "disco", active: true }]);
+    expect(mockFrom).toHaveBeenCalledWith("stores");
+    expect(query.select).toHaveBeenCalledWith("id,name,slug,active");
+    expect(query.eq).toHaveBeenCalledWith("active", true);
   });
 });
