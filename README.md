@@ -56,6 +56,8 @@ VITE_SUPABASE_ANON_KEY=...
 VITE_SCRAPER_URL=https://cuanto-scraper.your-account.workers.dev
 ```
 
+Los reseteos puntuales del historial no forman parte de la secuencia de migraciones. Para ejecutar el reset inicial, usar `supabase/operations/reset_price_history.sql` manualmente después de hacer un backup y confirmar el proyecto destino.
+
 La anon key es pública y solo permite lecturas públicas. RLS y los grants bloquean cambios anónimos; las mutaciones del panel pasan por Supabase Auth, RLS y funciones SQL con `security definer`. La `SUPABASE_SERVICE_ROLE_KEY` nunca debe entrar en `apps/web`.
 
 ### Habilitar el acceso de administrador
