@@ -1,6 +1,7 @@
 import type { Store } from "../services/types";
 
 export type ProductLinkDraft = { storeId: string; url: string };
+export type ExistingProductLink = { store_id: string; url: string };
 
 export function isHttpUrl(value: string) {
   try {
@@ -31,4 +32,12 @@ export function serializeProductLinks(links: ProductLinkDraft[]) {
   return links
     .filter((link) => link.url.trim())
     .map((link) => ({ store_id: link.storeId, url: link.url.trim() }));
+}
+
+export function serializeSuggestionLinks(links: ProductLinkDraft[], existingLinks: ExistingProductLink[]) {
+  const activeStoreIds = new Set(links.map((link) => link.storeId));
+  const hiddenLinks = existingLinks
+    .filter((link) => !activeStoreIds.has(link.store_id) && link.url.trim())
+    .map((link) => ({ store_id: link.store_id, url: link.url.trim() }));
+  return [...serializeProductLinks(links), ...hiddenLinks];
 }

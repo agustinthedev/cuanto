@@ -3,9 +3,10 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import redFixture from "../fixtures/red-product.json";
 import { parseDiscoHtml } from "./disco";
+import { extractElDoradoSlug, parseElDoradoProduct } from "./el-dorado";
 import { parseRedExpressJson } from "./red-express";
 import { parseTiendaInglesaHtml } from "./tienda-inglesa";
-import { extractTataSlug, parseTataGraphqlProduct, parseTataHtml } from "./tata";
+import { extractTataSlug, parseTataHtml } from "./tata";
 import { extractProductImageFromHtml, extractProductImageFromPayload } from "./base";
 
 const fixture = (name: string) => readFileSync(fileURLToPath(new URL(`../fixtures/${name}`, import.meta.url)), "utf8");
@@ -50,6 +51,17 @@ describe("adapters de supermercados", () => {
     expect(parseRedExpressJson(redFixture)).toBe(78);
   });
 
+  it("extrae el slug y prioriza el precio de lista de El Dorado desde VTEX", () => {
+    expect(extractElDoradoSlug("https://www.eldorado.com.uy/queso-el-dorado-muzzarella-kg/p")).toBe("queso-el-dorado-muzzarella-kg");
+    expect(parseElDoradoProduct(JSON.parse(fixture("eldorado-product.json")))).toBe(499);
+  });
+
+  it("usa el precio vigente de El Dorado cuando falta el precio de lista", () => {
+    expect(parseElDoradoProduct([{
+      items: [{ sellers: [{ commertialOffer: { Price: 429, ListPrice: null } }] }],
+    }])).toBe(429);
+  });
+
   it("extrae el precio original de Ta-Ta desde JSON-LD", () => {
     expect(extractTataSlug("https://www.tata.com.uy/leche-descremada-blancanube-1-lt/p")).toBe("leche-descremada-blancanube-1-lt");
     expect(parseTataHtml(fixture("tata-product.html"))).toBe(230);
@@ -59,10 +71,13 @@ describe("adapters de supermercados", () => {
     expect(parseTataHtml(fixture("tata-product-promo.html"))).toBe(230);
   });
 
-  it("extrae el precio original del producto desde la API de Ta-Ta", () => {
-    expect(parseTataGraphqlProduct({
-      data: { product: { offers: { offers: [{ price: 207, listPrice: 230 }] } } },
-    })).toBe(230);
+  it("prioriza el precio original del JSON-LD si el HTML solo muestra el precio promocional", () => {
+    expect(parseTataHtml(`
+      <span data-testid="price" data-value="207">$ 207,00</span>
+      <script type="application/ld+json">
+        {"@type":"Product","offers":{"offers":[{"price":207,"listPrice":230}]}}
+      </script>
+    `)).toBe(230);
   });
 
   it("extrae la imagen de producto desde metadatos HTML y resuelve rutas relativas", () => {
