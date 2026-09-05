@@ -373,25 +373,33 @@ export async function rejectProductSuggestion(id: string): Promise<void> {
   if (error) throw error;
 }
 
-async function getProducts(filters?: { search?: string; categoryId?: string }, limit?: number): Promise<Product[]> {
+export interface HomepageProductResult {
+  products: Product[];
+  total: number;
+}
+
+async function getProducts(filters?: { search?: string; categoryId?: string }, limit?: number): Promise<HomepageProductResult> {
   if (isDemoMode) {
     const searchValue = filters?.search?.trim().toLocaleLowerCase("es-UY") ?? "";
-    const products = demoProducts.filter((product) => {
+    const matchingProducts = demoProducts.filter((product) => {
       const matchesSearch = !searchValue || `${product.name} ${product.brand ?? ""}`.toLocaleLowerCase("es-UY").includes(searchValue);
       const matchesCategory = !filters?.categoryId || product.category?.id === filters.categoryId;
       return matchesSearch && matchesCategory;
     }).map((product) => ({ ...product, comparison_count: demoStores.length }));
-    return typeof limit === "number" ? products.slice(0, limit) : products;
+    return {
+      products: typeof limit === "number" ? matchingProducts.slice(0, limit) : matchingProducts,
+      total: matchingProducts.length,
+    };
   }
-  if (!supabase) return [];
-  let query = supabase.from("products").select(productSelect).order("created_at", { ascending: false });
-  if (typeof limit === "number") query = query.limit(limit);
+  if (!supabase) return { products: [], total: 0 };
+  let query = supabase.from("products").select(productSelect, { count: "exact" }).order("created_at", { ascending: false });
   if (filters?.search?.trim()) query = query.ilike("name", `%${filters.search.trim()}%`);
   if (filters?.categoryId) query = query.eq("category_id", filters.categoryId);
-  const { data, error } = await query;
+  if (typeof limit === "number") query = query.limit(limit);
+  const { data, count, error } = await query;
   if (error) throw error;
   const products = (data ?? []).map(normalizeProduct);
-  if (!products.length) return products;
+  if (!products.length) return { products, total: count ?? 0 };
 
   const { data: latestPrices, error: latestPricesError } = await supabase
     .from("latest_store_product_prices")
@@ -399,7 +407,10 @@ async function getProducts(filters?: { search?: string; categoryId?: string }, l
     .in("product_id", products.map((product) => product.id));
   if (latestPricesError) throw latestPricesError;
 
-  return attachLatestPrices(products, (latestPrices ?? []) as HomepagePriceRow[]);
+  return {
+    products: attachLatestPrices(products, (latestPrices ?? []) as HomepagePriceRow[]),
+    total: count ?? products.length,
+  };
 }
 
 function normalizeSearchProduct(value: any): Product {
@@ -423,7 +434,7 @@ function normalizeSearchProduct(value: any): Product {
   return product;
 }
 
-export async function getHomepageProducts(filters?: { search?: string; categoryId?: string }): Promise<Product[]> {
+export async function getHomepageProducts(filters?: { search?: string; categoryId?: string }): Promise<HomepageProductResult> {
   return getProducts(filters, 24);
 }
 

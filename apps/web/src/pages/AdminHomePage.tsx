@@ -96,11 +96,19 @@ const analyticsPeriodOptions: Array<{ value: AnalyticsPeriod; label: string }> =
 ];
 
 const trafficSeries = [
-  { key: "uniqueVisitors", label: "Visitantes", color: "#0b795f" },
-  { key: "sessions", label: "Sesiones", color: "#6d5fd0" },
-  { key: "pageViews", label: "Páginas", color: "#d18445" },
-  { key: "searches", label: "Búsquedas", color: "#3274a8" },
+  { key: "uniqueVisitors", label: "Visitantes", color: "#0b795f", dash: undefined, marker: "circle" },
+  { key: "sessions", label: "Sesiones", color: "#6d5fd0", dash: "8 5", marker: "square" },
+  { key: "pageViews", label: "Páginas", color: "#d18445", dash: "2 5", marker: "diamond" },
+  { key: "searches", label: "Búsquedas", color: "#3274a8", dash: "12 4 2 4", marker: "triangle" },
 ] as const;
+type TrafficSeries = (typeof trafficSeries)[number];
+type TrafficChartPoint = { x: number; y: number; value: number };
+type TrafficBucket = {
+  bucket: string;
+  x: number;
+  anchorY: number;
+  series: Array<{ definition: TrafficSeries; point: TrafficChartPoint }>;
+};
 
 function trafficBucketLabel(bucket: string, period: AnalyticsPeriod) {
   const date = new Date(bucket);
@@ -110,7 +118,47 @@ function trafficBucketLabel(bucket: string, period: AnalyticsPeriod) {
   return new Intl.DateTimeFormat("es-UY", { day: "2-digit", month: "short", timeZone: "America/Montevideo" }).format(date);
 }
 
+function trafficTooltipLabel(bucket: string, period: AnalyticsPeriod) {
+  const date = new Date(bucket);
+  if (Number.isNaN(date.getTime())) return "";
+  if (period === "today") return new Intl.DateTimeFormat("es-UY", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "America/Montevideo" }).format(date);
+  return new Intl.DateTimeFormat("es-UY", { day: "2-digit", month: "short", year: "numeric", timeZone: "America/Montevideo" }).format(date);
+}
+
+function TrafficPointMarker({ definition, point, active }: { definition: TrafficSeries; point: TrafficChartPoint; active: boolean }) {
+  const className = `analytics-chart-marker${active ? " is-active" : ""}`;
+  const markerProps = { className, fill: "#f4fbf6", stroke: definition.color, strokeWidth: 2, pointerEvents: "none" as const };
+  if (definition.marker === "square") return <rect {...markerProps} x={point.x - 4} y={point.y - 4} width="8" height="8" rx="1" />;
+  if (definition.marker === "diamond") return <path {...markerProps} d={`M${point.x},${point.y - 5} L${point.x + 5},${point.y} L${point.x},${point.y + 5} L${point.x - 5},${point.y} Z`} />;
+  if (definition.marker === "triangle") return <path {...markerProps} d={`M${point.x},${point.y - 5} L${point.x + 5},${point.y + 4} L${point.x - 5},${point.y + 4} Z`} />;
+  return <circle {...markerProps} cx={point.x} cy={point.y} r="4" />;
+}
+
+function AnalyticsTrafficTooltip({ bucket, period, width, height, padding }: { bucket: TrafficBucket; period: AnalyticsPeriod; width: number; height: number; padding: number }) {
+  const tooltipWidth = 188;
+  const tooltipHeight = 34 + bucket.series.length * 17;
+  const x = Math.min(Math.max(bucket.x - tooltipWidth / 2, padding), width - padding - tooltipWidth);
+  const aboveY = bucket.anchorY - tooltipHeight - 12;
+  const y = aboveY >= padding ? aboveY : Math.min(bucket.anchorY + 12, height - padding - tooltipHeight);
+  const dateLabel = trafficTooltipLabel(bucket.bucket, period);
+
+  return (
+    <g className="chart-tooltip analytics-chart-tooltip" pointerEvents="none" transform={`translate(${x.toFixed(1)},${y.toFixed(1)})`}>
+      <rect width={tooltipWidth} height={tooltipHeight} rx="7" className="chart-tooltip-bg" />
+      <text x="11" y="16" className="chart-tooltip-date">{dateLabel}</text>
+      {bucket.series.map(({ definition, point }, index) => (
+        <g key={definition.key}>
+          <circle cx="14" cy={31 + index * 17} r="3" fill={definition.color} />
+          <text x="23" y={34 + index * 17} className="chart-tooltip-value analytics-chart-tooltip-value">{definition.label}: {number(point.value)}</text>
+        </g>
+      ))}
+    </g>
+  );
+}
+
 function AnalyticsTrafficChart({ data, period }: { data: AdminAnalyticsTrafficPoint[]; period: AnalyticsPeriod }) {
+  const [activeBucketIndex, setActiveBucketIndex] = useState<number | null>(null);
+  useEffect(() => setActiveBucketIndex(null), [data, period]);
   if (!data.length) return <div className="chart-empty">Todavía no hay actividad para graficar.</div>;
 
   const width = 900;
@@ -122,20 +170,63 @@ function AnalyticsTrafficChart({ data, period }: { data: AdminAnalyticsTrafficPo
     y: height - padding - (point[series.key] / max) * (height - padding * 2),
   }));
   const pathFor = (points: Array<{ x: number; y: number }>) => points.map((point, index) => `${index === 0 ? "M" : "L"}${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(" ");
+  const trafficBuckets: TrafficBucket[] = data.map((point, index) => {
+    const x = data.length === 1 ? width / 2 : padding + (index / (data.length - 1)) * (width - padding * 2);
+    const series = trafficSeries.map((definition) => {
+      const value = point[definition.key];
+      return {
+        definition,
+        point: {
+          x,
+          y: height - padding - (value / max) * (height - padding * 2),
+          value,
+        },
+      };
+    });
+    return { bucket: point.bucket, x, anchorY: Math.min(...series.map(({ point: seriesPoint }) => seriesPoint.y)), series };
+  });
   const labelIndexes = data.length > 4 ? [0, Math.floor((data.length - 1) / 2), data.length - 1] : data.map((_, index) => index);
+  const activeBucket = activeBucketIndex === null ? null : trafficBuckets[activeBucketIndex] ?? null;
 
   return (
     <div className="chart-wrap analytics-traffic-chart">
       <div className="chart-legend" aria-label="Métricas de actividad">
-        {trafficSeries.map((series) => <span key={series.key}><i style={{ background: series.color }} />{series.label}</span>)}
+        {trafficSeries.map((series) => <span key={series.key}><i className={`analytics-legend-marker marker-${series.marker}`} style={{ background: series.color, borderBottomColor: series.color }} />{series.label}</span>)}
       </div>
       <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Actividad de visitantes, sesiones, páginas y búsquedas a lo largo del tiempo">
         {[0, 1, 2, 3].map((step) => {
           const y = padding + (step / 3) * (height - padding * 2);
           return <line key={step} x1={padding} x2={width - padding} y1={y} y2={y} className="chart-grid" />;
         })}
-        {trafficSeries.map((series) => <path key={series.key} d={pathFor(pointsFor(series))} className="chart-line" style={{ stroke: series.color }} />)}
+        {trafficSeries.map((series) => <path key={series.key} d={pathFor(pointsFor(series))} className="chart-line" style={{ stroke: series.color }} strokeDasharray={series.dash} />)}
+        {trafficBuckets.map((bucket, bucketIndex) => bucket.series.map(({ definition, point }) => (
+          <TrafficPointMarker key={`${definition.key}-${bucket.bucket}`} definition={definition} point={point} active={activeBucketIndex === bucketIndex} />
+        )))}
+        {trafficBuckets.map((bucket, bucketIndex) => {
+          const pointLabel = `${trafficTooltipLabel(bucket.bucket, period)}: ${bucket.series.map(({ definition, point }) => `${definition.label}, ${number(point.value)}`).join("; ")}`;
+          return (
+            <rect
+              key={`hit-${bucket.bucket}`}
+              x={bucket.x - 12}
+              y={padding}
+              width="24"
+              height={height - padding * 2}
+              rx="8"
+              className="analytics-chart-hit-target"
+              tabIndex={0}
+              aria-label={pointLabel}
+              pointerEvents="all"
+              onMouseEnter={() => setActiveBucketIndex(bucketIndex)}
+              onMouseLeave={() => setActiveBucketIndex(null)}
+              onFocus={() => setActiveBucketIndex(bucketIndex)}
+              onBlur={() => setActiveBucketIndex(null)}
+            >
+              <title>{pointLabel}</title>
+            </rect>
+          );
+        })}
         {labelIndexes.map((index) => <text key={data[index].bucket} x={data.length === 1 ? width / 2 : padding + (index / (data.length - 1)) * (width - padding * 2)} y={height - 8} textAnchor={index === 0 ? "start" : index === data.length - 1 ? "end" : "middle"} className="chart-label">{trafficBucketLabel(data[index].bucket, period)}</text>)}
+        {activeBucket && <AnalyticsTrafficTooltip bucket={activeBucket} period={period} width={width} height={height} padding={padding} />}
         <text x={padding} y={16} className="chart-value">{number(max)}</text>
         <text x={padding} y={height - padding - 4} className="chart-value">0</text>
       </svg>

@@ -1,13 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { CategoryIcon } from "../components/CategoryIcon";
 import { ProductCard } from "../components/ProductCard";
 import { StoreLogo } from "../components/StoreLogo";
 import { StateMessage } from "../components/StateMessage";
 import { isSupabaseConfigured } from "../lib/supabase";
-import { getCategories, getHomepageProducts, getHomepageStats } from "../services/data";
+import { trackSearch } from "../services/analytics";
+import { getCategories, getHomepageProducts, getHomepageStats, type HomepageProductResult } from "../services/data";
 import { buildProductSearchUrl } from "../services/productSearch";
 import type { Category, HomepageStats, Product } from "../services/types";
+import { clearPendingHomepageSearch, type PendingHomepageSearch } from "./homeSearchTracking";
 
 const initialStats: HomepageStats = { products: 0, stores: 0, observations: 0, days: 0 };
 const HOMEPAGE_DESKTOP_PRODUCT_LIMIT = 12;
@@ -31,6 +33,15 @@ function randomProductId(products: Product[]) {
   return products[Math.floor(Math.random() * products.length)]?.id ?? "";
 }
 
+function trackHomepageSearch(query: string, result: HomepageProductResult) {
+  void trackSearch({
+    query,
+    resultCount: result.total,
+    resultProductIds: result.products.map((product) => product.id),
+    path: "/",
+  });
+}
+
 export function HomePage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [discoveryProductId, setDiscoveryProductId] = useState("");
@@ -40,6 +51,8 @@ export function HomePage() {
   const [categoryId, setCategoryId] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const pendingSearchRef = useRef<PendingHomepageSearch | null>(null);
+  const latestSearchResultRef = useRef<{ query: string; categoryId: string; result: HomepageProductResult } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -63,13 +76,20 @@ export function HomePage() {
 
     const timer = window.setTimeout(() => {
       getHomepageProducts({ search, categoryId })
-        .then((nextProducts) => {
+        .then((nextResult) => {
           if (cancelled) return;
-          setProducts(nextProducts);
+          setProducts(nextResult.products);
+          const normalizedSearch = search.trim();
+          latestSearchResultRef.current = { query: normalizedSearch, categoryId, result: nextResult };
+          const pendingSearch = pendingSearchRef.current;
+          if (pendingSearch && pendingSearch.query === normalizedSearch && pendingSearch.categoryId === categoryId) {
+            pendingSearchRef.current = null;
+            trackHomepageSearch(pendingSearch.query, nextResult);
+          }
           setDiscoveryProductId((currentId) => (
-            currentId && nextProducts.some((product) => product.id === currentId)
+            currentId && nextResult.products.some((product) => product.id === currentId)
               ? currentId
-              : randomProductId(nextProducts)
+              : randomProductId(nextResult.products)
           ));
         })
         .catch(() => !cancelled && setError("No pudimos cargar los productos."))
@@ -81,6 +101,33 @@ export function HomePage() {
       window.clearTimeout(timer);
     };
   }, [search, categoryId]);
+
+  const handleSearchSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const query = search.trim();
+    if (!query) {
+      pendingSearchRef.current = null;
+      return;
+    }
+
+    const latestSearchResult = latestSearchResultRef.current;
+    if (latestSearchResult?.query === query && latestSearchResult.categoryId === categoryId) {
+      trackHomepageSearch(query, latestSearchResult.result);
+      return;
+    }
+
+    pendingSearchRef.current = { query, categoryId };
+  };
+
+  const updateCategory = (nextCategoryId: string) => {
+    clearPendingHomepageSearch(pendingSearchRef);
+    setCategoryId(nextCategoryId);
+  };
+
+  const clearSearch = () => {
+    clearPendingHomepageSearch(pendingSearchRef);
+    setSearch("");
+  };
 
   const leadProduct = products.find((product) => product.id === discoveryProductId);
   const productSearchUrl = buildProductSearchUrl(search, categoryId);
@@ -104,18 +151,22 @@ export function HomePage() {
         <p>Encontrá el mejor precio, compará cadenas y seguí la historia de cada producto.</p>
       </div>
       <div className="consumer-search-row">
-        <form className="search-box" onSubmit={(event) => event.preventDefault()}>
+        <form className="search-box" onSubmit={handleSearchSubmit}>
           <span className="search-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.5" /><path d="m16 16 5 5" /></svg>
           </span>
           <input
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={(event) => {
+              const nextSearch = event.target.value;
+              if (pendingSearchRef.current && pendingSearchRef.current.query !== nextSearch.trim()) pendingSearchRef.current = null;
+              setSearch(nextSearch);
+            }}
             placeholder="Buscá productos"
             aria-label="Buscar productos"
           />
           {search && (
-            <button className="search-clear" type="button" onClick={() => setSearch("")} aria-label="Limpiar búsqueda">
+            <button className="search-clear" type="button" onClick={clearSearch} aria-label="Limpiar búsqueda">
               ×
             </button>
           )}
@@ -125,7 +176,7 @@ export function HomePage() {
       </div>
 
       <div className="category-row category-scroller" aria-label="Filtrar por categoría">
-        <button type="button" className={!categoryId ? "category-chip selected" : "category-chip"} onClick={() => setCategoryId("")}>
+        <button type="button" className={!categoryId ? "category-chip selected" : "category-chip"} onClick={() => updateCategory("")}>
           <CategoryIcon slug="all" />
           Todo
         </button>
@@ -134,7 +185,7 @@ export function HomePage() {
             key={category.id}
             type="button"
             className={categoryId === category.id ? "category-chip selected" : "category-chip"}
-            onClick={() => setCategoryId(category.id)}
+            onClick={() => updateCategory(category.id)}
           >
             <CategoryIcon slug={category.slug} />
             {category.name}
