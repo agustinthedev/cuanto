@@ -8,6 +8,7 @@ import {
   buildPageViewMetadata,
   buildSearchMetadata,
   getPageViewReferrer,
+  getProductIdFromPath,
   normalizeSearchQuery,
   resetAnalyticsStateForTests,
 } from "./analytics";
@@ -90,6 +91,10 @@ describe("analytics referrers and query normalization", () => {
       referrerType: "internal",
       referrerProductId: "44444444-4444-4444-8444-444444444444",
     });
+  });
+
+  it("ignores product paths with malformed percent escapes", () => {
+    expect(getProductIdFromPath("/productos/%")).toBeUndefined();
   });
 
   it("normalizes whitespace and casing for aggregation", () => {

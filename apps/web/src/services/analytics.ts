@@ -141,7 +141,12 @@ export function getPageType(pathname: string): AnalyticsPageType {
 
 export function getProductIdFromPath(pathname: string): string | undefined {
   const match = pathname.match(/^\/productos\/([^/]+)$/);
-  return match ? decodeURIComponent(match[1]) : undefined;
+  if (!match) return undefined;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return undefined;
+  }
 }
 
 export function getLocationPath(location: Pick<Location, "pathname" | "search">): string {
