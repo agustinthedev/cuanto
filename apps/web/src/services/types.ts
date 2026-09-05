@@ -70,6 +70,7 @@ export interface ProductLink {
 export interface AdminProduct extends Product {
   links: ProductLink[];
   tags: Tag[];
+  has_location_scoped_links: boolean;
 }
 
 export interface LatestPrice {

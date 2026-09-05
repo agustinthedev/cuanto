@@ -999,6 +999,7 @@ a { color: inherit; }
 .admin-product-readonly-field { display: grid; gap: 7px; min-width: 0; }
 .admin-product-readonly-field span, .admin-product-readonly-label { color: var(--color-muted); font-size: 12px; font-weight: 500; }
 .admin-product-readonly-field strong { overflow: hidden; color: var(--color-ink); font-size: 15px; font-weight: 500; line-height: 1.35; text-overflow: ellipsis; }
+.admin-product-location-warning { margin-top: 24px; padding: 11px 13px; border: 1px solid #ead7ae; border-radius: var(--radius-sm); color: #87682d; background: #fffaf0; font-size: 13px; line-height: 1.45; }
 .admin-product-readonly-section { margin-top: 24px; }
 .admin-product-readonly-tags { margin-top: 10px; }
 .admin-product-readonly-tags .admin-tag-chip { padding-right: 11px; }

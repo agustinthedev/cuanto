@@ -83,6 +83,7 @@ function ReadonlyProductDetails({ product, stores }: { product: AdminProduct; st
           <div className="admin-product-readonly-field"><span>Agregado</span><strong>{formatDate(product.created_at)}</strong></div>
         </div>
       </div>
+      {product.has_location_scoped_links && <div className="admin-product-location-warning" role="status">Este producto tiene links específicos por ubicación. Se muestra en modo lectura hasta contar con un editor de ubicaciones.</div>}
       <ReadonlyTags tags={product.tags} />
       <ReadonlyLinks product={product} stores={stores} />
     </div>
@@ -178,7 +179,7 @@ function AdminProductAccordion({ product, categories, stores, tags, onCreateTag,
           <span className="admin-product-chevron"><ChevronIcon open={open} /></span>
           <span className="admin-product-summary-title">{product.name}</span>
         </button>
-        {open && !editing && <button className="admin-product-edit-button" type="button" onClick={startEditing} aria-label={`Editar ${product.name}`} title="Editar producto"><PencilIcon /></button>}
+        {open && !editing && !product.has_location_scoped_links && <button className="admin-product-edit-button" type="button" onClick={startEditing} aria-label={`Editar ${product.name}`} title="Editar producto"><PencilIcon /></button>}
       </div>
 
       {open && (

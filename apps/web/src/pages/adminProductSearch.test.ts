@@ -13,6 +13,7 @@ const product: AdminProduct = {
   created_at: "2026-08-28T09:00:00Z",
   links: [],
   tags: [{ id: "tag-1", name: "Orgánico" }],
+  has_location_scoped_links: false,
 };
 
 describe("matchesAdminProductSearch", () => {

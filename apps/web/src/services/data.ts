@@ -117,10 +117,12 @@ function normalizeProductLink(value: any): ProductLink {
 }
 
 function normalizeAdminProduct(value: any): AdminProduct {
+  const rawLinks = (value.links ?? []).map(normalizeProductLink);
   const linksByStore = new Map<string, ProductLink>();
-  for (const link of (value.links ?? []).map(normalizeProductLink)) {
+  for (const link of rawLinks) {
+    if (link.location_id !== null) continue;
     const current = linksByStore.get(link.store_id);
-    if (!current || (current.location_id !== null && link.location_id === null)) linksByStore.set(link.store_id, link);
+    if (!current) linksByStore.set(link.store_id, link);
   }
   const tags = (value.tags ?? [])
     .map((item: any) => Array.isArray(item.tag) ? item.tag[0] : item.tag)
@@ -130,6 +132,7 @@ function normalizeAdminProduct(value: any): AdminProduct {
     ...normalizeProduct(value),
     links: [...linksByStore.values()],
     tags,
+    has_location_scoped_links: rawLinks.some((link) => link.active && link.location_id !== null),
   };
 }
 
@@ -249,6 +252,7 @@ export async function getAdminProducts(): Promise<AdminProduct[]> {
       ...product,
       links: demoLinksForProduct(product),
       tags: demoTagsForProduct(product),
+      has_location_scoped_links: false,
     }));
   }
   if (!supabase) throw new Error("Supabase no está configurado.");
