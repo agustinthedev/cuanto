@@ -9,7 +9,7 @@ vi.mock("../lib/supabase", () => ({
   supabase: { from: mockFrom, rpc: mockRpc },
 }));
 
-import { attachLatestPrices, getAdminStores, getHomepageStats } from "./data";
+import { attachLatestPrices, getAdminStores, getHomepageProducts, getHomepageStats } from "./data";
 import type { Product } from "./types";
 
 beforeEach(() => {
@@ -77,6 +77,42 @@ describe("getHomepageStats", () => {
 
     await expect(getHomepageStats()).resolves.toEqual({ products: 1, stores: 2, observations: 1, days: 1 });
     expect(mockRpc).toHaveBeenCalledWith("count_active_stores");
+  });
+});
+
+describe("getHomepageProducts", () => {
+  it("returns the exact match count even when the homepage rows are limited", async () => {
+    const productRows = Array.from({ length: 25 }, (_, index) => ({
+      id: `product-${index + 1}`,
+      name: `Product ${index + 1}`,
+      brand: null,
+      quantity: 1,
+      unit: "un",
+      image_url: null,
+      category: null,
+      created_at: "2026-08-28T09:00:00Z",
+    }));
+    const productQuery = {
+      select: vi.fn(),
+      order: vi.fn(),
+      limit: vi.fn(),
+      ilike: vi.fn(),
+    };
+    productQuery.select.mockReturnValue(productQuery);
+    productQuery.order.mockReturnValue(productQuery);
+    productQuery.ilike.mockReturnValue(productQuery);
+    productQuery.limit.mockResolvedValue({ data: productRows.slice(0, 24), count: 25, error: null });
+    const priceQuery = {
+      select: vi.fn(),
+      in: vi.fn(),
+    };
+    priceQuery.select.mockReturnValue(priceQuery);
+    priceQuery.in.mockResolvedValue({ data: [], error: null });
+    mockFrom.mockImplementation((table: string) => table === "products" ? productQuery : priceQuery);
+
+    await expect(getHomepageProducts({ search: "product" })).resolves.toMatchObject({ total: 25, products: expect.any(Array) });
+    expect(productQuery.select).toHaveBeenCalledWith(expect.any(String), { count: "exact" });
+    expect(productQuery.limit).toHaveBeenCalledWith(24);
   });
 });
 

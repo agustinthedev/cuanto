@@ -6,7 +6,7 @@ import { StoreLogo } from "../components/StoreLogo";
 import { StateMessage } from "../components/StateMessage";
 import { isSupabaseConfigured } from "../lib/supabase";
 import { trackSearch } from "../services/analytics";
-import { getCategories, getHomepageProducts, getHomepageStats } from "../services/data";
+import { getCategories, getHomepageProducts, getHomepageStats, type HomepageProductResult } from "../services/data";
 import { buildProductSearchUrl } from "../services/productSearch";
 import type { Category, HomepageStats, Product } from "../services/types";
 
@@ -32,11 +32,11 @@ function randomProductId(products: Product[]) {
   return products[Math.floor(Math.random() * products.length)]?.id ?? "";
 }
 
-function trackHomepageSearch(query: string, products: Product[]) {
+function trackHomepageSearch(query: string, result: HomepageProductResult) {
   void trackSearch({
     query,
-    resultCount: products.length,
-    resultProductIds: products.map((product) => product.id),
+    resultCount: result.total,
+    resultProductIds: result.products.map((product) => product.id),
     path: "/",
   });
 }
@@ -51,7 +51,7 @@ export function HomePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const pendingSearchRef = useRef<{ query: string; categoryId: string } | null>(null);
-  const latestSearchResultRef = useRef<{ query: string; categoryId: string; products: Product[] } | null>(null);
+  const latestSearchResultRef = useRef<{ query: string; categoryId: string; result: HomepageProductResult } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -75,20 +75,20 @@ export function HomePage() {
 
     const timer = window.setTimeout(() => {
       getHomepageProducts({ search, categoryId })
-        .then((nextProducts) => {
+        .then((nextResult) => {
           if (cancelled) return;
-          setProducts(nextProducts);
+          setProducts(nextResult.products);
           const normalizedSearch = search.trim();
-          latestSearchResultRef.current = { query: normalizedSearch, categoryId, products: nextProducts };
+          latestSearchResultRef.current = { query: normalizedSearch, categoryId, result: nextResult };
           const pendingSearch = pendingSearchRef.current;
           if (pendingSearch && pendingSearch.query === normalizedSearch && pendingSearch.categoryId === categoryId) {
             pendingSearchRef.current = null;
-            trackHomepageSearch(pendingSearch.query, nextProducts);
+            trackHomepageSearch(pendingSearch.query, nextResult);
           }
           setDiscoveryProductId((currentId) => (
-            currentId && nextProducts.some((product) => product.id === currentId)
+            currentId && nextResult.products.some((product) => product.id === currentId)
               ? currentId
-              : randomProductId(nextProducts)
+              : randomProductId(nextResult.products)
           ));
         })
         .catch(() => !cancelled && setError("No pudimos cargar los productos."))
@@ -111,7 +111,7 @@ export function HomePage() {
 
     const latestSearchResult = latestSearchResultRef.current;
     if (latestSearchResult?.query === query && latestSearchResult.categoryId === categoryId) {
-      trackHomepageSearch(query, latestSearchResult.products);
+      trackHomepageSearch(query, latestSearchResult.result);
       return;
     }
 
