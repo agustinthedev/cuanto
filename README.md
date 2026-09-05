@@ -46,7 +46,7 @@ npm run build
 
 1. Crear un proyecto gratuito en Supabase.
 2. Aplicar `supabase/migrations/202608250001_initial_schema.sql` desde el SQL Editor o con Supabase CLI.
-3. Aplicar las migraciones posteriores, incluida `supabase/migrations/202608260001_add_product_image_sources.sql`, las migraciones de propuestas `202608260002`, `202608260003`, `202608260004`, `202608260005` y `202608260006`, `supabase/migrations/202608270001_add_direct_product_creation.sql`, las migraciones `202608280001` y `202608280002`, `supabase/migrations/202609030001_add_product_measurements.sql` y `supabase/migrations/202609030002_add_product_tags.sql`.
+3. Aplicar las migraciones posteriores, incluida `supabase/migrations/202608260001_add_product_image_sources.sql`, las migraciones de propuestas `202608260002`, `202608260003`, `202608260004`, `202608260005` y `202608260006`, `supabase/migrations/202608270001_add_direct_product_creation.sql`, las migraciones `202608280001` y `202608280002`, `supabase/migrations/202609030001_add_product_measurements.sql`, `supabase/migrations/202609030002_add_product_tags.sql` y `supabase/migrations/202609040001_add_analytics.sql`.
 4. Ejecutar `supabase/seed.sql` para crear Disco, Tienda Inglesa, Ta-Ta y categorías iniciales.
 5. Copiar `apps/web/.env.example` como `.env.local` y completar:
 
@@ -156,7 +156,7 @@ Las variables de entorno del proyecto son `VITE_SUPABASE_URL`, `VITE_SUPABASE_AN
 
 ## Alcance actual
 
-Incluido: catálogo manual, categorías, búsqueda, imágenes de producto aportadas automáticamente por las cadenas, comparación actual por cadena, promedio histórico, historia por cadena, estadísticas reales, panel admin con Supabase Auth, propuestas de productos con RLS y aprobación transaccional, adapters activos para Disco, Tienda Inglesa y Ta-Ta, y cron tolerante a fallos.
+Incluido: catálogo manual, categorías, búsqueda, imágenes de producto aportadas automáticamente por las cadenas, comparación actual por cadena, promedio histórico, historia por cadena, estadísticas reales, analítica anónima de producto, panel admin con Supabase Auth, propuestas de productos con RLS y aprobación transaccional, adapters activos para Disco, Tienda Inglesa y Ta-Ta, y cron tolerante a fallos.
 
 Fuera de alcance: registro público de cuentas, carrito, matching automático, promociones complejas, alertas, inflación, app móvil, SSR, scraping de descubrimiento y colas.
 
