@@ -154,7 +154,7 @@ begin
     raise exception 'Admin access required';
   end if;
 
-  if p_period not in ('today', '7d', '30d', 'all') then
+  if p_period is null or p_period not in ('today', '7d', '30d', 'all') then
     raise exception 'Unsupported analytics period';
   end if;
 

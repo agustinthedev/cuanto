@@ -3,6 +3,9 @@ import { supabase } from "../lib/supabase";
 export const ANON_ID_STORAGE_KEY = "cuanto_anon_id";
 export const SESSION_ID_STORAGE_KEY = "cuanto_session_id";
 export const SESSION_LAST_ACTIVITY_STORAGE_KEY = "cuanto_session_last_activity";
+// A refresh keeps the same session; only more than 30 minutes without a
+// tracked event starts a new one. The timestamp lives beside the session ID
+// so this remains stable across SPA navigation and browser restarts.
 export const SESSION_INACTIVITY_MS = 30 * 60 * 1000;
 
 export type AnalyticsEventType = "page_view" | "search";
@@ -139,6 +142,8 @@ export function getLocationPath(location: Pick<Location, "pathname" | "search">)
 }
 
 export function getPageViewReferrer(previousPath: string | null, documentReferrer = "", origin = ""): PageViewReferrer {
+  // document.referrer is useful only for the first document load. For SPA
+  // navigation, the route tracker passes the previous Cuanto path explicitly.
   if (previousPath) {
     return {
       referrer: previousPath,

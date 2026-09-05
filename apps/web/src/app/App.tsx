@@ -16,6 +16,8 @@ function AnalyticsRouteTracker() {
   const previousPathRef = useRef<string | null>(null);
 
   useEffect(() => {
+    // Keep private admin work out of public visitor metrics. Product-to-product
+    // referrals are derived from the structured previous product ID below.
     if (location.pathname.startsWith("/admin")) {
       previousPathRef.current = null;
       return;
