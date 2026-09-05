@@ -5,6 +5,8 @@ import {
   SESSION_INACTIVITY_MS,
   SESSION_LAST_ACTIVITY_STORAGE_KEY,
   getOrCreateAnalyticsIdentity,
+  buildPageViewMetadata,
+  buildSearchMetadata,
   getPageViewReferrer,
   normalizeSearchQuery,
   resetAnalyticsStateForTests,
@@ -76,5 +78,23 @@ describe("analytics referrers and query normalization", () => {
 
   it("normalizes whitespace and casing for aggregation", () => {
     expect(normalizeSearchQuery("  Coca   Cola ")).toBe("coca cola");
+  });
+
+  it("builds structured page and search metadata", () => {
+    expect(buildPageViewMetadata({
+      pageType: "product",
+      productId: "55555555-5555-4555-8555-555555555555",
+      referrer: { referrer: "/productos/44444444-4444-4444-8444-444444444444", referrerPath: "/productos/44444444-4444-4444-8444-444444444444", referrerType: "internal", referrerProductId: "44444444-4444-4444-8444-444444444444" },
+    })).toEqual({
+      page_type: "product",
+      product_id: "55555555-5555-4555-8555-555555555555",
+      referrer_product_id: "44444444-4444-4444-8444-444444444444",
+    });
+    expect(buildSearchMetadata({ query: "  Coca   Cola ", resultCount: 2.9, resultProductIds: ["product-a", ""] })).toEqual({
+      query: "Coca   Cola",
+      normalized_query: "coca cola",
+      result_count: 2,
+      result_product_ids: ["product-a"],
+    });
   });
 });

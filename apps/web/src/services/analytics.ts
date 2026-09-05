@@ -74,6 +74,10 @@ function hasValue(value: string | null): value is string {
   return Boolean(value?.trim());
 }
 
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 function readTimestamp(storage: AnalyticsStorage): number | null {
   const raw = storage.getItem(SESSION_LAST_ACTIVITY_STORAGE_KEY);
   if (!raw) return null;
@@ -92,15 +96,15 @@ export function getOrCreateAnalyticsIdentity(options: {
   const now = options.now ?? Date.now();
   const uuid = options.uuid ?? browserUuid;
   const storedAnonId = storage?.getItem(ANON_ID_STORAGE_KEY) ?? null;
-  const anonId = hasValue(storedAnonId) ? storedAnonId : uuid();
-  if (!storedAnonId) storage?.setItem(ANON_ID_STORAGE_KEY, anonId);
+  const anonId = hasValue(storedAnonId) && isUuid(storedAnonId) ? storedAnonId : uuid();
+  if (anonId !== storedAnonId) storage?.setItem(ANON_ID_STORAGE_KEY, anonId);
 
   const storedSessionId = storage?.getItem(SESSION_ID_STORAGE_KEY) ?? null;
   const lastActivity = storage ? readTimestamp(storage) : null;
   const sessionIsExpired = lastActivity !== null && now - lastActivity > SESSION_INACTIVITY_MS;
-  const sessionId = !hasValue(storedSessionId) || sessionIsExpired ? uuid() : storedSessionId;
+  const sessionId = !hasValue(storedSessionId) || !isUuid(storedSessionId) || sessionIsExpired ? uuid() : storedSessionId;
 
-  if (!hasValue(storedSessionId) || sessionIsExpired) storage?.setItem(SESSION_ID_STORAGE_KEY, sessionId);
+  if (sessionId !== storedSessionId) storage?.setItem(SESSION_ID_STORAGE_KEY, sessionId);
   if (!lastActivity || sessionIsExpired) storage?.setItem(SESSION_LAST_ACTIVITY_STORAGE_KEY, String(now));
 
   cachedIdentity = { anonId, sessionId };
@@ -172,6 +176,25 @@ function safeTrackError(eventType: AnalyticsEventType, reason: unknown) {
   }
 }
 
+export function buildPageViewMetadata(input: Pick<TrackPageViewInput, "pageType" | "productId" | "referrer">): Record<string, unknown> {
+  const metadata: Record<string, unknown> = { page_type: input.pageType };
+  if (input.productId) metadata.product_id = input.productId;
+  if (input.referrer?.referrerProductId && input.pageType === "product") metadata.referrer_product_id = input.referrer.referrerProductId;
+  return metadata;
+}
+
+export function buildSearchMetadata(input: Pick<TrackSearchInput, "query" | "resultCount" | "resultProductIds">): Record<string, unknown> {
+  const query = input.query.trim();
+  const resultCount = Number.isFinite(input.resultCount) ? Math.max(0, Math.floor(input.resultCount)) : 0;
+  const resultProductIds = input.resultProductIds.filter((productId) => Boolean(productId)).slice(0, 1000);
+  return {
+    query,
+    normalized_query: normalizeSearchQuery(query),
+    result_count: resultCount,
+    result_product_ids: resultProductIds,
+  };
+}
+
 export async function trackEvent(input: {
   eventType: AnalyticsEventType;
   path?: string;
@@ -208,30 +231,18 @@ export async function trackPageView(input: TrackPageViewInput): Promise<void> {
     if (trackedPageViewKeys.size > 100) trackedPageViewKeys.delete(trackedPageViewKeys.values().next().value as string);
   }
 
-  const metadata: Record<string, unknown> = { page_type: input.pageType };
-  if (input.productId) metadata.product_id = input.productId;
-  if (input.referrer?.referrerProductId && input.pageType === "product") metadata.referrer_product_id = input.referrer.referrerProductId;
-
   await trackEvent({
     eventType: "page_view",
     path: input.path,
     referrer: input.referrer,
-    metadata,
+    metadata: buildPageViewMetadata(input),
   });
 }
 
 export async function trackSearch(input: TrackSearchInput): Promise<void> {
-  const query = input.query.trim();
-  const resultCount = Number.isFinite(input.resultCount) ? Math.max(0, Math.floor(input.resultCount)) : 0;
-  const resultProductIds = input.resultProductIds.filter((productId) => Boolean(productId)).slice(0, 1000);
   await trackEvent({
     eventType: "search",
     path: input.path,
-    metadata: {
-      query,
-      normalized_query: normalizeSearchQuery(query),
-      result_count: resultCount,
-      result_product_ids: resultProductIds,
-    },
+    metadata: buildSearchMetadata(input),
   });
 }

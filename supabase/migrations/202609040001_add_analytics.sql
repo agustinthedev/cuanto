@@ -253,7 +253,7 @@ begin
     'product_name', coalesce(products.name, 'Producto eliminado'),
     'views', grouped.views,
     'unique_visitors', grouped.unique_visitors
-  ) order by grouped.views desc, product_name), '[]'::jsonb)
+  ) order by grouped.views desc, coalesce(products.name, 'Producto eliminado')), '[]'::jsonb)
   into v_most_viewed_products
   from grouped
   left join public.products on products.id = grouped.product_id;
@@ -367,7 +367,7 @@ begin
     'destination_product_name', coalesce(destination.name, 'Producto eliminado'),
     'visits', grouped.visits,
     'destination_view_percentage', coalesce(round(100.0 * grouped.visits / nullif(destination_totals.total_views, 0), 1), 0)
-  ) order by grouped.visits desc, referring_product_name, destination_product_name), '[]'::jsonb)
+  ) order by grouped.visits desc, coalesce(referring.name, 'Producto eliminado'), coalesce(destination.name, 'Producto eliminado')), '[]'::jsonb)
   into v_top_product_referrals
   from grouped
   left join public.products referring on referring.id = grouped.referring_product_id
