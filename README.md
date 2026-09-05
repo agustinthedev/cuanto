@@ -46,7 +46,7 @@ npm run build
 
 1. Crear un proyecto gratuito en Supabase.
 2. Aplicar `supabase/migrations/202608250001_initial_schema.sql` desde el SQL Editor o con Supabase CLI.
-3. Aplicar las migraciones posteriores, incluida `supabase/migrations/202608260001_add_product_image_sources.sql`, las migraciones de propuestas `202608260002`, `202608260003`, `202608260004`, `202608260005` y `202608260006`, `supabase/migrations/202608270001_add_direct_product_creation.sql`, las migraciones `202608280001` y `202608280002`, `supabase/migrations/202609030001_add_product_measurements.sql`, `supabase/migrations/202609030002_add_product_tags.sql`, `supabase/migrations/202609040001_add_analytics.sql`, `supabase/migrations/202609050004_restore_analytics_validator_access.sql`, `supabase/migrations/202609050005_bound_anonymous_analytics_payloads.sql`, `supabase/migrations/202609050006_fill_analytics_traffic_buckets.sql` y `supabase/migrations/202609050007_reset_price_history.sql`.
+3. Aplicar las migraciones posteriores, incluida `supabase/migrations/202608260001_add_product_image_sources.sql`, las migraciones de propuestas `202608260002`, `202608260003`, `202608260004`, `202608260005` y `202608260006`, `supabase/migrations/202608270001_add_direct_product_creation.sql`, las migraciones `202608280001` y `202608280002`, `supabase/migrations/202609030001_add_product_measurements.sql`, `supabase/migrations/202609030002_add_product_tags.sql`, `supabase/migrations/202609040001_add_analytics.sql`, `supabase/migrations/202609050004_restore_analytics_validator_access.sql`, `supabase/migrations/202609050005_bound_anonymous_analytics_payloads.sql` y `supabase/migrations/202609050006_fill_analytics_traffic_buckets.sql`.
 4. Ejecutar `supabase/seed.sql` para crear Disco, Tienda Inglesa, Ta-Ta y categorías iniciales.
 5. Copiar `apps/web/.env.example` como `.env.local` y completar:
 
@@ -55,6 +55,8 @@ VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=...
 VITE_SCRAPER_URL=https://cuanto-scraper.your-account.workers.dev
 ```
+
+Los reseteos puntuales del historial no forman parte de la secuencia de migraciones. Para ejecutar el reset inicial, usar `supabase/operations/reset_price_history.sql` manualmente después de hacer un backup y confirmar el proyecto destino.
 
 La anon key es pública y solo permite lecturas públicas. RLS y los grants bloquean cambios anónimos; las mutaciones del panel pasan por Supabase Auth, RLS y funciones SQL con `security definer`. La `SUPABASE_SERVICE_ROLE_KEY` nunca debe entrar en `apps/web`.
 
