@@ -73,7 +73,7 @@ function ReadonlyLinks({ product, stores }: { product: AdminProduct; stores: Sto
 function ReadonlyProductDetails({ product, stores }: { product: AdminProduct; stores: Store[] }) {
   return (
     <div className="admin-product-readonly">
-      <div className="admin-product-readonly-top">
+      <div className={`admin-product-readonly-top${product.image_url ? "" : " without-image"}`}>
         {product.image_url && <div className="admin-product-image"><NormalizedProductImage src={product.image_url} /></div>}
         <div className="admin-product-readonly-grid">
           <div className="admin-product-readonly-field"><span>Nombre</span><strong>{product.name}</strong></div>

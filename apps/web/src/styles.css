@@ -992,6 +992,7 @@ a { color: inherit; }
 .admin-product-panel { padding: 24px 22px 25px; border-top: 1px solid var(--color-hairline-soft); }
 .admin-product-panel > .inline-alert { margin-bottom: 20px; }
 .admin-product-readonly-top { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 20px; align-items: start; }
+.admin-product-readonly-top.without-image { grid-template-columns: minmax(0, 1fr); }
 .admin-product-image { width: 112px; height: 112px; overflow: hidden; border: 1px solid var(--color-hairline); border-radius: var(--radius-sm); background: var(--color-surface-soft); }
 .admin-product-image .product-image { width: 100%; height: 100%; }
 .admin-product-readonly-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 24px; }
