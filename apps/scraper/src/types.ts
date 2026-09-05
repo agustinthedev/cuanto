@@ -25,9 +25,15 @@ export interface ScrapeResult {
   imageUrl?: string;
 }
 
+export interface ElDoradoSession {
+  origin: string;
+  cookie: string;
+}
+
 export interface StoreScrapeContext {
   tiendaInglesaFallbackOrigins?: string[];
   tiendaInglesaPreviouslyFailedOrigins?: string[];
+  elDoradoSession?: ElDoradoSession;
 }
 
 export interface StoreScraper {

@@ -9,9 +9,9 @@ export const demoCategories: Category[] = [
 ];
 
 export const demoStores: Store[] = [
-  { id: "store-disco", name: "Disco", slug: "disco" },
-  { id: "store-tienda-inglesa", name: "Tienda Inglesa", slug: "tienda-inglesa" },
-  { id: "store-ta-ta", name: "Ta-Ta", slug: "ta-ta" },
+  { id: "store-disco", name: "Disco", slug: "disco", active: true },
+  { id: "store-tienda-inglesa", name: "Tienda Inglesa", slug: "tienda-inglesa", active: false },
+  { id: "store-ta-ta", name: "Ta-Ta", slug: "ta-ta", active: true },
 ];
 
 export const demoTags: Tag[] = [

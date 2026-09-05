@@ -15,7 +15,7 @@ import { ProductTagSelector } from "../components/ProductTagSelector";
 import { StoreLogo } from "../components/StoreLogo";
 import type { Category, ProductSuggestion, ProductSuggestionStatus, Store, Tag } from "../services/types";
 import { PRODUCT_UNIT_OPTIONS, parseProductQuantity, productMeasurementError, type ProductUnit } from "../services/productMeasurement";
-import { isHttpUrl, productLinksError, serializeProductLinks } from "./adminProductLinks";
+import { isHttpUrl, productLinksError, serializeProductLinks, serializeSuggestionLinks } from "./adminProductLinks";
 
 type StatusFilter = ProductSuggestionStatus | "all";
 export type LinkDraft = { storeId: string; url: string };
@@ -201,7 +201,7 @@ function SuggestionCard({ suggestion, categories, stores, tags, onCreateTag, onC
     }
     setBusyAction("save");
     try {
-      await updateProductSuggestion(suggestion.id, title, categoryId, parsedQuantity, unit, serializeProductLinks(links), selectedTagIds);
+      await updateProductSuggestion(suggestion.id, title, categoryId, parsedQuantity, unit, serializeSuggestionLinks(links, suggestion.links), selectedTagIds);
       await onChanged();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "No pudimos guardar los cambios.");
@@ -232,7 +232,7 @@ function SuggestionCard({ suggestion, categories, stores, tags, onCreateTag, onC
         categoryId,
         parsedQuantity,
         unit,
-        serializeProductLinks(links),
+        serializeSuggestionLinks(links, suggestion.links),
         selectedTagIds,
         suggestion.updated_at,
       );

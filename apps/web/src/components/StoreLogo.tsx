@@ -2,12 +2,14 @@ const storeLogoUrls: Record<string, string> = {
   disco: "https://www.google.com/s2/favicons?domain=www.disco.com.uy&sz=128",
   "tienda-inglesa": "https://www.google.com/s2/favicons?domain=www.tiendainglesa.com.uy&sz=128",
   "ta-ta": "https://www.google.com/s2/favicons?domain=www.tata.com.uy&sz=128",
+  "el-dorado": "https://www.google.com/s2/favicons?domain=www.eldorado.com.uy&sz=128",
 };
 
 const storeWordmarks: Record<string, string> = {
   disco: "Disco",
   "tienda-inglesa": "Tienda Inglesa",
   "ta-ta": "Ta-Ta",
+  "el-dorado": "El Dorado",
 };
 
 function slugFromName(name: string) {

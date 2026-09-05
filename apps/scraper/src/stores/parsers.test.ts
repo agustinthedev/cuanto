@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import redFixture from "../fixtures/red-product.json";
 import { parseDiscoHtml } from "./disco";
+import { extractElDoradoSlug, parseElDoradoProduct } from "./el-dorado";
 import { parseRedExpressJson } from "./red-express";
 import { parseTiendaInglesaHtml } from "./tienda-inglesa";
 import { extractTataSlug, parseTataHtml } from "./tata";
@@ -48,6 +49,17 @@ describe("adapters de supermercados", () => {
 
   it("extrae Red Express desde la respuesta JSON anidada", () => {
     expect(parseRedExpressJson(redFixture)).toBe(78);
+  });
+
+  it("extrae el slug y prioriza el precio de lista de El Dorado desde VTEX", () => {
+    expect(extractElDoradoSlug("https://www.eldorado.com.uy/queso-el-dorado-muzzarella-kg/p")).toBe("queso-el-dorado-muzzarella-kg");
+    expect(parseElDoradoProduct(JSON.parse(fixture("eldorado-product.json")))).toBe(499);
+  });
+
+  it("usa el precio vigente de El Dorado cuando falta el precio de lista", () => {
+    expect(parseElDoradoProduct([{
+      items: [{ sellers: [{ commertialOffer: { Price: 429, ListPrice: null } }] }],
+    }])).toBe(429);
   });
 
   it("extrae el precio original de Ta-Ta desde JSON-LD", () => {

@@ -26,7 +26,7 @@ const isDemoMode = import.meta.env.VITE_DEMO_MODE === "true";
 
 const productSelect = "id,name,brand,quantity,unit,image_url,created_at,category:categories(id,name,slug)";
 const productSearchSelect = "id,name,brand,quantity,unit,image_url,created_at,category_id,category_name,category_slug,current_price,best_store,comparison_count";
-const suggestionSelect = "id,title,category_id,quantity,unit,status,created_at,updated_at,reviewed_at,category:categories(id,name,slug),links:product_suggestion_store_links(id,suggestion_id,store_id,url,store:stores(id,name,slug)),tags:product_suggestion_tags(tag:tags(id,name))";
+const suggestionSelect = "id,title,category_id,quantity,unit,status,created_at,updated_at,reviewed_at,category:categories(id,name,slug),links:product_suggestion_store_links(id,suggestion_id,store_id,url,store:stores(id,name,slug,active)),tags:product_suggestion_tags(tag:tags(id,name))";
 const adminProductSelect = "id,name,brand,quantity,unit,image_url,created_at,updated_at,category:categories(id,name,slug),links:store_products(id,product_id,store_id,url,external_name,active,location_id,store:stores(id,name,slug)),tags:product_tags(tag:tags(id,name))";
 const adminProductPageSize = 500;
 
@@ -145,9 +145,9 @@ export async function getCategories(): Promise<Category[]> {
 }
 
 export async function getAdminStores(): Promise<Store[]> {
-  if (isDemoMode) return demoStores;
+  if (isDemoMode) return demoStores.filter((store) => store.active);
   if (!supabase) throw new Error("Supabase no está configurado.");
-  const { data, error } = await supabase.from("stores").select("id,name,slug").order("name");
+  const { data, error } = await supabase.from("stores").select("id,name,slug,active").eq("active", true).order("name");
   if (error) throw error;
   return (data ?? []) as Store[];
 }
@@ -484,6 +484,13 @@ async function countRows(table: string, column = "id"): Promise<number> {
   return count ?? 0;
 }
 
+async function countActiveStores(): Promise<number> {
+  if (!supabase) return 0;
+  const { data, error } = await supabase.rpc("count_active_stores");
+  if (error) throw error;
+  return Number(data ?? 0);
+}
+
 async function countSuggestions(status?: ProductSuggestionStatus): Promise<number> {
   if (!supabase) return 0;
   let query = supabase.from("product_suggestions").select("id", { count: "exact", head: true });
@@ -519,7 +526,7 @@ export async function getHomepageStats(): Promise<HomepageStats> {
   if (!supabase) return { products: 0, stores: 0, observations: 0, days: 0 };
   const [products, stores, observations, days] = await Promise.all([
     countRows("products"),
-    countRows("stores"),
+    countActiveStores(),
     countRows("prices"),
     countRows("price_observation_days", "date"),
   ]);

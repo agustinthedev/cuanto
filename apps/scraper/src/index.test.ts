@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import productPayload from "./fixtures/eldorado-product.json";
 import worker, { buildScrapeQueueMessages, dispatchDailyRun, performScrapeMessage, runScrape } from "./index";
+import { EL_DORADO_ORIGIN, EL_DORADO_REGION_ID } from "./stores/el-dorado";
 import type { ScrapeQueueMessage } from "./types";
+
+const elDoradoRegionIdEncoded = btoa(EL_DORADO_REGION_ID);
 
 describe("ejecución diaria", () => {
   afterEach(() => {
@@ -401,6 +405,95 @@ describe("flujo con Queue", () => {
     expect(calledUrls.some((url) => url.includes("operationName=BrowserProductQuery"))).toBe(false);
     expect(savedStoreImageBodies).toHaveLength(1);
     expect(savedProductImageBodies).toHaveLength(1);
+  });
+
+  it("procesa El Dorado dentro del performer y reutiliza la sesión regional del mensaje", async () => {
+    const savedPriceBodies: unknown[] = [];
+    const savedStoreImageBodies: unknown[] = [];
+    const savedProductImageBodies: unknown[] = [];
+    const queue = { sendBatch: vi.fn(async () => undefined) };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/rest/v1/prices")) {
+        savedPriceBodies.push(JSON.parse(String(init?.body)));
+        return new Response(null, { status: 201 });
+      }
+      if (url.includes("/rest/v1/store_products") && init?.method === "PATCH") {
+        savedStoreImageBodies.push(JSON.parse(String(init.body)));
+        return new Response(null, { status: 204 });
+      }
+      if (url.includes("/rest/v1/products") && init?.method === "PATCH") {
+        savedProductImageBodies.push(JSON.parse(String(init.body)));
+        return new Response(null, { status: 204 });
+      }
+      if (url === `${EL_DORADO_ORIGIN}/`) {
+        return new Response("", { status: 200, headers: { "Set-Cookie": "vtex_session=session; Path=/" } });
+      }
+      if (url === `${EL_DORADO_ORIGIN}/api/sessions` && init?.method === "PATCH") {
+        return new Response("", { status: 201, headers: { "Set-Cookie": "vtex_segment=segment; Path=/" } });
+      }
+      if (url === `${EL_DORADO_ORIGIN}/api/sessions?items=*`) {
+        return new Response(JSON.stringify({ namespaces: { checkout: { regionId: { value: elDoradoRegionIdEncoded } } } }), { status: 200 });
+      }
+      if (url.includes("/api/catalog_system/pub/products/search/")) {
+        return new Response(JSON.stringify(productPayload), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      return new Response("Not found", { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await performScrapeMessage(
+      {
+        SUPABASE_URL: "https://project.supabase.co",
+        SUPABASE_SERVICE_ROLE_KEY: "service-role",
+        SCRAPE_QUEUE: queue,
+      } as unknown as Env,
+      {
+        run_id: "run-1",
+        date: "2026-09-02",
+        product_id: "product-1",
+        product_image_url: null,
+        store_products: [
+          {
+            id: "store-product-1",
+            product_id: "product-1",
+            store_id: "store-el-dorado",
+            location_id: "location-centro",
+            url: "https://www.eldorado.com.uy/queso-el-dorado-muzzarella-kg/p",
+            external_name: null,
+            image_url: null,
+            store_slug: "el-dorado",
+          },
+          {
+            id: "store-product-2",
+            product_id: "product-1",
+            store_id: "store-el-dorado",
+            location_id: "location-barrio-sur",
+            url: "https://www.eldorado.com.uy/papa-rosada-kg/p",
+            external_name: null,
+            image_url: null,
+            store_slug: "el-dorado",
+          },
+        ],
+      },
+    );
+
+    expect(result).toEqual({ attempted: 2, saved: 2, failed: 0 });
+    expect(savedPriceBodies).toEqual([[
+      { store_product_id: "store-product-1", price: 499, date: "2026-09-02", scraped_at: expect.any(String) },
+      { store_product_id: "store-product-2", price: 499, date: "2026-09-02", scraped_at: expect.any(String) },
+    ]]);
+    expect(savedStoreImageBodies).toHaveLength(2);
+    expect(savedProductImageBodies).toHaveLength(1);
+
+    const calls = vi.mocked(fetch).mock.calls;
+    expect(calls.filter(([input]) => String(input) === `${EL_DORADO_ORIGIN}/`)).toHaveLength(1);
+    expect(calls.filter(([input, init]) => String(input) === `${EL_DORADO_ORIGIN}/api/sessions` && init?.method === "PATCH")).toHaveLength(1);
+    expect(calls.filter(([input]) => String(input) === `${EL_DORADO_ORIGIN}/api/sessions?items=*`)).toHaveLength(1);
+    expect(calls.filter(([input]) => String(input).includes("/api/catalog_system/pub/products/search/"))).toHaveLength(2);
+
+    const productCall = calls.find(([input]) => String(input).includes("/api/catalog_system/pub/products/search/"));
+    expect(new Headers(productCall?.[1]?.headers).get("Cookie")).toBe("vtex_session=session; vtex_segment=segment");
   });
 
   it("elige el alias sano de Tienda Inglesa y lo incluye en sus mensajes", async () => {

@@ -1,0 +1,32 @@
+[
+  {
+    "productId": "50635",
+    "productName": "Queso El Dorado Muzzarella",
+    "link": "queso-el-dorado-muzzarella-kg/p",
+    "items": [
+      {
+        "itemId": "50579",
+        "ean": "2123000000004",
+        "measurementUnit": "kg",
+        "unitMultiplier": 0.1,
+        "images": [
+          {
+            "imageUrl": "https://eldoradouy.vtexassets.com/arquivos/muzzarella.jpg"
+          }
+        ],
+        "sellers": [
+          {
+            "sellerId": "1",
+            "commertialOffer": {
+              "Price": 429,
+              "ListPrice": 499,
+              "PriceWithoutDiscount": 429,
+              "IsAvailable": true,
+              "AvailableQuantity": 99999
+            }
+          }
+        ]
+      }
+    ]
+  }
+]
