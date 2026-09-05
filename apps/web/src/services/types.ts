@@ -57,6 +57,23 @@ export interface Product {
   comparison_count?: number;
 }
 
+export interface ProductLink {
+  id: string;
+  product_id: string;
+  store_id: string;
+  url: string;
+  external_name: string | null;
+  active: boolean;
+  location_id: string | null;
+  store: Store | null;
+}
+
+export interface AdminProduct extends Product {
+  links: ProductLink[];
+  tags: Tag[];
+  has_location_scoped_links: boolean;
+}
+
 export interface LatestPrice {
   store_product_id: string;
   product_id: string;

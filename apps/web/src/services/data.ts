@@ -2,12 +2,14 @@ import { supabase } from "../lib/supabase";
 import type {
   AveragePrice,
   AdminDashboardData,
+  AdminProduct,
   AdminSuggestionStats,
   Category,
   HomepageStats,
   LatestPrice,
   Product,
   ProductPageData,
+  ProductLink,
   ProductSuggestion,
   ProductSuggestionLink,
   ProductSuggestionStatus,
@@ -25,6 +27,8 @@ const isDemoMode = import.meta.env.VITE_DEMO_MODE === "true";
 const productSelect = "id,name,brand,quantity,unit,image_url,created_at,category:categories(id,name,slug)";
 const productSearchSelect = "id,name,brand,quantity,unit,image_url,created_at,category_id,category_name,category_slug,current_price,best_store,comparison_count";
 const suggestionSelect = "id,title,category_id,quantity,unit,status,created_at,updated_at,reviewed_at,category:categories(id,name,slug),links:product_suggestion_store_links(id,suggestion_id,store_id,url,store:stores(id,name,slug,active)),tags:product_suggestion_tags(tag:tags(id,name))";
+const adminProductSelect = "id,name,brand,quantity,unit,image_url,created_at,updated_at,category:categories(id,name,slug),links:store_products(id,product_id,store_id,url,external_name,active,location_id,store:stores(id,name,slug)),tags:product_tags(tag:tags(id,name))";
+const adminProductPageSize = 500;
 
 function normalizeProduct(value: any): Product {
   const category = Array.isArray(value.category) ? value.category[0] : value.category;
@@ -96,6 +100,39 @@ function normalizeSuggestion(value: any): ProductSuggestion {
     reviewed_at: value.reviewed_at ?? null,
     links,
     tags,
+  };
+}
+
+function normalizeProductLink(value: any): ProductLink {
+  return {
+    id: value.id,
+    product_id: value.product_id,
+    store_id: value.store_id,
+    url: value.url,
+    external_name: value.external_name ?? null,
+    active: value.active !== false,
+    location_id: value.location_id ?? null,
+    store: Array.isArray(value.store) ? value.store[0] ?? null : value.store ?? null,
+  };
+}
+
+function normalizeAdminProduct(value: any): AdminProduct {
+  const rawLinks: ProductLink[] = (value.links ?? []).map(normalizeProductLink);
+  const linksByStore = new Map<string, ProductLink>();
+  for (const link of rawLinks) {
+    if (link.location_id !== null) continue;
+    const current = linksByStore.get(link.store_id);
+    if (!current) linksByStore.set(link.store_id, link);
+  }
+  const tags = (value.tags ?? [])
+    .map((item: any) => Array.isArray(item.tag) ? item.tag[0] : item.tag)
+    .filter((tag: Tag | null | undefined): tag is Tag => Boolean(tag))
+    .map((tag: Tag) => ({ id: tag.id, name: tag.name }));
+  return {
+    ...normalizeProduct(value),
+    links: [...linksByStore.values()],
+    tags,
+    has_location_scoped_links: rawLinks.some((link) => link.active && link.location_id !== null),
   };
 }
 
@@ -182,6 +219,89 @@ export async function createProduct(name: string, categoryId: string, quantity: 
     throw error;
   }
   return data as string;
+}
+
+const demoAdminProductLinks = new Map<string, Array<{ store_id: string; url: string }>>();
+const demoAdminProductTags = new Map<string, string[]>();
+
+function demoLinksForProduct(product: Product): ProductLink[] {
+  const links = demoAdminProductLinks.get(product.id) ?? demoStores.map((store) => ({
+    store_id: store.id,
+    url: `https://${store.slug}.com.uy/productos/${product.id}`,
+  }));
+  return links.filter((link) => link.url.trim()).map((link, index) => ({
+    id: `demo-product-link-${product.id}-${index}`,
+    product_id: product.id,
+    store_id: link.store_id,
+    url: link.url,
+    external_name: product.name,
+    active: true,
+    location_id: null,
+    store: demoStores.find((store) => store.id === link.store_id) ?? null,
+  }));
+}
+
+function demoTagsForProduct(product: Product): Tag[] {
+  const tagIds = demoAdminProductTags.get(product.id) ?? [];
+  return tagIds.map((tagId) => demoTags.find((tag) => tag.id === tagId)).filter((tag): tag is Tag => Boolean(tag));
+}
+
+export async function getAdminProducts(): Promise<AdminProduct[]> {
+  if (isDemoMode) {
+    return demoProducts.map((product) => ({
+      ...product,
+      links: demoLinksForProduct(product),
+      tags: demoTagsForProduct(product),
+      has_location_scoped_links: false,
+    }));
+  }
+  if (!supabase) throw new Error("Supabase no está configurado.");
+  const products: AdminProduct[] = [];
+  for (let offset = 0; ; offset += adminProductPageSize) {
+    const { data, error } = await supabase
+      .from("products")
+      .select(adminProductSelect)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: true })
+      .range(offset, offset + adminProductPageSize - 1);
+    if (error) throw error;
+    const page = (data ?? []).map(normalizeAdminProduct);
+    products.push(...page);
+    if (page.length < adminProductPageSize) return products;
+  }
+}
+
+export async function updateProduct(id: string, name: string, brand: string, categoryId: string, quantity: number, unit: ProductUnit, links: Array<{ store_id: string; url: string }>, tagIds: string[] = []): Promise<void> {
+  if (isDemoMode) {
+    const product = demoProducts.find((item) => item.id === id);
+    if (!product) throw new Error("El producto no existe.");
+    product.name = name.trim();
+    product.brand = brand.trim() || null;
+    product.quantity = normalizeProductQuantity(quantity);
+    product.unit = unit;
+    product.category = demoCategories.find((category) => category.id === categoryId) ?? null;
+    demoAdminProductLinks.set(id, links);
+    demoAdminProductTags.set(id, tagIds);
+    return;
+  }
+  if (!supabase) throw new Error("Supabase no está configurado.");
+  const { error } = await supabase.rpc("update_product", {
+    p_product_id: id,
+    p_name: name,
+    p_brand: brand.trim() || null,
+    p_category_id: categoryId,
+    p_quantity: normalizeProductQuantity(quantity),
+    p_unit: unit,
+    p_links: links,
+    p_tag_ids: tagIds,
+  });
+  if (error) {
+    const duplicateLinkPrefix = "The store link is already assigned to another product or store: ";
+    if (error.message.startsWith(duplicateLinkPrefix)) {
+      throw new Error(`El link ${error.message.slice(duplicateLinkPrefix.length)} ya está almacenado en otro producto o cadena.`);
+    }
+    throw error;
+  }
 }
 
 export async function updateProductSuggestion(id: string, title: string, categoryId: string, quantity: number, unit: ProductUnit, links: Array<{ store_id: string; url: string }>, tagIds: string[] = []): Promise<void> {
