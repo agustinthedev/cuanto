@@ -1,6 +1,6 @@
 import { getScraper } from "./stores";
 import { fetchWithRetry, sleep } from "./stores/base";
-import type { ScrapeSummary, StoreProductRecord } from "./types";
+import type { ScrapeContext, ScrapeSummary, StoreProductRecord } from "./types";
 
 const API_TABLES = {
   products: "products",
@@ -20,7 +20,8 @@ const IMAGE_STORE_PRIORITY: Record<string, number> = {
   disco: 10,
   "tienda-inglesa": 20,
   "ta-ta": 30,
-  "red-express": 40,
+  "el-dorado": 40,
+  "red-express": 50,
 };
 
 const TIENDA_INGLESA_REQUEST_DELAY_MS = 500;
@@ -129,6 +130,7 @@ export async function runScrape(env: Env, now = new Date(), options: ScrapeOptio
   records.sort((left, right) => imagePriority(left.store_slug) - imagePriority(right.store_slug));
   const date = uruguayDate(now);
   const summary: ScrapeSummary = { attempted: records.length, saved: 0, failed: 0 };
+  const context: ScrapeContext = {};
   let previousStoreSlug: string | undefined;
 
   for (const record of records) {
@@ -140,7 +142,7 @@ export async function runScrape(env: Env, now = new Date(), options: ScrapeOptio
     try {
       const scraper = getScraper(record.store_slug);
       if (!scraper) throw new Error(`No hay adapter para ${record.store_slug}`);
-      const result = await scraper.scrape(record, env);
+      const result = await scraper.scrape(record, env, context);
       if (!Number.isFinite(result.price) || result.price <= 0) throw new Error("El adapter devolvió un precio inválido");
       await savePrice(env, record, result.price, date);
       summary.saved += 1;

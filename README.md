@@ -124,6 +124,7 @@ Configurar también la variable `CORS_ORIGIN` del Worker con el origen exacto de
 - **Disco:** las páginas de producto entregan el precio en HTML server-rendered. Cuando hay precio web, el adapter toma el bloque original `.before` y no el valor `.price` rebajado. Los precios del sitio están condicionados al área de entrega (`?sc=...`), por lo que la URL guardada debe representar el contexto elegido.
 - **Tienda Inglesa:** las páginas de producto exponen un bloque JSON con `Prices`; si aparece una etiqueta `Antes`, el adapter toma ese valor y no el precio promocional. Si no hay precio anterior, usa el precio normal. El sitio muestra explícitamente el contexto de stock/precio, como Montevideo, y puede mostrar precios ClubCard. El sitio puede responder con Cloudflare challenge a algunos requests; un error se registra como fallo, nunca como precio.
 - **Ta-Ta:** el sitio usa VTEX/FastStore y sus precios dependen de la localidad. El adapter valida el contexto de **Montevideo y Ciudad de la Costa** (`postalCode: 11800`) mediante la API GraphQL pública y consulta el producto por slug. Toma `offers[].listPrice` antes de `offers[].price`, por lo que no registra el precio promocional. No requiere un secreto adicional en el MVP.
+- **El Dorado:** el sitio usa VTEX y el adapter extrae el slug desde el link guardado para consultar la API pública `/api/catalog_system/pub/products/search/<slug>/p`. Antes de consultar productos configura y verifica la sesión regional de **Montevideo → Centro, Barrio Sur y Ciudad Vieja** (`SW#eldoradouy2099`), conserva sus cookies por corrida y toma `commertialOffer.ListPrice` antes de `commertialOffer.Price`. También obtiene la imagen desde la respuesta JSON y no requiere un secreto adicional en el MVP.
 
 Red Express queda diferido porque su precio puede depender del local o contexto de compra. El adapter y el soporte opcional de `store_locations` se conservan para retomarlo más adelante, pero no forman parte del flujo activo ni requieren secretos en este MVP.
 
@@ -156,7 +157,7 @@ Las variables de entorno del proyecto son `VITE_SUPABASE_URL`, `VITE_SUPABASE_AN
 
 ## Alcance actual
 
-Incluido: catálogo manual, categorías, búsqueda, imágenes de producto aportadas automáticamente por las cadenas, comparación actual por cadena, promedio histórico, historia por cadena, estadísticas reales, panel admin con Supabase Auth, propuestas de productos con RLS y aprobación transaccional, adapters activos para Disco, Tienda Inglesa y Ta-Ta, y cron tolerante a fallos.
+Incluido: catálogo manual, categorías, búsqueda, imágenes de producto aportadas automáticamente por las cadenas, comparación actual por cadena, promedio histórico, historia por cadena, estadísticas reales, panel admin con Supabase Auth, propuestas de productos con RLS y aprobación transaccional, adapters activos para Disco, Tienda Inglesa, Ta-Ta y El Dorado, y cron tolerante a fallos.
 
 Fuera de alcance: registro público de cuentas, carrito, matching automático, promociones complejas, alertas, inflación, app móvil, SSR, scraping de descubrimiento y colas.
 

@@ -15,9 +15,18 @@ export interface ScrapeResult {
   imageUrl?: string;
 }
 
+export interface ElDoradoSession {
+  origin: string;
+  cookie: string;
+}
+
+export interface ScrapeContext {
+  elDoradoSession?: ElDoradoSession;
+}
+
 export interface StoreScraper {
   slug: string;
-  scrape(record: StoreProductRecord, env: Env): Promise<ScrapeResult>;
+  scrape(record: StoreProductRecord, env: Env, context?: ScrapeContext): Promise<ScrapeResult>;
 }
 
 export interface ScrapeSummary {
