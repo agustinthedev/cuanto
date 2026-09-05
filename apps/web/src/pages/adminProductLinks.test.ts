@@ -3,8 +3,8 @@ import { productLinksError, serializeProductLinks } from "./adminProductLinks";
 import type { Store } from "../services/types";
 
 const stores: Store[] = [
-  { id: "disco", name: "Disco", slug: "disco" },
-  { id: "tata", name: "Ta-Ta", slug: "tata" },
+  { id: "disco", name: "Disco", slug: "disco", active: true },
+  { id: "tata", name: "Ta-Ta", slug: "tata", active: true },
 ];
 
 describe("product link validation", () => {
