@@ -3,6 +3,7 @@ import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { CategoryIcon } from "../components/CategoryIcon";
 import { ProductCard } from "../components/ProductCard";
 import { StateMessage } from "../components/StateMessage";
+import { getLocationPath, trackSearch } from "../services/analytics";
 import { getCategories, getProductSearchProducts } from "../services/data";
 import type { ProductReturnNavigationState } from "../services/navigation";
 import { parseProductSort, productSortOptions, type ProductSort } from "../services/productSearch";
@@ -33,6 +34,7 @@ export function ProductSearchPage() {
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const requestKeyRef = useRef("");
   const requestInFlightRef = useRef<string | null>(null);
+  const searchTrackedRef = useRef<string | null>(null);
   const restoredScrollRef = useRef(false);
   const returnState = location.state as ProductReturnNavigationState | null;
   const queryKey = `${search}\u0000${categoryId}\u0000${sort}`;
@@ -96,6 +98,17 @@ export function ProductSearchPage() {
           setPage(result.page);
           setHasMore(result.hasMore);
         }
+
+        const searchEventKey = `${location.key}:${queryKey}`;
+        if (search.trim() && searchTrackedRef.current !== searchEventKey) {
+          searchTrackedRef.current = searchEventKey;
+          void trackSearch({
+            query: search,
+            resultCount: result.total,
+            resultProductIds: loadedProducts.map((product) => product.id),
+            path: getLocationPath(location),
+          });
+        }
       } catch {
         if (isCurrentRequest()) setProductError("No pudimos cargar los productos.");
       } finally {
@@ -107,7 +120,7 @@ export function ProductSearchPage() {
     return () => {
       cancelled = true;
     };
-  }, [categoryId, queryKey, restorePage, search, sort]);
+  }, [categoryId, location, queryKey, restorePage, search, sort]);
 
   const loadNextPage = useCallback(async () => {
     if (loading || loadingMore || !hasMore || requestInFlightRef.current) return;

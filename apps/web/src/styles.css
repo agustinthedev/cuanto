@@ -960,6 +960,51 @@ a { color: inherit; }
   .admin-tag-create-button { width: 100%; }
 }
 
+/* Anonymous product analytics live alongside the existing admin summary. */
+.admin-analytics-section { display: grid; gap: 14px; margin-top: 54px; }
+.admin-analytics-heading { display: flex; align-items: end; justify-content: space-between; gap: 24px; padding-bottom: 8px; }
+.admin-analytics-heading h2 { margin: 8px 0 0; color: var(--ink); font-size: 28px; letter-spacing: -.07em; }
+.admin-analytics-heading p { max-width: 620px; margin: 8px 0 0; color: #78918c; font-size: 13px; line-height: 1.5; }
+.analytics-period-picker { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.analytics-period-picker button { min-height: 36px; padding: 8px 11px; border: 1px solid #c9e2d4; border-radius: 999px; color: #4f7e71; background: #f4fbf6; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.analytics-period-picker button:hover, .analytics-period-picker button.is-active { border-color: var(--accent-strong); color: #093f31; background: var(--accent); }
+.admin-analytics-stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.admin-analytics-stat { min-height: 94px; display: flex; flex-direction: column; justify-content: center; padding: 14px 16px; border: 1px solid #d5e9df; border-radius: 14px; background: rgba(255, 255, 255, .78); }
+.admin-analytics-stat strong { color: var(--ink); font-family: 'DM Mono', monospace; font-size: 22px; letter-spacing: -.06em; }
+.admin-analytics-stat strong small { color: #78918c; font-size: 11px; letter-spacing: 0; }
+.admin-analytics-stat span { margin-top: 5px; color: #78918c; font-size: 10px; }
+.analytics-loading { min-height: 220px; }
+.analytics-traffic-card { min-height: 0; margin-top: 0; }
+.analytics-traffic-chart { padding-top: 2px; }
+.analytics-traffic-chart .chart-legend { padding-left: 0; }
+.admin-analytics-tables { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.analytics-table-card { min-height: 0; padding: 20px; }
+.analytics-table-card .admin-dashboard-card-heading { margin-bottom: 10px; }
+.analytics-table-card .admin-dashboard-card-heading h2 { font-size: 18px; }
+.analytics-referrals-card { grid-column: 1 / -1; }
+.analytics-table-scroll { overflow-x: auto; }
+.analytics-table { width: 100%; border-collapse: collapse; color: #5c7d73; font-size: 12px; }
+.analytics-table th { padding: 8px 10px; border-bottom: 1px solid #d5e9df; color: #78918c; font-size: 10px; font-weight: 600; text-align: left; white-space: nowrap; }
+.analytics-table td { padding: 11px 10px; border-bottom: 1px solid #edf5f0; color: var(--ink); vertical-align: top; }
+.analytics-table th:not(:first-child), .analytics-table td:not(:first-child) { text-align: right; white-space: nowrap; }
+.analytics-table tbody tr:last-child td { border-bottom: 0; }
+.analytics-table-empty { display: grid; min-height: 92px; place-items: center; color: #78918c; font-size: 12px; }
+
+@media (max-width: 900px) {
+  .admin-analytics-heading { align-items: flex-start; flex-direction: column; }
+  .analytics-period-picker { justify-content: flex-start; }
+  .admin-analytics-stat-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 700px) {
+  .admin-analytics-section { margin-top: 42px; }
+  .admin-analytics-heading h2 { font-size: 24px; }
+  .analytics-period-picker { flex-wrap: nowrap; max-width: 100%; overflow-x: auto; padding-bottom: 2px; }
+  .analytics-period-picker button { flex: 0 0 auto; }
+  .admin-analytics-stat-grid, .admin-analytics-tables { grid-template-columns: 1fr; }
+  .analytics-referrals-card { grid-column: auto; }
+}
+
 /* Admin catalog: products are compact until an operator opens one. */
 .admin-products-search { max-width: 720px; margin: 0 0 30px; }
 .admin-products-search > label { display: block; margin-bottom: 9px; color: var(--color-ink); font-size: 13px; font-weight: 600; }
