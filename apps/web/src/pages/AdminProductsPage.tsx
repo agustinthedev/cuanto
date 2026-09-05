@@ -94,7 +94,7 @@ function AdminProductAccordion({ product, categories, stores, tags, onCreateTag,
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(product.name);
   const [brand, setBrand] = useState(product.brand ?? "");
-  const [categoryId, setCategoryId] = useState(product.category?.id ?? categories[0]?.id ?? "");
+  const [categoryId, setCategoryId] = useState(product.category?.id ?? "");
   const [quantity, setQuantity] = useState(String(product.quantity));
   const [unit, setUnit] = useState<ProductUnit>(product.unit);
   const [links, setLinks] = useState<LinkDraft[]>(() => initialLinks(product, stores));
@@ -108,7 +108,7 @@ function AdminProductAccordion({ product, categories, stores, tags, onCreateTag,
     if (editing) return;
     setName(product.name);
     setBrand(product.brand ?? "");
-    setCategoryId(product.category?.id ?? categories[0]?.id ?? "");
+    setCategoryId(product.category?.id ?? "");
     setQuantity(String(product.quantity));
     setUnit(product.unit);
     setLinks(initialLinks(product, stores));
@@ -119,7 +119,7 @@ function AdminProductAccordion({ product, categories, stores, tags, onCreateTag,
     setError(null);
     setName(product.name);
     setBrand(product.brand ?? "");
-    setCategoryId(product.category?.id ?? categories[0]?.id ?? "");
+    setCategoryId(product.category?.id ?? "");
     setQuantity(String(product.quantity));
     setUnit(product.unit);
     setLinks(initialLinks(product, stores));
@@ -132,7 +132,7 @@ function AdminProductAccordion({ product, categories, stores, tags, onCreateTag,
     setError(null);
     setName(product.name);
     setBrand(product.brand ?? "");
-    setCategoryId(product.category?.id ?? categories[0]?.id ?? "");
+    setCategoryId(product.category?.id ?? "");
     setQuantity(String(product.quantity));
     setUnit(product.unit);
     setLinks(initialLinks(product, stores));
@@ -144,7 +144,7 @@ function AdminProductAccordion({ product, categories, stores, tags, onCreateTag,
     event.preventDefault();
     if (saving || creatingTag) return;
     setError(null);
-    if (!categoryId && !categories[0]?.id) {
+    if (!categoryId) {
       setError("Elegí una categoría antes de guardar.");
       return;
     }
@@ -161,7 +161,7 @@ function AdminProductAccordion({ product, categories, stores, tags, onCreateTag,
     }
     setSaving(true);
     try {
-      await updateProduct(product.id, name, brand, categoryId || categories[0].id, parsedQuantity, unit, serializeProductLinks(links), selectedTagIds);
+      await updateProduct(product.id, name, brand, categoryId, parsedQuantity, unit, serializeProductLinks(links), selectedTagIds);
       await onChanged();
       setEditing(false);
     } catch (reason) {
