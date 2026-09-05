@@ -364,6 +364,13 @@ async function countRows(table: string, column = "id"): Promise<number> {
   return count ?? 0;
 }
 
+async function countActiveStores(): Promise<number> {
+  if (!supabase) return 0;
+  const { data, error } = await supabase.rpc("count_active_stores");
+  if (error) throw error;
+  return Number(data ?? 0);
+}
+
 async function countSuggestions(status?: ProductSuggestionStatus): Promise<number> {
   if (!supabase) return 0;
   let query = supabase.from("product_suggestions").select("id", { count: "exact", head: true });
@@ -399,7 +406,7 @@ export async function getHomepageStats(): Promise<HomepageStats> {
   if (!supabase) return { products: 0, stores: 0, observations: 0, days: 0 };
   const [products, stores, observations, days] = await Promise.all([
     countRows("products"),
-    countRows("stores"),
+    countActiveStores(),
     countRows("prices"),
     countRows("price_observation_days", "date"),
   ]);
