@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { CategoryIcon } from "../components/CategoryIcon";
 import { ProductCard } from "../components/ProductCard";
@@ -9,7 +9,7 @@ import { trackSearch } from "../services/analytics";
 import { getCategories, getHomepageProducts, getHomepageStats, type HomepageProductResult } from "../services/data";
 import { buildProductSearchUrl } from "../services/productSearch";
 import type { Category, HomepageStats, Product } from "../services/types";
-import { clearPendingHomepageSearch, type PendingHomepageSearch } from "./homeSearchTracking";
+import { buildHomepageSearchTrackingInput } from "./homeSearchTracking";
 
 const initialStats: HomepageStats = { products: 0, stores: 0, observations: 0, days: 0 };
 const HOMEPAGE_DESKTOP_PRODUCT_LIMIT = 12;
@@ -34,12 +34,7 @@ function randomProductId(products: Product[]) {
 }
 
 function trackHomepageSearch(query: string, result: HomepageProductResult) {
-  void trackSearch({
-    query,
-    resultCount: result.total,
-    resultProductIds: result.products.map((product) => product.id),
-    path: "/",
-  });
+  void trackSearch(buildHomepageSearchTrackingInput(query, result));
 }
 
 export function HomePage() {
@@ -51,8 +46,6 @@ export function HomePage() {
   const [categoryId, setCategoryId] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const pendingSearchRef = useRef<PendingHomepageSearch | null>(null);
-  const latestSearchResultRef = useRef<{ query: string; categoryId: string; result: HomepageProductResult } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -80,12 +73,7 @@ export function HomePage() {
           if (cancelled) return;
           setProducts(nextResult.products);
           const normalizedSearch = search.trim();
-          latestSearchResultRef.current = { query: normalizedSearch, categoryId, result: nextResult };
-          const pendingSearch = pendingSearchRef.current;
-          if (pendingSearch && pendingSearch.query === normalizedSearch && pendingSearch.categoryId === categoryId) {
-            pendingSearchRef.current = null;
-            trackHomepageSearch(pendingSearch.query, nextResult);
-          }
+          if (normalizedSearch) trackHomepageSearch(normalizedSearch, nextResult);
           setDiscoveryProductId((currentId) => (
             currentId && nextResult.products.some((product) => product.id === currentId)
               ? currentId
@@ -104,29 +92,10 @@ export function HomePage() {
 
   const handleSearchSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const query = search.trim();
-    if (!query) {
-      pendingSearchRef.current = null;
-      return;
-    }
-
-    const latestSearchResult = latestSearchResultRef.current;
-    if (latestSearchResult?.query === query && latestSearchResult.categoryId === categoryId) {
-      trackHomepageSearch(query, latestSearchResult.result);
-      return;
-    }
-
-    pendingSearchRef.current = { query, categoryId };
   };
 
   const updateCategory = (nextCategoryId: string) => {
-    clearPendingHomepageSearch(pendingSearchRef);
     setCategoryId(nextCategoryId);
-  };
-
-  const clearSearch = () => {
-    clearPendingHomepageSearch(pendingSearchRef);
-    setSearch("");
   };
 
   const leadProduct = products.find((product) => product.id === discoveryProductId);
@@ -157,16 +126,12 @@ export function HomePage() {
           </span>
           <input
             value={search}
-            onChange={(event) => {
-              const nextSearch = event.target.value;
-              if (pendingSearchRef.current && pendingSearchRef.current.query !== nextSearch.trim()) pendingSearchRef.current = null;
-              setSearch(nextSearch);
-            }}
+            onChange={(event) => setSearch(event.target.value)}
             placeholder="Buscá productos"
             aria-label="Buscar productos"
           />
           {search && (
-            <button className="search-clear" type="button" onClick={clearSearch} aria-label="Limpiar búsqueda">
+            <button className="search-clear" type="button" onClick={() => setSearch("")} aria-label="Limpiar búsqueda">
               ×
             </button>
           )}
