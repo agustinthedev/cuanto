@@ -10,5 +10,23 @@
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1
+  },
+  "queues": {
+    "producers": [
+      {
+        "binding": "SCRAPE_QUEUE",
+        "queue": "cuanto-scrape"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "cuanto-scrape",
+        "max_batch_size": 1,
+        "max_batch_timeout": 5,
+        "max_retries": 3,
+        "dead_letter_queue": "cuanto-scrape-dlq",
+        "max_concurrency": 1
+      }
+    ]
   }
 }

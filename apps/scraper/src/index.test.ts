@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import worker, { runScrape } from "./index";
+import worker, { buildScrapeQueueMessages, dispatchDailyRun, performScrapeMessage, runScrape } from "./index";
+import type { ScrapeQueueMessage } from "./types";
 
 describe("ejecución diaria", () => {
   afterEach(() => {
@@ -74,7 +75,7 @@ describe("ejecución diaria", () => {
         { id: "product-2", image_url: null, image_source_store_product_id: null, image_updated_at: null },
       ]), { status: 200 });
       if (url.includes("/rest/v1/prices")) return new Response(null, { status: 201 });
-      if (url.startsWith("https://example.test/")) return new Response("<strong>$ 10</strong>", { status: 200 });
+      if (url.startsWith("https://example.test/")) return new Response('{"WProductUI_PARM":{"Prices":[{"Label":"Precio","Price":10}]}}', { status: 200 });
       return new Response("Not found", { status: 404 });
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -228,5 +229,368 @@ describe("ejecución diaria", () => {
     );
 
     expect(response.status).toBe(401);
+  });
+});
+
+describe("flujo con Queue", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("agrupa las publicaciones por producto y conserva las imágenes actuales", () => {
+    const records = [
+      {
+        id: "store-product-disco",
+        product_id: "product-1",
+        store_id: "store-disco",
+        location_id: null,
+        url: "https://example.test/disco",
+        external_name: null,
+        image_url: "https://images.test/disco.jpg",
+        store_slug: "disco",
+      },
+      {
+        id: "store-product-tata",
+        product_id: "product-1",
+        store_id: "store-tata",
+        location_id: null,
+        url: "https://example.test/tata",
+        external_name: null,
+        image_url: null,
+        store_slug: "ta-ta",
+      },
+    ];
+
+    const messages = buildScrapeQueueMessages(
+      records,
+      new Map([["product-1", {
+        id: "product-1",
+        image_url: "https://images.test/product.jpg",
+        image_source_store_product_id: "store-product-disco",
+        image_updated_at: "2026-08-25T12:00:00.000Z",
+      }]]),
+      "run-1",
+      "2026-09-02",
+    );
+
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toMatchObject({ run_id: "run-1", date: "2026-09-02", product_id: "product-1", product_image_url: "https://images.test/product.jpg" });
+    expect(messages[0].store_products.map((record) => record.store_slug)).toEqual(["disco", "ta-ta"]);
+  });
+
+  it("despacha un mensaje por producto y el performer hace un bulk upsert de precios", async () => {
+    const sentBatches: unknown[] = [];
+    const queue = { sendBatch: vi.fn(async (messages: unknown[]) => { sentBatches.push(messages); }) };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/rest/v1/stores")) return new Response(JSON.stringify([{ id: "store-1", slug: "disco" }]), { status: 200 });
+      if (url.includes("/rest/v1/store_products")) return new Response(JSON.stringify([{
+        id: "store-product-1",
+        product_id: "product-1",
+        store_id: "store-1",
+        location_id: null,
+        url: "https://example.test/disco",
+        external_name: null,
+        image_url: null,
+      }]), { status: 200 });
+      if (url.includes("/rest/v1/products")) return new Response(JSON.stringify([{
+        id: "product-1",
+        image_url: null,
+        image_source_store_product_id: null,
+        image_updated_at: null,
+      }]), { status: 200 });
+      return new Response("Not found", { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const dispatched = await dispatchDailyRun(
+      {
+        SUPABASE_URL: "https://project.supabase.co",
+        SUPABASE_SERVICE_ROLE_KEY: "service-role",
+        SCRAPE_QUEUE: queue,
+      } as unknown as Env,
+      new Date("2026-09-02T07:00:00Z"),
+    );
+
+    expect(dispatched).toMatchObject({ date: "2026-09-02", products: 1, messages: 1 });
+    expect(sentBatches).toHaveLength(1);
+    expect((sentBatches[0] as Array<{ body: { product_id: string } }>)[0].body.product_id).toBe("product-1");
+
+    const savedPriceBodies: unknown[] = [];
+    const savedStoreImageBodies: unknown[] = [];
+    const savedProductImageBodies: unknown[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/rest/v1/prices")) {
+        savedPriceBodies.push(JSON.parse(String(init?.body)));
+        return new Response(null, { status: 201 });
+      }
+      if (url.includes("/rest/v1/store_products") && init?.method === "PATCH") {
+        savedStoreImageBodies.push(JSON.parse(String(init.body)));
+        return new Response(null, { status: 204 });
+      }
+      if (url.includes("/rest/v1/products") && init?.method === "PATCH") {
+        savedProductImageBodies.push(JSON.parse(String(init.body)));
+        return new Response(null, { status: 204 });
+      }
+      if (url === "https://example.test/disco") return new Response('<meta property="og:image" content="/images/product.jpg"><meta property="product:price:amount" content="1299.00">', { status: 200 });
+      if (url.includes("operationName=ValidateSession")) return new Response(JSON.stringify({
+        data: { validateSession: {
+          country: "URY",
+          postalCode: "11800",
+          channel: '{"salesChannel":"4","regionId":"U1cjdGF0YXRhdW1vbnRldmlkZW8="}',
+          locale: "es-uy",
+        } },
+      }), { status: 200 });
+      if (url.startsWith("https://example.test/tata/producto-p?")) return new Response(`
+        <span data-testid="list-price" data-value="1400">$ 1.400,00</span>
+        <span data-testid="price" data-value="1190">$ 1.190,00</span>
+      `, { status: 200 });
+      return new Response("Not found", { status: 404 });
+    }));
+
+    const result = await performScrapeMessage(
+      {
+        SUPABASE_URL: "https://project.supabase.co",
+        SUPABASE_SERVICE_ROLE_KEY: "service-role",
+        SCRAPE_QUEUE: queue,
+      } as unknown as Env,
+      {
+        run_id: "run-1",
+        date: "2026-09-02",
+        product_id: "product-1",
+        product_image_url: null,
+        store_products: [
+          {
+            id: "store-product-1",
+            product_id: "product-1",
+            store_id: "store-1",
+            location_id: null,
+            url: "https://example.test/disco",
+            external_name: null,
+            image_url: null,
+            store_slug: "disco",
+          },
+          {
+            id: "store-product-2",
+            product_id: "product-1",
+            store_id: "store-2",
+            location_id: null,
+            url: "https://example.test/tata/producto-p",
+            external_name: null,
+            image_url: null,
+            store_slug: "ta-ta",
+          },
+        ],
+      },
+    );
+
+    expect(result).toEqual({ attempted: 2, saved: 2, failed: 0 });
+    expect(savedPriceBodies).toHaveLength(1);
+    expect(savedPriceBodies[0]).toEqual([
+      { store_product_id: "store-product-1", price: 1299, date: "2026-09-02", scraped_at: expect.any(String) },
+      { store_product_id: "store-product-2", price: 1400, date: "2026-09-02", scraped_at: expect.any(String) },
+    ]);
+    const calledUrls = vi.mocked(fetch).mock.calls.map(([input]) => String(input));
+    const tataUrl = calledUrls.find((url) => url.startsWith("https://example.test/tata/producto-p?"));
+    expect(tataUrl).toBeDefined();
+    expect(new URL(tataUrl!).searchParams.get("country")).toBe("URY");
+    expect(new URL(tataUrl!).searchParams.get("postalCode")).toBe("11800");
+    expect(calledUrls.some((url) => url.includes("operationName=BrowserProductQuery"))).toBe(false);
+    expect(savedStoreImageBodies).toHaveLength(1);
+    expect(savedProductImageBodies).toHaveLength(1);
+  });
+
+  it("elige el alias sano de Tienda Inglesa y lo incluye en sus mensajes", async () => {
+    const canonicalUrl = "https://www.tiendainglesa.com.uy/supermercado/cafe.producto?1584835,,42";
+    const blueUrl = "https://prod-web-blue.tiendainglesa.com.uy/supermercado/cafe.producto?1584835,,42";
+    const greenUrl = "https://prod-web-green.tiendainglesa.com.uy/supermercado/cafe.producto?1584835,,42";
+    const queue = { sendBatch: vi.fn(async () => undefined) };
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/rest/v1/stores")) return new Response(JSON.stringify([{ id: "store-1", slug: "tienda-inglesa" }]), { status: 200 });
+      if (url.includes("/rest/v1/store_products")) return new Response(JSON.stringify([{
+        id: "store-product-1",
+        product_id: "product-1",
+        store_id: "store-1",
+        location_id: null,
+        url: canonicalUrl,
+        external_name: "Café",
+        image_url: null,
+      }]), { status: 200 });
+      if (url.includes("/rest/v1/products")) return new Response(JSON.stringify([{
+        id: "product-1",
+        image_url: null,
+        image_source_store_product_id: null,
+        image_updated_at: null,
+      }]), { status: 200 });
+      if (url === blueUrl) return new Response("Service unavailable", { status: 503 });
+      if (url === greenUrl) return new Response('{"W0032AV27ProductUI_PARM":{"Prices":[{"Label":"Precio","Price":123.45}]}}', { status: 200 });
+      return new Response("Not found", { status: 404 });
+    }));
+
+    await dispatchDailyRun(
+      {
+        SUPABASE_URL: "https://project.supabase.co",
+        SUPABASE_SERVICE_ROLE_KEY: "service-role",
+        SCRAPE_QUEUE: queue,
+      } as unknown as Env,
+      new Date("2026-09-02T07:00:00Z"),
+    );
+
+    expect(queue.sendBatch).toHaveBeenCalledWith([{
+      body: expect.objectContaining({
+        product_id: "product-1",
+        tienda_inglesa_fallback_origins: ["https://prod-web-green.tiendainglesa.com.uy", "https://prod-web-blue.tiendainglesa.com.uy"],
+        tienda_inglesa_previously_failed_origins: ["https://prod-web-blue.tiendainglesa.com.uy"],
+      }),
+    }]);
+  });
+
+  it("usa el otro alias si el elegido para Tienda Inglesa falla durante el consumo", async () => {
+    vi.useFakeTimers();
+    const canonicalUrl = "https://www.tiendainglesa.com.uy/supermercado/cafe.producto?1584835,,42";
+    const blueUrl = "https://prod-web-blue.tiendainglesa.com.uy/supermercado/cafe.producto?1584835,,42";
+    const greenUrl = "https://prod-web-green.tiendainglesa.com.uy/supermercado/cafe.producto?1584835,,42";
+    const scraperUrls: string[] = [];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === greenUrl) {
+        scraperUrls.push(url);
+        return new Response("Service unavailable", { status: 503 });
+      }
+      if (url === blueUrl) {
+        scraperUrls.push(url);
+        return new Response('{"W0032AV27ProductUI_PARM":{"Prices":[{"Label":"Precio","Price":123.45}]}}', { status: 200 });
+      }
+      if (url.includes("/rest/v1/prices")) return new Response(null, { status: 201 });
+      return new Response("Not found", { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const scrape = performScrapeMessage(
+      {
+        SUPABASE_URL: "https://project.supabase.co",
+        SUPABASE_SERVICE_ROLE_KEY: "service-role",
+        SCRAPE_QUEUE: { sendBatch: vi.fn() },
+      } as unknown as Env,
+      {
+        run_id: "run-1",
+        date: "2026-09-02",
+        product_id: "product-1",
+        product_image_url: null,
+        tienda_inglesa_fallback_origins: ["https://prod-web-green.tiendainglesa.com.uy", "https://prod-web-blue.tiendainglesa.com.uy"],
+        store_products: [{
+          id: "store-product-1",
+          product_id: "product-1",
+          store_id: "store-1",
+          location_id: null,
+          url: canonicalUrl,
+          external_name: "Café",
+          image_url: null,
+          store_slug: "tienda-inglesa",
+        }],
+      },
+    );
+    await vi.runAllTimersAsync();
+
+    await expect(scrape).resolves.toEqual({ attempted: 1, saved: 1, failed: 0 });
+    expect(scraperUrls).toEqual([greenUrl, greenUrl, greenUrl, blueUrl]);
+    expect(scraperUrls).not.toContain(canonicalUrl);
+  });
+
+  it("no reintenta un alias que el dispatcher ya encontró caído", async () => {
+    vi.useFakeTimers();
+    const canonicalUrl = "https://www.tiendainglesa.com.uy/supermercado/cafe.producto?1584835,,42";
+    const blueUrl = "https://prod-web-blue.tiendainglesa.com.uy/supermercado/cafe.producto?1584835,,42";
+    const greenUrl = "https://prod-web-green.tiendainglesa.com.uy/supermercado/cafe.producto?1584835,,42";
+    const scraperUrls: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === greenUrl || url === blueUrl) {
+        scraperUrls.push(url);
+        return new Response("Service unavailable", { status: 503 });
+      }
+      return new Response("Not found", { status: 404 });
+    }));
+
+    const scrape = performScrapeMessage(
+      {
+        SUPABASE_URL: "https://project.supabase.co",
+        SUPABASE_SERVICE_ROLE_KEY: "service-role",
+        SCRAPE_QUEUE: { sendBatch: vi.fn() },
+      } as unknown as Env,
+      {
+        run_id: "run-1",
+        date: "2026-09-02",
+        product_id: "product-1",
+        product_image_url: null,
+        tienda_inglesa_fallback_origins: ["https://prod-web-green.tiendainglesa.com.uy", "https://prod-web-blue.tiendainglesa.com.uy"],
+        tienda_inglesa_previously_failed_origins: ["https://prod-web-blue.tiendainglesa.com.uy"],
+        store_products: [{
+          id: "store-product-1",
+          product_id: "product-1",
+          store_id: "store-1",
+          location_id: null,
+          url: canonicalUrl,
+          external_name: "Café",
+          image_url: null,
+          store_slug: "tienda-inglesa",
+        }],
+      },
+    );
+    const rejection = expect(scrape).rejects.toThrow("No se pudo leer ningún alias de Tienda Inglesa");
+    await vi.runAllTimersAsync();
+
+    await rejection;
+    expect(scraperUrls).toEqual([greenUrl, greenUrl, greenUrl, blueUrl]);
+  });
+
+  it("mantiene el intervalo de Tienda Inglesa entre mensajes de Queue", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "https://example.test/tienda-inglesa") {
+        return new Response('<div data-config="{&quot;WProductUI_PARM&quot;:{&quot;Prices&quot;:[{&quot;Label&quot;:&quot;Precio&quot;,&quot;Price&quot;:1299}]}}"></div>', { status: 200 });
+      }
+      if (url.includes("/rest/v1/prices")) return new Response(null, { status: 201 });
+      return new Response("Not found", { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const env = {
+      SUPABASE_URL: "https://project.supabase.co",
+      SUPABASE_SERVICE_ROLE_KEY: "service-role",
+      SCRAPE_QUEUE: { sendBatch: vi.fn() },
+    } as unknown as Env;
+    const message = {
+      run_id: "run-1",
+      date: "2026-09-02",
+      product_id: "product-1",
+      product_image_url: null,
+      store_products: [{
+        id: "store-product-1",
+        product_id: "product-1",
+        store_id: "store-1",
+        location_id: null,
+        url: "https://example.test/tienda-inglesa",
+        external_name: null,
+        image_url: null,
+        store_slug: "tienda-inglesa",
+      }],
+    } satisfies ScrapeQueueMessage;
+
+    const first = performScrapeMessage(env, message);
+    await vi.advanceTimersByTimeAsync(500);
+    await first;
+
+    const second = performScrapeMessage(env, { ...message, product_id: "product-2" });
+    expect(fetchMock.mock.calls.filter(([input]) => String(input) === message.store_products[0].url)).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(500);
+    await second;
+
+    expect(fetchMock.mock.calls.filter(([input]) => String(input) === message.store_products[0].url)).toHaveLength(2);
   });
 });
