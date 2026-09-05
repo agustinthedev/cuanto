@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { attachLatestPrices } from "./data";
+import { attachLatestPrices, countDistinctStoreIds } from "./data";
 import type { Product } from "./types";
 
 const products: Product[] = [
@@ -50,5 +50,16 @@ describe("attachLatestPrices", () => {
       { product_id: "product-2", price: Number.NaN, store_name: "Disco" },
       { product_id: "unknown", price: 80, store_name: "Ta-Ta" },
     ])).toEqual(products);
+  });
+});
+
+describe("countDistinctStoreIds", () => {
+  it("counts only distinct non-null store IDs", () => {
+    expect(countDistinctStoreIds([
+      { store_id: "tata" },
+      { store_id: "disco" },
+      { store_id: "tata" },
+      { store_id: null },
+    ])).toBe(2);
   });
 });
