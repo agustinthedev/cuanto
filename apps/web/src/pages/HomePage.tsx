@@ -9,6 +9,7 @@ import { trackSearch } from "../services/analytics";
 import { getCategories, getHomepageProducts, getHomepageStats, type HomepageProductResult } from "../services/data";
 import { buildProductSearchUrl } from "../services/productSearch";
 import type { Category, HomepageStats, Product } from "../services/types";
+import { clearPendingHomepageSearch, type PendingHomepageSearch } from "./homeSearchTracking";
 
 const initialStats: HomepageStats = { products: 0, stores: 0, observations: 0, days: 0 };
 const HOMEPAGE_DESKTOP_PRODUCT_LIMIT = 12;
@@ -50,7 +51,7 @@ export function HomePage() {
   const [categoryId, setCategoryId] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const pendingSearchRef = useRef<{ query: string; categoryId: string } | null>(null);
+  const pendingSearchRef = useRef<PendingHomepageSearch | null>(null);
   const latestSearchResultRef = useRef<{ query: string; categoryId: string; result: HomepageProductResult } | null>(null);
 
   useEffect(() => {
@@ -119,8 +120,13 @@ export function HomePage() {
   };
 
   const updateCategory = (nextCategoryId: string) => {
-    pendingSearchRef.current = null;
+    clearPendingHomepageSearch(pendingSearchRef);
     setCategoryId(nextCategoryId);
+  };
+
+  const clearSearch = () => {
+    clearPendingHomepageSearch(pendingSearchRef);
+    setSearch("");
   };
 
   const leadProduct = products.find((product) => product.id === discoveryProductId);
@@ -160,7 +166,7 @@ export function HomePage() {
             aria-label="Buscar productos"
           />
           {search && (
-            <button className="search-clear" type="button" onClick={() => setSearch("")} aria-label="Limpiar búsqueda">
+            <button className="search-clear" type="button" onClick={clearSearch} aria-label="Limpiar búsqueda">
               ×
             </button>
           )}
