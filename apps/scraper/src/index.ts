@@ -21,7 +21,8 @@ const IMAGE_STORE_PRIORITY: Record<string, number> = {
   disco: 10,
   "tienda-inglesa": 20,
   "ta-ta": 30,
-  "red-express": 40,
+  "el-dorado": 40,
+  "red-express": 50,
 };
 
 const TIENDA_INGLESA_REQUEST_DELAY_MS = 500;
@@ -285,6 +286,10 @@ export async function performScrapeMessage(env: Env, message: ScrapeQueueMessage
   }]]);
   const successful: Array<{ record: StoreProductRecord; result: ScrapeResult }> = [];
   const failed: FailedStoreProduct[] = [];
+  const context: StoreScrapeContext = {
+    tiendaInglesaFallbackOrigins: message.tienda_inglesa_fallback_origins,
+    tiendaInglesaPreviouslyFailedOrigins: message.tienda_inglesa_previously_failed_origins,
+  };
 
   for (const record of records) {
     if (record.store_slug === "tienda-inglesa") {
@@ -293,10 +298,7 @@ export async function performScrapeMessage(env: Env, message: ScrapeQueueMessage
     }
 
     try {
-      const result = await scrapeStoreProduct(env, record, {
-        tiendaInglesaFallbackOrigins: message.tienda_inglesa_fallback_origins,
-        tiendaInglesaPreviouslyFailedOrigins: message.tienda_inglesa_previously_failed_origins,
-      });
+      const result = await scrapeStoreProduct(env, record, context);
       successful.push({ record, result });
     } catch (error) {
       failed.push({ record, error });
@@ -364,6 +366,7 @@ export async function runScrape(env: Env, now = new Date(), options: ScrapeOptio
   records.sort((left, right) => imagePriority(left.store_slug) - imagePriority(right.store_slug));
   const date = uruguayDate(now);
   const summary: ScrapeSummary = { attempted: records.length, saved: 0, failed: 0 };
+  const context: StoreScrapeContext = {};
   let previousStoreSlug: string | undefined;
 
   for (const record of records) {
@@ -373,7 +376,7 @@ export async function runScrape(env: Env, now = new Date(), options: ScrapeOptio
     }
 
     try {
-      const result = await scrapeStoreProduct(env, record);
+      const result = await scrapeStoreProduct(env, record, context);
       await savePrice(env, record, result.price, date);
       summary.saved += 1;
       if (result.imageUrl) {
