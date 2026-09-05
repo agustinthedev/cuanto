@@ -246,8 +246,6 @@ export function AdminProductsPage() {
         <div><span className="section-kicker">Admin / Productos</span><h1>Productos</h1><p>Consultá y actualizá la información de los productos que forman parte del catálogo.</p></div>
       </div>
 
-      <div className="admin-stats" aria-label="Resumen del catálogo"><div><strong>{products.length}</strong><span>Productos en catálogo</span></div><div><strong>{stores.length}</strong><span>Cadenas configuradas</span></div><div><strong>{tags.length}</strong><span>Tags disponibles</span></div></div>
-
       <div className="admin-products-search">
         <label htmlFor="admin-products-search-input">Buscar productos</label>
         <div className="admin-products-search-control">
