@@ -46,7 +46,7 @@ npm run build
 
 1. Crear un proyecto gratuito en Supabase.
 2. Aplicar `supabase/migrations/202608250001_initial_schema.sql` desde el SQL Editor o con Supabase CLI.
-3. Aplicar las migraciones posteriores, incluida `supabase/migrations/202608260001_add_product_image_sources.sql`, las migraciones de propuestas `202608260002`, `202608260003`, `202608260004`, `202608260005` y `202608260006`, `supabase/migrations/202608270001_add_direct_product_creation.sql`, las migraciones `202608280001` y `202608280002`, `supabase/migrations/202609030001_add_product_measurements.sql`, `supabase/migrations/202609030002_add_product_tags.sql` y `supabase/migrations/202609040001_add_analytics.sql`.
+3. Aplicar las migraciones posteriores, incluida `supabase/migrations/202608260001_add_product_image_sources.sql`, las migraciones de propuestas `202608260002`, `202608260003`, `202608260004`, `202608260005` y `202608260006`, `supabase/migrations/202608270001_add_direct_product_creation.sql`, las migraciones `202608280001` y `202608280002`, `supabase/migrations/202609030001_add_product_measurements.sql`, `supabase/migrations/202609030002_add_product_tags.sql`, `supabase/migrations/202609040001_add_analytics.sql`, `supabase/migrations/202609050001_restore_analytics_validator_access.sql`, `supabase/migrations/202609050002_bound_anonymous_analytics_payloads.sql` y `supabase/migrations/202609050003_fill_analytics_traffic_buckets.sql`.
 4. Ejecutar `supabase/seed.sql` para crear Disco, Tienda Inglesa, Ta-Ta y categorías iniciales.
 5. Copiar `apps/web/.env.example` como `.env.local` y completar:
 
