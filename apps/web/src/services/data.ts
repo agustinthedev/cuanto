@@ -28,6 +28,7 @@ const productSelect = "id,name,brand,quantity,unit,image_url,created_at,category
 const productSearchSelect = "id,name,brand,quantity,unit,image_url,created_at,category_id,category_name,category_slug,current_price,best_store,comparison_count";
 const suggestionSelect = "id,title,category_id,quantity,unit,status,created_at,updated_at,reviewed_at,category:categories(id,name,slug),links:product_suggestion_store_links(id,suggestion_id,store_id,url,store:stores(id,name,slug)),tags:product_suggestion_tags(tag:tags(id,name))";
 const adminProductSelect = "id,name,brand,quantity,unit,image_url,created_at,updated_at,category:categories(id,name,slug),links:store_products(id,product_id,store_id,url,external_name,active,location_id,store:stores(id,name,slug)),tags:product_tags(tag:tags(id,name))";
+const adminProductPageSize = 500;
 
 function normalizeProduct(value: any): Product {
   const category = Array.isArray(value.category) ? value.category[0] : value.category;
@@ -251,13 +252,19 @@ export async function getAdminProducts(): Promise<AdminProduct[]> {
     }));
   }
   if (!supabase) throw new Error("Supabase no está configurado.");
-  const { data, error } = await supabase
-    .from("products")
-    .select(adminProductSelect)
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: true });
-  if (error) throw error;
-  return (data ?? []).map(normalizeAdminProduct);
+  const products: AdminProduct[] = [];
+  for (let offset = 0; ; offset += adminProductPageSize) {
+    const { data, error } = await supabase
+      .from("products")
+      .select(adminProductSelect)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: true })
+      .range(offset, offset + adminProductPageSize - 1);
+    if (error) throw error;
+    const page = (data ?? []).map(normalizeAdminProduct);
+    products.push(...page);
+    if (page.length < adminProductPageSize) return products;
+  }
 }
 
 export async function updateProduct(id: string, name: string, brand: string, categoryId: string, quantity: number, unit: ProductUnit, links: Array<{ store_id: string; url: string }>, tagIds: string[] = []): Promise<void> {
