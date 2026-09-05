@@ -1,4 +1,4 @@
-import { useLayoutEffect } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
 import { AdminAuthProvider } from "../auth/AdminAuth";
 import { AdminGuard } from "../auth/AdminGuard";
@@ -9,6 +9,38 @@ import { HomePage } from "../pages/HomePage";
 import { ProductPage } from "../pages/ProductPage";
 import { ProductSearchPage } from "../pages/ProductSearchPage";
 import { ProductSuggestionsPage } from "../pages/ProductSuggestionsPage";
+import { getLocationPath, getPageType, getPageViewReferrer, getProductIdFromPath, trackPageView } from "../services/analytics";
+
+function AnalyticsRouteTracker() {
+  const location = useLocation();
+  const previousPathRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (location.pathname.startsWith("/admin")) {
+      previousPathRef.current = null;
+      return;
+    }
+
+    const path = getLocationPath(location);
+    const previousPath = previousPathRef.current;
+    previousPathRef.current = path;
+    const referrer = getPageViewReferrer(
+      previousPath,
+      previousPath ? "" : typeof document === "undefined" ? "" : document.referrer,
+      typeof window === "undefined" ? "" : window.location.origin,
+    );
+
+    void trackPageView({
+      path,
+      pageType: getPageType(location.pathname),
+      productId: getProductIdFromPath(location.pathname),
+      referrer,
+      dedupeKey: `${location.key}:${path}`,
+    });
+  }, [location]);
+
+  return null;
+}
 
 function ScrollToTop() {
   const { pathname, search, hash, state } = useLocation();
@@ -40,6 +72,7 @@ export function App() {
   return (
     <BrowserRouter>
       <ScrollToTop />
+      <AnalyticsRouteTracker />
       <AdminAuthProvider>
         <Layout>
           <Routes>

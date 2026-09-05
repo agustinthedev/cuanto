@@ -1,8 +1,17 @@
 import { supabase } from "../lib/supabase";
 import type {
   AveragePrice,
+  AdminAnalytics,
+  AdminAnalyticsPageRow,
+  AdminAnalyticsProductRow,
+  AdminAnalyticsReferralRow,
+  AdminAnalyticsSearchRow,
+  AdminAnalyticsSummary,
+  AdminAnalyticsTrafficPoint,
+  AdminAnalyticsZeroResultRow,
   AdminDashboardData,
   AdminSuggestionStats,
+  AnalyticsPeriod,
   Category,
   HomepageStats,
   LatestPrice,
@@ -445,6 +454,126 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     suggestions,
     observationHistory: fillObservationHistory((observationsResult.data ?? []) as PriceObservationDay[], startDate, endDate),
   };
+}
+
+export const emptyAdminAnalytics: AdminAnalytics = {
+  period: "30d",
+  summary: {
+    uniqueVisitors: 0,
+    sessions: 0,
+    pageViews: 0,
+    productViews: 0,
+    searches: 0,
+    zeroResultSearches: 0,
+    zeroResultPercentage: 0,
+    pagesPerSession: 0,
+    searchesPerSession: 0,
+  },
+  traffic: [],
+  mostViewedProducts: [],
+  topSearches: [],
+  zeroResultSearches: [],
+  mostVisitedPages: [],
+  topProductReferrals: [],
+};
+
+function analyticsNumber(value: unknown, fallback = 0): number {
+  const numberValue = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(numberValue) ? numberValue : fallback;
+}
+
+export function normalizeAdminAnalytics(value: unknown, period: AnalyticsPeriod): AdminAnalytics {
+  const raw = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  const rawSummary = raw.summary && typeof raw.summary === "object" ? raw.summary as Record<string, unknown> : {};
+  const rawRows = (key: string) => Array.isArray(raw[key]) ? raw[key] : [];
+  const rowObject = (row: unknown) => row && typeof row === "object" ? row as Record<string, unknown> : {};
+
+  const summary: AdminAnalyticsSummary = {
+    uniqueVisitors: analyticsNumber(rawSummary.unique_visitors),
+    sessions: analyticsNumber(rawSummary.sessions),
+    pageViews: analyticsNumber(rawSummary.page_views),
+    productViews: analyticsNumber(rawSummary.product_views),
+    searches: analyticsNumber(rawSummary.searches),
+    zeroResultSearches: analyticsNumber(rawSummary.zero_result_searches),
+    zeroResultPercentage: analyticsNumber(rawSummary.zero_result_percentage),
+    pagesPerSession: analyticsNumber(rawSummary.pages_per_session),
+    searchesPerSession: analyticsNumber(rawSummary.searches_per_session),
+  };
+
+  const traffic: AdminAnalyticsTrafficPoint[] = rawRows("traffic").map((row) => {
+    const item = rowObject(row);
+    return {
+      bucket: typeof item.bucket === "string" ? item.bucket : "",
+      uniqueVisitors: analyticsNumber(item.unique_visitors),
+      sessions: analyticsNumber(item.sessions),
+      pageViews: analyticsNumber(item.page_views),
+      searches: analyticsNumber(item.searches),
+    };
+  }).filter((row) => row.bucket);
+
+  const mostViewedProducts: AdminAnalyticsProductRow[] = rawRows("most_viewed_products").map((row) => {
+    const item = rowObject(row);
+    return {
+      productId: String(item.product_id ?? ""),
+      productName: String(item.product_name ?? "Producto eliminado"),
+      views: analyticsNumber(item.views),
+      uniqueVisitors: analyticsNumber(item.unique_visitors),
+    };
+  });
+
+  const topSearches: AdminAnalyticsSearchRow[] = rawRows("top_searches").map((row) => {
+    const item = rowObject(row);
+    return {
+      query: String(item.query ?? ""),
+      searches: analyticsNumber(item.searches),
+      averageResultCount: analyticsNumber(item.average_result_count),
+      uniqueVisitors: analyticsNumber(item.unique_visitors),
+    };
+  }).filter((row) => row.query);
+
+  const zeroResultSearches: AdminAnalyticsZeroResultRow[] = rawRows("zero_result_searches").map((row) => {
+    const item = rowObject(row);
+    return {
+      query: String(item.query ?? ""),
+      searches: analyticsNumber(item.searches),
+      lastSearchedAt: String(item.last_searched_at ?? ""),
+    };
+  }).filter((row) => row.query);
+
+  const mostVisitedPages: AdminAnalyticsPageRow[] = rawRows("most_visited_pages").map((row) => {
+    const item = rowObject(row);
+    return { page: String(item.page ?? ""), views: analyticsNumber(item.views) };
+  }).filter((row) => row.page);
+
+  const topProductReferrals: AdminAnalyticsReferralRow[] = rawRows("top_product_referrals").map((row) => {
+    const item = rowObject(row);
+    return {
+      referringProductId: String(item.referring_product_id ?? ""),
+      referringProductName: String(item.referring_product_name ?? "Producto eliminado"),
+      destinationProductId: String(item.destination_product_id ?? ""),
+      destinationProductName: String(item.destination_product_name ?? "Producto eliminado"),
+      visits: analyticsNumber(item.visits),
+      destinationViewPercentage: analyticsNumber(item.destination_view_percentage),
+    };
+  });
+
+  return {
+    period,
+    summary,
+    traffic,
+    mostViewedProducts,
+    topSearches,
+    zeroResultSearches,
+    mostVisitedPages,
+    topProductReferrals,
+  };
+}
+
+export async function getAdminAnalytics(period: AnalyticsPeriod): Promise<AdminAnalytics> {
+  if (isDemoMode || !supabase) return { ...emptyAdminAnalytics, period };
+  const { data, error } = await supabase.rpc("get_admin_analytics", { p_period: period });
+  if (error) throw error;
+  return normalizeAdminAnalytics(data, period);
 }
 
 export async function getProductPageData(id: string): Promise<ProductPageData> {

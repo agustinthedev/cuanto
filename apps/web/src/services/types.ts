@@ -112,6 +112,73 @@ export interface AdminDashboardData {
   observationHistory: PriceObservationDay[];
 }
 
+export type AnalyticsPeriod = "today" | "7d" | "30d" | "all";
+
+export interface AdminAnalyticsSummary {
+  uniqueVisitors: number;
+  sessions: number;
+  pageViews: number;
+  productViews: number;
+  searches: number;
+  zeroResultSearches: number;
+  zeroResultPercentage: number;
+  pagesPerSession: number;
+  searchesPerSession: number;
+}
+
+export interface AdminAnalyticsTrafficPoint {
+  bucket: string;
+  uniqueVisitors: number;
+  sessions: number;
+  pageViews: number;
+  searches: number;
+}
+
+export interface AdminAnalyticsProductRow {
+  productId: string;
+  productName: string;
+  views: number;
+  uniqueVisitors: number;
+}
+
+export interface AdminAnalyticsSearchRow {
+  query: string;
+  searches: number;
+  averageResultCount: number;
+  uniqueVisitors: number;
+}
+
+export interface AdminAnalyticsZeroResultRow {
+  query: string;
+  searches: number;
+  lastSearchedAt: string;
+}
+
+export interface AdminAnalyticsPageRow {
+  page: string;
+  views: number;
+}
+
+export interface AdminAnalyticsReferralRow {
+  referringProductId: string;
+  referringProductName: string;
+  destinationProductId: string;
+  destinationProductName: string;
+  visits: number;
+  destinationViewPercentage: number;
+}
+
+export interface AdminAnalytics {
+  period: AnalyticsPeriod;
+  summary: AdminAnalyticsSummary;
+  traffic: AdminAnalyticsTrafficPoint[];
+  mostViewedProducts: AdminAnalyticsProductRow[];
+  topSearches: AdminAnalyticsSearchRow[];
+  zeroResultSearches: AdminAnalyticsZeroResultRow[];
+  mostVisitedPages: AdminAnalyticsPageRow[];
+  topProductReferrals: AdminAnalyticsReferralRow[];
+}
+
 export interface ProductPageData {
   product: Product | null;
   latestPrices: LatestPrice[];
