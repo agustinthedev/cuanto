@@ -1,14 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { clearPendingHomepageSearch, type PendingHomepageSearch } from "./homeSearchTracking";
+import { buildHomepageSearchTrackingInput } from "./homeSearchTracking";
+import type { Product } from "../services/types";
 
-describe("homepage search tracking state", () => {
-  it("clears a pending search when the search input is cleared", () => {
-    const pendingSearchRef: { current: PendingHomepageSearch | null } = {
-      current: { query: "leche", categoryId: "" },
-    };
-
-    clearPendingHomepageSearch(pendingSearchRef);
-
-    expect(pendingSearchRef.current).toBeNull();
+describe("homepage search tracking", () => {
+  it("builds an event from the automatically loaded result set", () => {
+    expect(buildHomepageSearchTrackingInput(" leche ", {
+      total: 25,
+      products: [{ id: "product-1" } as Product],
+    })).toEqual({
+      query: " leche ",
+      resultCount: 25,
+      resultProductIds: ["product-1"],
+      path: "/",
+    });
   });
 });

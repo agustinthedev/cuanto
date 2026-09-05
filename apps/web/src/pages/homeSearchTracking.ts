@@ -1,5 +1,11 @@
-export type PendingHomepageSearch = { query: string; categoryId: string };
+import type { TrackSearchInput } from "../services/analytics";
+import type { HomepageProductResult } from "../services/data";
 
-export function clearPendingHomepageSearch(ref: { current: PendingHomepageSearch | null }) {
-  ref.current = null;
+export function buildHomepageSearchTrackingInput(query: string, result: HomepageProductResult): TrackSearchInput {
+  return {
+    query,
+    resultCount: result.total,
+    resultProductIds: result.products.map((product) => product.id),
+    path: "/",
+  };
 }
