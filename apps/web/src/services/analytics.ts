@@ -42,6 +42,7 @@ export interface TrackSearchInput {
 }
 
 let cachedIdentity: AnalyticsIdentity | null = null;
+let currentPageViewReferrer: PageViewReferrer | null = null;
 const trackedPageViewKeys = new Set<string>();
 
 function browserStorage(): AnalyticsStorage | null {
@@ -113,6 +114,7 @@ export function getOrCreateAnalyticsIdentity(options: {
 
 export function resetAnalyticsStateForTests() {
   cachedIdentity = null;
+  currentPageViewReferrer = null;
   trackedPageViewKeys.clear();
 }
 
@@ -231,6 +233,8 @@ export async function trackPageView(input: TrackPageViewInput): Promise<void> {
     if (trackedPageViewKeys.size > 100) trackedPageViewKeys.delete(trackedPageViewKeys.values().next().value as string);
   }
 
+  currentPageViewReferrer = input.referrer ?? { referrer: null, referrerPath: null, referrerType: "direct" };
+
   await trackEvent({
     eventType: "page_view",
     path: input.path,
@@ -243,6 +247,7 @@ export async function trackSearch(input: TrackSearchInput): Promise<void> {
   await trackEvent({
     eventType: "search",
     path: input.path,
+    referrer: currentPageViewReferrer ?? undefined,
     metadata: buildSearchMetadata(input),
   });
 }
