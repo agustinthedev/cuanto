@@ -14,8 +14,15 @@ import { getLocationPath, getPageType, getPageViewReferrer, getProductIdFromPath
 function AnalyticsRouteTracker() {
   const location = useLocation();
   const previousPathRef = useRef<string | null>(null);
+  const lastEffectLocationRef = useRef<ReturnType<typeof useLocation> | null>(null);
 
   useEffect(() => {
+    // React StrictMode can replay the same effect with the same location
+    // object. POP navigation creates a fresh location object even when it
+    // restores an existing history key, so revisits remain trackable.
+    if (lastEffectLocationRef.current === location) return;
+    lastEffectLocationRef.current = location;
+
     // Keep private admin work out of public visitor metrics. Product-to-product
     // referrals are derived from the structured previous product ID below.
     if (location.pathname.startsWith("/admin")) {
@@ -37,7 +44,6 @@ function AnalyticsRouteTracker() {
       pageType: getPageType(location.pathname),
       productId: getProductIdFromPath(location.pathname),
       referrer,
-      dedupeKey: `${location.key}:${path}`,
     });
   }, [location]);
 

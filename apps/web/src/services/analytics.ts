@@ -34,7 +34,6 @@ export interface TrackPageViewInput {
   pageType: AnalyticsPageType;
   productId?: string;
   referrer?: PageViewReferrer;
-  dedupeKey?: string;
 }
 
 export interface TrackSearchInput {
