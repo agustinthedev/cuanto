@@ -977,6 +977,14 @@ a { color: inherit; }
 .analytics-traffic-card { min-height: 0; margin-top: 0; }
 .analytics-traffic-chart { padding-top: 2px; }
 .analytics-traffic-chart .chart-legend { padding-left: 0; }
+.analytics-legend-marker.marker-square { border-radius: 1px; }
+.analytics-legend-marker.marker-diamond { border-radius: 1px; transform: rotate(45deg); }
+.analytics-legend-marker.marker-triangle { width: 0; height: 0; margin-right: 8px; border-right: 4px solid transparent; border-bottom: 8px solid; border-left: 4px solid transparent; border-radius: 0; background: transparent !important; }
+.analytics-chart-marker { transition: fill .15s, stroke .15s, stroke-width .15s; }
+.analytics-chart-marker.is-active { fill: var(--accent); stroke: #0c5c49; stroke-width: 2.5; }
+.analytics-chart-hit-target { fill: transparent; stroke: transparent; cursor: pointer; }
+.analytics-chart-hit-target:focus { outline: none; }
+.analytics-chart-tooltip-value { font-size: 10px; }
 .admin-analytics-tables { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .analytics-table-card { min-height: 0; padding: 20px; }
 .analytics-table-card .admin-dashboard-card-heading { margin-bottom: 10px; }
