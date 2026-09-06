@@ -7,9 +7,11 @@ import {
   getOrCreateAnalyticsIdentity,
   buildPageViewMetadata,
   buildSearchMetadata,
+  buildEmailCaptureMetadata,
   getPageViewReferrer,
   getProductIdFromPath,
   normalizeSearchQuery,
+  registerUniqueProductPageView,
   resetAnalyticsStateForTests,
 } from "./analytics";
 
@@ -130,6 +132,33 @@ describe("analytics referrers and query normalization", () => {
       normalized_query: "coca cola",
       result_count: 2,
       result_product_ids: ["product-a"],
+    });
+  });
+
+  it("counts unique product pages within a session and prompts on the third one", () => {
+    const storage = new MemoryStorage();
+    storage.setItem(ANON_ID_STORAGE_KEY, anonId);
+    storage.setItem(SESSION_ID_STORAGE_KEY, firstSessionId);
+    storage.setItem(SESSION_LAST_ACTIVITY_STORAGE_KEY, "1000");
+    resetAnalyticsStateForTests();
+
+    const productIds = [
+      "44444444-4444-4444-8444-444444444444",
+      "55555555-5555-4555-8555-555555555555",
+      "66666666-6666-4666-8666-666666666666",
+    ];
+    expect(registerUniqueProductPageView(productIds[0], { storage, now: 2000 })).toMatchObject({ uniqueProductCount: 1, isNewProduct: true, shouldPrompt: false });
+    expect(registerUniqueProductPageView(productIds[1], { storage, now: 3000 })).toMatchObject({ uniqueProductCount: 2, isNewProduct: true, shouldPrompt: false });
+    expect(registerUniqueProductPageView(productIds[0], { storage, now: 4000 })).toMatchObject({ uniqueProductCount: 2, isNewProduct: false, shouldPrompt: false });
+    expect(registerUniqueProductPageView(productIds[2], { storage, now: 5000 })).toMatchObject({ uniqueProductCount: 3, isNewProduct: true, shouldPrompt: true });
+    expect(registerUniqueProductPageView("77777777-7777-4777-8777-777777777777", { storage, now: 6000 })).toMatchObject({ uniqueProductCount: 4, isNewProduct: true, shouldPrompt: false });
+  });
+
+  it("builds email capture metadata without including the email", () => {
+    expect(buildEmailCaptureMetadata({ productId: "44444444-4444-4444-8444-444444444444", uniqueProductCount: 3 })).toEqual({
+      prompt: "third_product_page",
+      product_id: "44444444-4444-4444-8444-444444444444",
+      unique_product_count: 3,
     });
   });
 });
