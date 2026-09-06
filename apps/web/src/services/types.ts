@@ -142,6 +142,10 @@ export interface AdminAnalyticsSummary {
   zeroResultPercentage: number;
   pagesPerSession: number;
   searchesPerSession: number;
+  emailCaptureShown: number;
+  emailCaptureSubmitted: number;
+  emailCaptureDismissed: number;
+  emailCaptureConversionPercentage: number;
 }
 
 export interface AdminAnalyticsTrafficPoint {

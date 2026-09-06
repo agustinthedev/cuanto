@@ -297,6 +297,10 @@ function AnalyticsDashboard({ analytics, loading, error, period, onPeriodChange 
             <div className="admin-analytics-stat"><strong>{number(summary.zeroResultSearches)} <small>({summary.zeroResultPercentage.toLocaleString("es-UY", { maximumFractionDigits: 1 })}%)</small></strong><span>Zero-result searches</span></div>
             <div className="admin-analytics-stat"><strong>{summary.pagesPerSession.toLocaleString("es-UY", { maximumFractionDigits: 2 })}</strong><span>Pages per session</span></div>
             <div className="admin-analytics-stat"><strong>{summary.searchesPerSession.toLocaleString("es-UY", { maximumFractionDigits: 2 })}</strong><span>Searches per session</span></div>
+            <div className="admin-analytics-stat"><strong>{number(summary.emailCaptureShown)}</strong><span>Modals shown</span></div>
+            <div className="admin-analytics-stat"><strong>{number(summary.emailCaptureSubmitted)}</strong><span>Email submits</span></div>
+            <div className="admin-analytics-stat"><strong>{summary.emailCaptureConversionPercentage.toLocaleString("es-UY", { maximumFractionDigits: 1 })}%</strong><span>Email conversion</span></div>
+            <div className="admin-analytics-stat"><strong>{number(summary.emailCaptureDismissed)}</strong><span>Modals closed</span></div>
           </div>
           <section className="admin-dashboard-card analytics-traffic-card">
             <div className="admin-dashboard-card-heading"><div><span className="section-kicker">Tendencia</span><h2>Traffic over time</h2></div><span className="section-note">{analyticsPeriodOptions.find((option) => option.value === period)?.label}</span></div>

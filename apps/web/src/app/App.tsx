@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
 import { AdminAuthProvider } from "../auth/AdminAuth";
 import { AdminGuard } from "../auth/AdminGuard";
@@ -10,7 +10,10 @@ import { HomePage } from "../pages/HomePage";
 import { ProductPage } from "../pages/ProductPage";
 import { ProductSearchPage } from "../pages/ProductSearchPage";
 import { ProductSuggestionsPage } from "../pages/ProductSuggestionsPage";
-import { getLocationPath, getPageType, getPageViewReferrer, getProductIdFromPath, trackPageView } from "../services/analytics";
+import { EmailCaptureModal } from "../components/EmailCaptureModal";
+import { isSupabaseConfigured } from "../lib/supabase";
+import { captureEmail } from "../services/emailCapture";
+import { getLocationPath, getPageType, getPageViewReferrer, getProductIdFromPath, registerUniqueProductPageView, trackEmailCaptureEvent, trackPageView } from "../services/analytics";
 
 function AnalyticsRouteTracker() {
   const location = useLocation();
@@ -51,6 +54,80 @@ function AnalyticsRouteTracker() {
   return null;
 }
 
+interface EmailCapturePromptState {
+  productId: string;
+  path: string;
+}
+
+function EmailCapturePrompt() {
+  const location = useLocation();
+  const [prompt, setPrompt] = useState<EmailCapturePromptState | null>(null);
+  const lastEffectLocationRef = useRef<ReturnType<typeof useLocation> | null>(null);
+  const promptRef = useRef<EmailCapturePromptState | null>(null);
+  const submittedRef = useRef(false);
+
+  const closePrompt = useCallback(() => {
+    const currentPrompt = promptRef.current;
+    if (currentPrompt && !submittedRef.current) {
+      void trackEmailCaptureEvent({
+        eventType: "email_capture_dismissed",
+        productId: currentPrompt.productId,
+        path: currentPrompt.path,
+      });
+    }
+    submittedRef.current = false;
+    promptRef.current = null;
+    setPrompt(null);
+  }, []);
+
+  const submitEmail = useCallback(async (email: string) => {
+    const currentPrompt = promptRef.current;
+    if (!currentPrompt) return;
+    await captureEmail(email, currentPrompt.productId);
+    submittedRef.current = true;
+    await trackEmailCaptureEvent({
+      eventType: "email_capture_submitted",
+      productId: currentPrompt.productId,
+      path: currentPrompt.path,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (lastEffectLocationRef.current === location) return;
+    lastEffectLocationRef.current = location;
+
+    if (!isSupabaseConfigured || location.pathname.startsWith("/admin")) {
+      promptRef.current = null;
+      submittedRef.current = false;
+      setPrompt(null);
+      return;
+    }
+
+    const productId = getProductIdFromPath(location.pathname);
+    if (!productId) return;
+
+    const registration = registerUniqueProductPageView(productId);
+    if (!registration.shouldPrompt) return;
+
+    const nextPrompt: EmailCapturePromptState = {
+      productId,
+      path: getLocationPath(location),
+    };
+    promptRef.current = nextPrompt;
+    submittedRef.current = false;
+    setPrompt(nextPrompt);
+    void trackEmailCaptureEvent({
+      eventType: "email_capture_shown",
+      productId,
+      uniqueProductCount: registration.uniqueProductCount,
+      path: nextPrompt.path,
+    });
+  }, [location]);
+
+  if (!prompt) return null;
+  return <EmailCaptureModal onClose={closePrompt} onSubmit={submitEmail} />;
+}
+
 function ScrollToTop() {
   const { pathname, search, hash, state } = useLocation();
   const restoreScrollY = typeof (state as { restoreScrollY?: unknown } | null)?.restoreScrollY === "number"
@@ -82,6 +159,7 @@ export function App() {
     <BrowserRouter>
       <ScrollToTop />
       <AnalyticsRouteTracker />
+      <EmailCapturePrompt />
       <AdminAuthProvider>
         <Layout>
           <Routes>
