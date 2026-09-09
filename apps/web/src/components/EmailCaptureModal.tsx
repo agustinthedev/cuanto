@@ -57,14 +57,14 @@ export function EmailCaptureModal({ onClose, onSubmit }: EmailCaptureModalProps)
           </div>
         ) : (
           <>
-            <span className="section-kicker">Una invitación para vos</span>
+            <span className="section-kicker">Lo próximo en Cuánto</span>
             <h2 id="email-capture-title">¿Te está sirviendo Cuánto?</h2>
-            <p className="email-capture-copy">Si te ayuda a comparar precios, dejanos tu email y te avisamos cuando estén disponibles las alertas de tus productos favoritos, además de compartirte novedades útiles para comprar mejor.</p>
+            <p className="email-capture-copy">Ya podés comparar precios e historial. Ahora estamos armando alertas de cambios de precio, una forma de seguir tus productos favoritos y otras herramientas para encontrar mejores oportunidades. Dejanos tu email y enterate cuando puedas usarlas.</p>
             {error && <div className="inline-alert" role="alert">{error}</div>}
             <form className="email-capture-form" onSubmit={handleSubmit}>
               <label htmlFor="email-capture-input">Tu email</label>
               <input id="email-capture-input" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="vos@ejemplo.com" autoComplete="email" autoFocus required maxLength={320} disabled={submitting} />
-              <button className="button button-primary" type="submit" disabled={submitting}>{submitting ? "Guardando..." : "Quiero enterarme"} <span aria-hidden="true">→</span></button>
+              <button className="button button-primary" type="submit" disabled={submitting}>{submitting ? "Guardando..." : "Avisame cuando pueda usarlas"} <span aria-hidden="true">→</span></button>
             </form>
             <button className="email-capture-later" type="button" onClick={onClose} disabled={submitting}>Ahora no, gracias</button>
           </>
