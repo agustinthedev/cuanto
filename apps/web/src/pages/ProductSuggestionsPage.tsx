@@ -81,7 +81,7 @@ export function StoreLinkFields({ links, stores, onChange, disabled = false, sho
   );
 }
 
-function CreateProductModal({ categories, stores, tags, onCreateTag, onClose, onCreated }: { categories: Category[]; stores: Store[]; tags: Tag[]; onCreateTag: (name: string) => Promise<Tag>; onClose: () => void; onCreated: () => Promise<void> }) {
+export function CreateProductModal({ categories, stores, tags, onCreateTag, onClose, onCreated }: { categories: Category[]; stores: Store[]; tags: Tag[]; onCreateTag: (name: string) => Promise<Tag>; onClose: () => void; onCreated: () => Promise<void> }) {
   const [title, setTitle] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [quantity, setQuantity] = useState("1");
@@ -301,7 +301,6 @@ export function ProductSuggestionsPage() {
   const [filter, setFilter] = useState<StatusFilter>("pending");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showCreateModal, setShowCreateModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   async function loadData() {
@@ -337,8 +336,7 @@ export function ProductSuggestionsPage() {
   return (
     <div className="container admin-page">
       <div className="admin-page-header">
-        <div><span className="section-kicker">Admin / catálogo</span><h1>Productos sugeridos</h1><p>Revisá, corregí y aprobá los productos que van a entrar al seguimiento diario.</p></div>
-        <button className="button button-primary admin-page-header-action" type="button" onClick={() => { setSuccessMessage(null); setShowCreateModal(true); }}>Crear producto <span>＋</span></button>
+        <div><span className="section-kicker">Admin / Sugerencias</span><h1>Productos sugeridos</h1><p>Revisá, corregí y aprobá los productos que van a entrar al seguimiento diario.</p></div>
       </div>
 
       <div className="admin-stats" aria-label="Resumen de propuestas"><div><strong>{pendingCount}</strong><span>Pendientes</span></div><div><strong>{suggestions.filter((suggestion) => suggestion.status === "approved").length}</strong><span>Aprobados</span></div><div><strong>{suggestions.length}</strong><span>Total cargadas</span></div></div>
@@ -351,7 +349,6 @@ export function ProductSuggestionsPage() {
         {loading ? <div className="admin-loading"><div className="loading-orb" /><p>Cargando propuestas...</p></div> : filteredSuggestions.length ? <div className="suggestion-list">{filteredSuggestions.map((suggestion) => <SuggestionCard key={suggestion.id} suggestion={suggestion} categories={categories} stores={stores} tags={tags} onCreateTag={handleCreateTag} onChanged={loadData} onApprovalNotice={(message, tone) => { if (tone === "error") { setSuccessMessage(null); setError(message); } else { setError(null); setSuccessMessage(message); } }} />)}</div> : <div className="state-message"><div className="state-icon">✓</div><div><h3>{filter === "pending" ? "No hay propuestas pendientes" : "Todavía no hay propuestas en esta vista"}</h3><p>Las nuevas cargas van a aparecer acá para que puedas revisarlas.</p></div></div>}
       </section>
 
-      {showCreateModal && <CreateProductModal categories={categories} stores={stores} tags={tags} onCreateTag={handleCreateTag} onClose={() => setShowCreateModal(false)} onCreated={async () => { await loadData(); setSuccessMessage("Producto guardado en el catálogo."); }} />}
     </div>
   );
 }
