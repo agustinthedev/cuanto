@@ -66,6 +66,7 @@ let cachedSessionLastActivity: number | null = null;
 let currentPageViewReferrer: PageViewReferrer | null = null;
 const inMemorySessionProductIds = new Map<string, Set<string>>();
 const inMemoryShownEmailCaptureSessions = new Set<string>();
+let storagesWithFailedWrites = new WeakSet<AnalyticsStorage>();
 
 function browserStorage(): AnalyticsStorage | null {
   try {
@@ -153,6 +154,7 @@ export function resetAnalyticsStateForTests() {
   currentPageViewReferrer = null;
   inMemorySessionProductIds.clear();
   inMemoryShownEmailCaptureSessions.clear();
+  storagesWithFailedWrites = new WeakSet<AnalyticsStorage>();
 }
 
 function sessionProductIdsStorageKey(sessionId: string): string {
@@ -188,11 +190,12 @@ export function registerUniqueProductPageView(productId: string, options: {
   threshold?: number;
 } = {}): ProductVisitRegistration {
   const storage = options.storage === undefined ? browserStorage() : options.storage;
-  let activeStorage = storage;
+  let activeStorage = storage && !storagesWithFailedWrites.has(storage) ? storage : null;
   let identity: AnalyticsIdentity;
   try {
     identity = getOrCreateAnalyticsIdentity({ storage: activeStorage, now: options.now, uuid: options.uuid });
   } catch {
+    if (activeStorage) storagesWithFailedWrites.add(activeStorage);
     activeStorage = null;
     identity = getOrCreateAnalyticsIdentity({ storage: null, now: options.now, uuid: options.uuid });
   }
@@ -218,20 +221,23 @@ export function registerUniqueProductPageView(productId: string, options: {
     try {
       activeStorage.setItem(storageKey, JSON.stringify([...productIds]));
     } catch {
-      // Prompt tracking should never block navigation when browser storage is unavailable.
+      // Keep counting in memory when storage remains readable but rejects writes.
+      storagesWithFailedWrites.add(activeStorage);
+      activeStorage = null;
     }
   }
   inMemorySessionProductIds.set(identity.sessionId, productIds);
 
   const shown = inMemoryShownEmailCaptureSessions.has(identity.sessionId)
-    || safeStorageValue(activeStorage, emailCaptureShownStorageKey(identity.sessionId)) === "1";
+    || safeStorageValue(storage, emailCaptureShownStorageKey(identity.sessionId)) === "1";
   const shouldPrompt = isNewProduct && productIds.size >= threshold && !shown;
   if (shouldPrompt) {
     if (activeStorage) {
       try {
         activeStorage.setItem(emailCaptureShownStorageKey(identity.sessionId), "1");
       } catch {
-        // The in-memory guard below still prevents duplicate prompts in this tab.
+        storagesWithFailedWrites.add(activeStorage);
+        activeStorage = null;
       }
     }
     inMemoryShownEmailCaptureSessions.add(identity.sessionId);
