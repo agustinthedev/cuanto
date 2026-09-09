@@ -8,11 +8,15 @@ import type { ProductPageData } from "../services/types";
 
 const emptyData: ProductPageData = { product: null, latestPrices: [], averagePrices: [], storePrices: [] };
 
+interface ProductPageProps {
+  onReady?: (productId: string) => void;
+}
+
 function money(value: number) {
   return new Intl.NumberFormat("es-UY", { style: "currency", currency: "UYU", maximumFractionDigits: 2 }).format(value);
 }
 
-export function ProductPage() {
+export function ProductPage({ onReady }: ProductPageProps) {
   const { id } = useParams<{ id: string }>();
   const location = useLocation();
   const [data, setData] = useState<ProductPageData>(emptyData);
@@ -21,12 +25,25 @@ export function ProductPage() {
 
   useEffect(() => {
     if (!id) return;
+    let cancelled = false;
     setLoading(true);
+    setError(false);
     getProductPageData(id)
-      .then(setData)
-      .catch(() => setError(true))
-      .finally(() => setLoading(false));
-  }, [id]);
+      .then((nextData) => {
+        if (cancelled) return;
+        setData(nextData);
+        if (nextData.product) onReady?.(id);
+      })
+      .catch(() => {
+        if (!cancelled) setError(true);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id, onReady]);
 
   if (loading) return <div className="container page-loading"><div className="loading-orb" /><p>Cargando el historial...</p></div>;
   if (error) return <div className="container page-state"><StateMessage title="No pudimos cargar este producto" text="Revisá la conexión o volvé a intentarlo en unos segundos." /></div>;

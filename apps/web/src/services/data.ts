@@ -606,6 +606,10 @@ export const emptyAdminAnalytics: AdminAnalytics = {
     zeroResultPercentage: 0,
     pagesPerSession: 0,
     searchesPerSession: 0,
+    emailCaptureShown: 0,
+    emailCaptureSubmitted: 0,
+    emailCaptureDismissed: 0,
+    emailCaptureConversionPercentage: 0,
   },
   traffic: [],
   mostViewedProducts: [],
@@ -636,6 +640,10 @@ export function normalizeAdminAnalytics(value: unknown, period: AnalyticsPeriod)
     zeroResultPercentage: analyticsNumber(rawSummary.zero_result_percentage),
     pagesPerSession: analyticsNumber(rawSummary.pages_per_session),
     searchesPerSession: analyticsNumber(rawSummary.searches_per_session),
+    emailCaptureShown: analyticsNumber(rawSummary.email_capture_shown),
+    emailCaptureSubmitted: analyticsNumber(rawSummary.email_capture_submitted),
+    emailCaptureDismissed: analyticsNumber(rawSummary.email_capture_dismissed),
+    emailCaptureConversionPercentage: analyticsNumber(rawSummary.email_capture_conversion_percentage),
   };
 
   const traffic: AdminAnalyticsTrafficPoint[] = rawRows("traffic").map((row) => {
@@ -709,9 +717,26 @@ export function normalizeAdminAnalytics(value: unknown, period: AnalyticsPeriod)
 
 export async function getAdminAnalytics(period: AnalyticsPeriod): Promise<AdminAnalytics> {
   if (isDemoMode || !supabase) return { ...emptyAdminAnalytics, period };
-  const { data, error } = await supabase.rpc("get_admin_analytics", { p_period: period });
-  if (error) throw error;
-  return normalizeAdminAnalytics(data, period);
+  const [analyticsResult, emailCaptureResult] = await Promise.all([
+    supabase.rpc("get_admin_analytics", { p_period: period }),
+    supabase.rpc("get_admin_email_capture_metrics", { p_period: period }),
+  ]);
+  if (analyticsResult.error) throw analyticsResult.error;
+  if (emailCaptureResult.error) throw emailCaptureResult.error;
+  const analytics = normalizeAdminAnalytics(analyticsResult.data, period);
+  const emailCapture = emailCaptureResult.data && typeof emailCaptureResult.data === "object"
+    ? emailCaptureResult.data as Record<string, unknown>
+    : {};
+  return {
+    ...analytics,
+    summary: {
+      ...analytics.summary,
+      emailCaptureShown: analyticsNumber(emailCapture.shown),
+      emailCaptureSubmitted: analyticsNumber(emailCapture.submitted),
+      emailCaptureDismissed: analyticsNumber(emailCapture.dismissed),
+      emailCaptureConversionPercentage: analyticsNumber(emailCapture.conversion_percentage),
+    },
+  };
 }
 
 export async function getProductPageData(id: string): Promise<ProductPageData> {

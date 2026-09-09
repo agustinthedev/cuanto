@@ -9,7 +9,7 @@ vi.mock("../lib/supabase", () => ({
   supabase: { from: mockFrom, rpc: mockRpc },
 }));
 
-import { attachLatestPrices, getAdminStores, getHomepageProducts, getHomepageStats } from "./data";
+import { attachLatestPrices, getAdminStores, getHomepageProducts, getHomepageStats, normalizeAdminAnalytics } from "./data";
 import type { Product } from "./types";
 
 beforeEach(() => {
@@ -135,5 +135,25 @@ describe("getAdminStores", () => {
     expect(mockFrom).toHaveBeenCalledWith("stores");
     expect(query.select).toHaveBeenCalledWith("id,name,slug,active");
     expect(query.eq).toHaveBeenCalledWith("active", true);
+  });
+});
+
+describe("normalizeAdminAnalytics", () => {
+  it("normalizes email capture metrics for the admin dashboard", () => {
+    const analytics = normalizeAdminAnalytics({
+      summary: {
+        email_capture_shown: 10,
+        email_capture_submitted: 3,
+        email_capture_dismissed: 6,
+        email_capture_conversion_percentage: 30,
+      },
+    }, "30d");
+
+    expect(analytics.summary).toMatchObject({
+      emailCaptureShown: 10,
+      emailCaptureSubmitted: 3,
+      emailCaptureDismissed: 6,
+      emailCaptureConversionPercentage: 30,
+    });
   });
 });

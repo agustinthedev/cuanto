@@ -3,12 +3,20 @@ import { supabase } from "../lib/supabase";
 export const ANON_ID_STORAGE_KEY = "cuanto_anon_id";
 export const SESSION_ID_STORAGE_KEY = "cuanto_session_id";
 export const SESSION_LAST_ACTIVITY_STORAGE_KEY = "cuanto_session_last_activity";
+export const SESSION_PRODUCT_IDS_STORAGE_PREFIX = "cuanto_session_product_ids:";
+export const EMAIL_CAPTURE_MODAL_SHOWN_STORAGE_PREFIX = "cuanto_email_capture_modal_shown:";
 // A refresh keeps the same session; only more than 30 minutes without a
 // tracked event starts a new one. The timestamp lives beside the session ID
 // so this remains stable across SPA navigation and browser restarts.
 export const SESSION_INACTIVITY_MS = 30 * 60 * 1000;
+export const EMAIL_CAPTURE_PRODUCT_THRESHOLD = 3;
 
-export type AnalyticsEventType = "page_view" | "search";
+export type AnalyticsEventType =
+  | "page_view"
+  | "search"
+  | "email_capture_shown"
+  | "email_capture_submitted"
+  | "email_capture_dismissed";
 export type AnalyticsPageType = "home" | "search" | "product" | "other";
 export type AnalyticsReferrerType = "direct" | "external" | "internal";
 
@@ -43,9 +51,22 @@ export interface TrackSearchInput {
   path?: string;
 }
 
+export interface ProductVisitRegistration {
+  identity: AnalyticsIdentity;
+  productId: string;
+  uniqueProductCount: number;
+  isNewProduct: boolean;
+  shouldPrompt: boolean;
+}
+
+export type EmailCaptureEventType = Extract<AnalyticsEventType, `email_capture_${string}`>;
+
 let cachedIdentity: AnalyticsIdentity | null = null;
 let cachedSessionLastActivity: number | null = null;
 let currentPageViewReferrer: PageViewReferrer | null = null;
+const inMemorySessionProductIds = new Map<string, Set<string>>();
+const inMemoryShownEmailCaptureSessions = new Set<string>();
+let storagesWithFailedWrites = new WeakSet<AnalyticsStorage>();
 
 function browserStorage(): AnalyticsStorage | null {
   try {
@@ -131,6 +152,104 @@ export function resetAnalyticsStateForTests() {
   cachedIdentity = null;
   cachedSessionLastActivity = null;
   currentPageViewReferrer = null;
+  inMemorySessionProductIds.clear();
+  inMemoryShownEmailCaptureSessions.clear();
+  storagesWithFailedWrites = new WeakSet<AnalyticsStorage>();
+}
+
+function sessionProductIdsStorageKey(sessionId: string): string {
+  return `${SESSION_PRODUCT_IDS_STORAGE_PREFIX}${sessionId}`;
+}
+
+function emailCaptureShownStorageKey(sessionId: string): string {
+  return `${EMAIL_CAPTURE_MODAL_SHOWN_STORAGE_PREFIX}${sessionId}`;
+}
+
+function readStoredProductIds(storage: AnalyticsStorage, key: string): Set<string> {
+  try {
+    const value = JSON.parse(storage.getItem(key) ?? "[]") as unknown;
+    if (!Array.isArray(value)) return new Set();
+    return new Set(value.filter((productId): productId is string => typeof productId === "string" && isUuid(productId)));
+  } catch {
+    return new Set();
+  }
+}
+
+function safeStorageValue(storage: AnalyticsStorage | null, key: string): string | null {
+  try {
+    return storage?.getItem(key) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export function registerUniqueProductPageView(productId: string, options: {
+  storage?: AnalyticsStorage | null;
+  now?: number;
+  uuid?: () => string;
+  threshold?: number;
+} = {}): ProductVisitRegistration {
+  const storage = options.storage === undefined ? browserStorage() : options.storage;
+  let activeStorage = storage && !storagesWithFailedWrites.has(storage) ? storage : null;
+  let identity: AnalyticsIdentity;
+  try {
+    identity = getOrCreateAnalyticsIdentity({ storage: activeStorage, now: options.now, uuid: options.uuid });
+  } catch {
+    if (activeStorage) storagesWithFailedWrites.add(activeStorage);
+    activeStorage = null;
+    identity = getOrCreateAnalyticsIdentity({ storage: null, now: options.now, uuid: options.uuid });
+  }
+  const threshold = Math.max(1, Math.floor(options.threshold ?? EMAIL_CAPTURE_PRODUCT_THRESHOLD));
+  const emptyResult = {
+    identity,
+    productId,
+    uniqueProductCount: 0,
+    isNewProduct: false,
+    shouldPrompt: false,
+  };
+
+  if (!isUuid(productId)) return emptyResult;
+
+  const storageKey = sessionProductIdsStorageKey(identity.sessionId);
+  const productIds = activeStorage
+    ? readStoredProductIds(activeStorage, storageKey)
+    : (inMemorySessionProductIds.get(identity.sessionId) ?? new Set<string>());
+  const isNewProduct = !productIds.has(productId);
+  if (isNewProduct) productIds.add(productId);
+
+  if (activeStorage) {
+    try {
+      activeStorage.setItem(storageKey, JSON.stringify([...productIds]));
+    } catch {
+      // Keep counting in memory when storage remains readable but rejects writes.
+      storagesWithFailedWrites.add(activeStorage);
+      activeStorage = null;
+    }
+  }
+  inMemorySessionProductIds.set(identity.sessionId, productIds);
+
+  const shown = inMemoryShownEmailCaptureSessions.has(identity.sessionId)
+    || safeStorageValue(storage, emailCaptureShownStorageKey(identity.sessionId)) === "1";
+  const shouldPrompt = isNewProduct && productIds.size >= threshold && !shown;
+  if (shouldPrompt) {
+    if (activeStorage) {
+      try {
+        activeStorage.setItem(emailCaptureShownStorageKey(identity.sessionId), "1");
+      } catch {
+        storagesWithFailedWrites.add(activeStorage);
+        activeStorage = null;
+      }
+    }
+    inMemoryShownEmailCaptureSessions.add(identity.sessionId);
+  }
+
+  return {
+    identity,
+    productId,
+    uniqueProductCount: productIds.size,
+    isNewProduct,
+    shouldPrompt,
+  };
 }
 
 export function normalizeSearchQuery(query: string): string {
@@ -219,6 +338,17 @@ export function buildSearchMetadata(input: Pick<TrackSearchInput, "query" | "res
   };
 }
 
+export function buildEmailCaptureMetadata(input: { productId: string; uniqueProductCount?: number }): Record<string, unknown> {
+  const metadata: Record<string, unknown> = {
+    prompt: "third_product_page",
+    product_id: input.productId,
+  };
+  if (input.uniqueProductCount !== undefined) {
+    metadata.unique_product_count = Math.max(0, Math.floor(input.uniqueProductCount));
+  }
+  return metadata;
+}
+
 export async function trackEvent(input: {
   eventType: AnalyticsEventType;
   path?: string;
@@ -267,5 +397,19 @@ export async function trackSearch(input: TrackSearchInput): Promise<void> {
     path: input.path,
     referrer: currentPageViewReferrer ?? undefined,
     metadata: buildSearchMetadata(input),
+  });
+}
+
+export async function trackEmailCaptureEvent(input: {
+  eventType: EmailCaptureEventType;
+  productId: string;
+  uniqueProductCount?: number;
+  path?: string;
+}): Promise<void> {
+  await trackEvent({
+    eventType: input.eventType,
+    path: input.path,
+    referrer: currentPageViewReferrer ?? undefined,
+    metadata: buildEmailCaptureMetadata(input),
   });
 }
