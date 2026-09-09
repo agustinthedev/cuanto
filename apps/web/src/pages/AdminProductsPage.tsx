@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { NormalizedProductImage } from "../components/NormalizedProductImage";
 import { ProductTagSelector } from "../components/ProductTagSelector";
 import { StoreLogo } from "../components/StoreLogo";
-import { MeasurementFields, StoreLinkFields, type LinkDraft } from "./ProductSuggestionsPage";
+import { CreateProductModal, MeasurementFields, StoreLinkFields, type LinkDraft } from "./ProductSuggestionsPage";
 import { isHttpUrl, productLinksError, serializeProductLinks } from "./adminProductLinks";
 import { createTag, getAdminStores, getAdminProducts, getCategories, getTags, updateProduct } from "../services/data";
 import { parseProductQuantity, productMeasurementError, type ProductUnit } from "../services/productMeasurement";
@@ -212,6 +212,8 @@ export function AdminProductsPage() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   async function loadData() {
     setError(null);
@@ -245,6 +247,7 @@ export function AdminProductsPage() {
     <div className="container admin-page admin-products-page">
       <div className="admin-page-header">
         <div><span className="section-kicker">Admin / Productos</span><h1>Productos</h1><p>Consultá y actualizá la información de los productos que forman parte del catálogo.</p></div>
+        <button className="button button-primary admin-page-header-action" type="button" onClick={() => { setSuccessMessage(null); setShowCreateModal(true); }}>Crear producto <span>＋</span></button>
       </div>
 
       <div className="admin-products-search">
@@ -258,10 +261,13 @@ export function AdminProductsPage() {
       </div>
 
       {error && <div className="inline-alert" role="alert">{error}</div>}
+      {successMessage && <div className="inline-alert inline-alert-success" role="status">{successMessage}</div>}
       <section className="admin-products-section" aria-labelledby="admin-products-list-title">
         <div className="admin-card-heading"><div><span className="section-kicker">Catálogo actual</span><h2 id="admin-products-list-title">Productos cargados</h2></div><span className="section-note">Seleccioná uno para ver el detalle</span></div>
         {loading ? <div className="admin-loading"><div className="loading-orb" /><p>Cargando productos...</p></div> : products.length ? <><div className="admin-product-list">{products.map((product) => <AdminProductAccordion key={product.id} product={product} categories={categories} stores={stores} tags={tags} onCreateTag={handleCreateTag} onChanged={loadData} hidden={!visibleProductIds.has(product.id)} />)}</div>{!filteredProducts.length && <div className="state-message admin-products-no-results"><div className="state-icon">⌕</div><div><h3>No encontramos productos</h3><p>Probá con otro nombre, marca, categoría o tag.</p></div></div>}</> : <div className="state-message"><div className="state-icon">◌</div><div><h3>Todavía no hay productos</h3><p>Los productos aprobados o creados desde el panel van a aparecer acá.</p></div></div>}
       </section>
+
+      {showCreateModal && <CreateProductModal categories={categories} stores={stores} tags={tags} onCreateTag={handleCreateTag} onClose={() => setShowCreateModal(false)} onCreated={async () => { await loadData(); setSuccessMessage("Producto guardado en el catálogo."); }} />}
     </div>
   );
 }
