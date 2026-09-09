@@ -46,7 +46,7 @@ export function EmailCaptureModal({ onClose, onSubmit }: EmailCaptureModalProps)
   return (
     <div className="modal-backdrop email-capture-backdrop" onMouseDown={handleBackdropClick}>
       <section className="email-capture-modal" role="dialog" aria-modal="true" aria-labelledby="email-capture-title">
-        <button className="modal-close email-capture-close" type="button" onClick={onClose} disabled={submitting} aria-label="Cerrar">×</button>
+        <button className="modal-close email-capture-close" type="button" onClick={onClose} disabled={submitting} aria-label="Cerrar"><span className="email-capture-close-icon" aria-hidden="true" /></button>
         {submitted ? (
           <div className="email-capture-success">
             <span className="email-capture-icon" aria-hidden="true">✓</span>
@@ -58,13 +58,12 @@ export function EmailCaptureModal({ onClose, onSubmit }: EmailCaptureModalProps)
         ) : (
           <>
             <span className="section-kicker">Una invitación para vos</span>
-            <h2 id="email-capture-title">Seguí de cerca lo que te importa</h2>
-            <p className="email-capture-copy">Estamos preparando alertas por producto para que no tengas que volver a buscar manualmente. Dejanos tu email y te avisamos cuando estén disponibles, además de compartirte novedades útiles de Cuánto.uy.</p>
+            <h2 id="email-capture-title">¿Te está sirviendo Cuánto?</h2>
+            <p className="email-capture-copy">Si te ayuda a comparar precios, dejanos tu email y te avisamos cuando estén disponibles las alertas de tus productos favoritos, además de compartirte novedades útiles para comprar mejor.</p>
             {error && <div className="inline-alert" role="alert">{error}</div>}
             <form className="email-capture-form" onSubmit={handleSubmit}>
               <label htmlFor="email-capture-input">Tu email</label>
               <input id="email-capture-input" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="vos@ejemplo.com" autoComplete="email" autoFocus required maxLength={320} disabled={submitting} />
-              <p className="email-capture-privacy">No es obligatorio y podés cerrar esta ventana cuando quieras.</p>
               <button className="button button-primary" type="submit" disabled={submitting}>{submitting ? "Guardando..." : "Quiero enterarme"} <span aria-hidden="true">→</span></button>
             </form>
             <button className="email-capture-later" type="button" onClick={onClose} disabled={submitting}>Ahora no, gracias</button>

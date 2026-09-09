@@ -59,14 +59,29 @@ interface EmailCapturePromptState {
   path: string;
 }
 
-function EmailCapturePrompt() {
+interface EmailCapturePromptProps {
+  productPageReady: boolean;
+}
+
+const EMAIL_CAPTURE_PROMPT_DELAY_MS = 700;
+
+function EmailCapturePrompt({ productPageReady }: EmailCapturePromptProps) {
   const location = useLocation();
   const [prompt, setPrompt] = useState<EmailCapturePromptState | null>(null);
   const lastEffectLocationRef = useRef<ReturnType<typeof useLocation> | null>(null);
+  const lastRegisteredLocationRef = useRef<ReturnType<typeof useLocation> | null>(null);
   const promptRef = useRef<EmailCapturePromptState | null>(null);
+  const promptTimerRef = useRef<number | null>(null);
   const submittedRef = useRef(false);
 
+  const clearPromptTimer = useCallback(() => {
+    if (promptTimerRef.current === null) return;
+    window.clearTimeout(promptTimerRef.current);
+    promptTimerRef.current = null;
+  }, []);
+
   const closePrompt = useCallback(() => {
+    clearPromptTimer();
     const currentPrompt = promptRef.current;
     if (currentPrompt && !submittedRef.current) {
       void trackEmailCaptureEvent({
@@ -78,7 +93,7 @@ function EmailCapturePrompt() {
     submittedRef.current = false;
     promptRef.current = null;
     setPrompt(null);
-  }, []);
+  }, [clearPromptTimer]);
 
   const submitEmail = useCallback(async (email: string) => {
     const currentPrompt = promptRef.current;
@@ -95,6 +110,7 @@ function EmailCapturePrompt() {
   useEffect(() => {
     if (lastEffectLocationRef.current === location) return;
     lastEffectLocationRef.current = location;
+    clearPromptTimer();
 
     if (!isSupabaseConfigured || location.pathname.startsWith("/admin")) {
       promptRef.current = null;
@@ -104,7 +120,20 @@ function EmailCapturePrompt() {
     }
 
     const productId = getProductIdFromPath(location.pathname);
-    if (!productId) return;
+    if (!productId) {
+      promptRef.current = null;
+      submittedRef.current = false;
+      setPrompt(null);
+    }
+  }, [clearPromptTimer, location]);
+
+  useEffect(() => {
+    if (!productPageReady || lastRegisteredLocationRef.current === location) return;
+
+    const productId = getProductIdFromPath(location.pathname);
+    if (!productId || !isSupabaseConfigured || location.pathname.startsWith("/admin")) return;
+
+    lastRegisteredLocationRef.current = location;
 
     const registration = registerUniqueProductPageView(productId);
     if (!registration.shouldPrompt) return;
@@ -113,16 +142,20 @@ function EmailCapturePrompt() {
       productId,
       path: getLocationPath(location),
     };
-    promptRef.current = nextPrompt;
-    submittedRef.current = false;
-    setPrompt(nextPrompt);
-    void trackEmailCaptureEvent({
-      eventType: "email_capture_shown",
-      productId,
-      uniqueProductCount: registration.uniqueProductCount,
-      path: nextPrompt.path,
-    });
-  }, [location]);
+    promptTimerRef.current = window.setTimeout(() => {
+      if (lastRegisteredLocationRef.current !== location) return;
+      promptTimerRef.current = null;
+      promptRef.current = nextPrompt;
+      submittedRef.current = false;
+      setPrompt(nextPrompt);
+      void trackEmailCaptureEvent({
+        eventType: "email_capture_shown",
+        productId,
+        uniqueProductCount: registration.uniqueProductCount,
+        path: nextPrompt.path,
+      });
+    }, EMAIL_CAPTURE_PROMPT_DELAY_MS);
+  }, [location, productPageReady]);
 
   if (!prompt) return null;
   return <EmailCaptureModal onClose={closePrompt} onSubmit={submitEmail} />;
@@ -154,18 +187,25 @@ function ScrollToTop() {
   return null;
 }
 
-export function App() {
+function AppRoutes() {
+  const location = useLocation();
+  const [readyProductId, setReadyProductId] = useState<string | null>(null);
+  const handleProductReady = useCallback((productId: string) => {
+    setReadyProductId(productId);
+  }, []);
+  const currentProductId = getProductIdFromPath(location.pathname);
+
   return (
-    <BrowserRouter>
+    <>
       <ScrollToTop />
       <AnalyticsRouteTracker />
-      <EmailCapturePrompt />
+      <EmailCapturePrompt productPageReady={currentProductId !== undefined && readyProductId === currentProductId} />
       <AdminAuthProvider>
         <Layout>
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/productos" element={<ProductSearchPage />} />
-            <Route path="/productos/:id" element={<ProductPage />} />
+            <Route path="/productos/:id" element={<ProductPage onReady={handleProductReady} />} />
             <Route path="/admin/login" element={<AdminLoginPage />} />
             <Route path="/admin" element={<AdminGuard />}>
               <Route index element={<AdminHomePage />} />
@@ -176,6 +216,14 @@ export function App() {
           </Routes>
         </Layout>
       </AdminAuthProvider>
+    </>
+  );
+}
+
+export function App() {
+  return (
+    <BrowserRouter>
+      <AppRoutes />
     </BrowserRouter>
   );
 }
