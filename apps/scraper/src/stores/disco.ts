@@ -1,6 +1,6 @@
-import { extractJsonPrice, extractPriceFromText } from "../price";
-import type { ScrapeResult, StoreProductRecord, StoreScraper } from "../types";
-import { extractProductImageFromHtml, htmlToText, requireResponseText } from "./base";
+import { extractPriceCandidatesFromText, selectPriceCandidate } from "../price";
+import type { PriceEvidence, ScrapeResult, StoreProductRecord, StoreScraper } from "../types";
+import { extractProductImageFromHtml, htmlToText, requireResponseTextSnapshot, scraperErrorWithResponse } from "./base";
 
 function metaContent(html: string, property: string): string | undefined {
   const metaTags = html.match(/<meta\b[^>]*>/gi) ?? [];
@@ -12,14 +12,24 @@ function metaContent(html: string, property: string): string | undefined {
 }
 
 export function parseDiscoHtml(html: string): number {
+  return parseDiscoHtmlWithEvidence(html).price;
+}
+
+export function parseDiscoHtmlWithEvidence(html: string): PriceEvidence & { price: number } {
   const originalPriceBlock = html.match(
     /<(div|span)\b[^>]*class=["'][^"']*\bbefore\b[^"']*["'][^>]*>[\s\S]*?<\/\1>/i,
   )?.[0];
 
-  if (originalPriceBlock) return extractPriceFromText(htmlToText(originalPriceBlock));
+  if (originalPriceBlock) {
+    const prices = extractPriceCandidatesFromText(htmlToText(originalPriceBlock));
+    const candidates = prices.map((value, index) => ({ path: `html.class~before.currency[${index}]`, value }));
+    const selected = candidates.at(-1);
+    if (!selected) throw new Error("Disco no incluyó un precio original identificable");
+    return { price: selected.value, selectedPath: selected.path, candidates };
+  }
 
   const originalPrice = metaContent(html, "product:price:amount");
-  if (originalPrice) return extractJsonPrice(Number(originalPrice));
+  if (originalPrice) return selectPriceCandidate([{ path: 'meta[property="product:price:amount"]', value: Number(originalPrice) }]);
 
   throw new Error("Disco no incluyó un precio original identificable");
 }
@@ -27,9 +37,16 @@ export function parseDiscoHtml(html: string): number {
 export const discoScraper: StoreScraper = {
   slug: "disco",
   async scrape(record: StoreProductRecord): Promise<ScrapeResult> {
-    const html = await requireResponseText(record.url, {
+    const rawResponse = await requireResponseTextSnapshot(record.url, {
       headers: { "User-Agent": "Cuanto.uy price tracker/0.1 (+https://cuanto.uy)" },
     });
-    return { price: parseDiscoHtml(html), source: "html", imageUrl: extractProductImageFromHtml(html, record.url) };
+    let parsed: PriceEvidence & { price: number };
+    try {
+      parsed = parseDiscoHtmlWithEvidence(rawResponse.body);
+    } catch (error) {
+      throw scraperErrorWithResponse(error, rawResponse, "html");
+    }
+    const { price, ...evidence } = parsed;
+    return { price, source: "html", evidence, rawResponse, imageUrl: extractProductImageFromHtml(rawResponse.body, record.url) };
   },
 };

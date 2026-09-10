@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fetchWithRetry } from "./base";
+import { fetchWithRetry, readResponseSnapshot, scraperErrorWithResponse } from "./base";
 
 describe("fetchWithRetry", () => {
   afterEach(() => {
@@ -37,5 +37,30 @@ describe("fetchWithRetry", () => {
     await expect(request).resolves.toMatchObject({ status: 200 });
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(secondCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("adjunta la respuesta original a los errores de parseo", () => {
+    const rawResponse = {
+      url: "https://example.test/product",
+      status: 200,
+      contentType: "text/html",
+      body: "Producto no encontrado",
+    };
+
+    expect(scraperErrorWithResponse(new Error("No se encontró un precio"), rawResponse, "html")).toMatchObject({
+      name: "ScraperError",
+      message: "No se encontró un precio",
+      rawResponse,
+      source: "html",
+    });
+  });
+
+  it("conserva la URL efectiva de una respuesta redirigida", async () => {
+    const response = new Response("ok", { status: 200 });
+    Object.defineProperty(response, "url", { value: "https://example.test/canonical-product" });
+
+    await expect(readResponseSnapshot(response, "https://example.test/product")).resolves.toMatchObject({
+      url: "https://example.test/canonical-product",
+    });
   });
 });

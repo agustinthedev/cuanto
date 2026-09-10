@@ -19,9 +19,54 @@ export interface ScrapeQueueMessage {
   tienda_inglesa_previously_failed_origins?: string[];
 }
 
+export interface PriceCandidate {
+  path: string;
+  value: number;
+}
+
+export interface PriceEvidence {
+  selectedPath: string;
+  candidates: PriceCandidate[];
+}
+
+export type ScrapeSource = "html" | "json";
+
+export interface ScrapeRawResponse {
+  url: string;
+  status: number;
+  contentType: string | null;
+  body: string;
+}
+
+export type ScrapeAttemptStatus = "success" | "failed";
+
+export interface ScrapeAttemptUpsert {
+  run_id: string;
+  product_id: string;
+  store_product_id: string;
+  store_id: string;
+  date: string;
+  attempted_at: string;
+  status: ScrapeAttemptStatus;
+  source_type: ScrapeSource | null;
+  source_url: string;
+  response_url: string | null;
+  http_status: number | null;
+  content_type: string | null;
+  response_size_bytes: number | null;
+  response_sha256: string | null;
+  raw_object_key: string | null;
+  price: number | null;
+  selected_path: string | null;
+  candidates: PriceCandidate[];
+  error: string | null;
+}
+
 export interface ScrapeResult {
   price: number;
-  source: "html" | "json";
+  source: ScrapeSource;
+  evidence: PriceEvidence;
+  rawResponse: ScrapeRawResponse;
   imageUrl?: string;
 }
 

@@ -45,10 +45,23 @@ describe("adapter de El Dorado", () => {
     const first = await elDoradoScraper.scrape(record("one", "https://www.eldorado.com.uy/queso-el-dorado-muzzarella-kg/p"), {} as Env, context);
     const second = await elDoradoScraper.scrape(record("two", "https://www.eldorado.com.uy/papa-rosada-kg/p"), {} as Env, context);
 
-    expect(first).toEqual({
+    expect(first).toMatchObject({
       price: 499,
       source: "json",
+      evidence: {
+        selectedPath: "products[0].items[0].sellers[0].commertialOffer.ListPrice",
+        candidates: [
+          { path: "products[0].items[0].sellers[0].commertialOffer.ListPrice", value: 499 },
+          { path: "products[0].items[0].sellers[0].commertialOffer.Price", value: 429 },
+        ],
+      },
       imageUrl: "https://eldoradouy.vtexassets.com/arquivos/muzzarella.jpg",
+    });
+    expect(first.rawResponse).toMatchObject({
+      url: expect.stringContaining("/api/catalog_system/pub/products/search/queso-el-dorado-muzzarella-kg/p"),
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(productPayload),
     });
     expect(second.price).toBe(499);
 

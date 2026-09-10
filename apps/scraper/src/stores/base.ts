@@ -1,8 +1,19 @@
+import type { ScrapeRawResponse, ScrapeSource } from "../types";
+
 export class ScraperError extends Error {
-  constructor(message: string) {
+  readonly rawResponse?: ScrapeRawResponse;
+  readonly source?: ScrapeSource;
+
+  constructor(message: string, rawResponse?: ScrapeRawResponse, source?: ScrapeSource) {
     super(message);
     this.name = "ScraperError";
+    this.rawResponse = rawResponse;
+    this.source = source;
   }
+}
+
+export function scraperErrorWithResponse(error: unknown, rawResponse: ScrapeRawResponse, source?: ScrapeSource): ScraperError {
+  return new ScraperError(error instanceof Error ? error.message : String(error), rawResponse, source);
 }
 
 const RETRY_DELAYS_MS = [2_000, 5_000] as const;
@@ -72,6 +83,26 @@ export async function requireResponseText(url: string, init?: RequestInit): Prom
   const response = await fetchWithRetry(url, init);
   if (!response.ok) throw new ScraperError(`No se pudo leer ${url}: HTTP ${response.status}`);
   return response.text();
+}
+
+export async function readResponseSnapshot(response: Response, url: string): Promise<ScrapeRawResponse> {
+  return {
+    url: response.url || url,
+    status: response.status,
+    contentType: response.headers.get("content-type"),
+    body: await response.text(),
+  };
+}
+
+export async function requireResponseTextSnapshot(
+  url: string,
+  init?: RequestInit,
+  shouldRetryResponse?: (response: Response) => boolean,
+): Promise<ScrapeRawResponse> {
+  const response = await fetchWithRetry(url, init, undefined, shouldRetryResponse);
+  const snapshot = await readResponseSnapshot(response, url);
+  if (!response.ok) throw new ScraperError(`No se pudo leer ${url}: HTTP ${response.status}`, snapshot);
+  return snapshot;
 }
 
 export async function requireResponseJson(url: string, init?: RequestInit): Promise<unknown> {

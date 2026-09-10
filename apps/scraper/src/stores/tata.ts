@@ -1,6 +1,6 @@
-import { extractJsonPrice } from "../price";
-import type { ScrapeResult, StoreProductRecord, StoreScraper } from "../types";
-import { extractProductImageFromHtml, fetchWithRetry, requireResponseJson, ScraperError } from "./base";
+import { selectPriceCandidate } from "../price";
+import type { PriceEvidence, ScrapeResult, StoreProductRecord, StoreScraper } from "../types";
+import { extractProductImageFromHtml, fetchWithRetry, requireResponseJson, requireResponseTextSnapshot, scraperErrorWithResponse, ScraperError } from "./base";
 
 const TATA_HTML_HEADERS = {
   Accept: "text/html,application/xhtml+xml",
@@ -56,9 +56,18 @@ function extractTataDataValue(html: string, testId: string): string | undefined 
 }
 
 export function parseTataHtml(html: string): number {
-  const listPrices: unknown[] = [extractTataDataValue(html, "list-price")];
-  const regularPrices: unknown[] = [extractTataDataValue(html, "price")];
+  return parseTataHtmlWithEvidence(html).price;
+}
+
+export function parseTataHtmlWithEvidence(html: string): PriceEvidence & { price: number } {
+  const listPrices: Array<{ path: string; value: unknown }> = [];
+  const regularPrices: Array<{ path: string; value: unknown }> = [];
+  const htmlListPrice = extractTataDataValue(html, "list-price");
+  const htmlRegularPrice = extractTataDataValue(html, "price");
+  if (htmlListPrice !== undefined) listPrices.push({ path: 'html[data-testid="list-price"]', value: htmlListPrice });
+  if (htmlRegularPrice !== undefined) regularPrices.push({ path: 'html[data-testid="price"]', value: htmlRegularPrice });
   const scripts = html.matchAll(/<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi);
+  let scriptIndex = 0;
 
   for (const match of scripts) {
     try {
@@ -68,19 +77,24 @@ export function parseTataHtml(html: string): number {
         ? (offers as Record<string, unknown>).offers as unknown[]
         : offers && typeof offers === "object" ? [offers] : [];
 
-      for (const offer of offerList) {
+      for (const [offerIndex, offer] of offerList.entries()) {
         if (!offer || typeof offer !== "object") continue;
         const offerRecord = offer as Record<string, unknown>;
-        listPrices.push(offerRecord.listPrice);
-        regularPrices.push(offerRecord.price);
+        if (offerRecord.listPrice !== undefined) {
+          listPrices.push({ path: `json-ld[${scriptIndex}].offers.offers[${offerIndex}].listPrice`, value: offerRecord.listPrice });
+        }
+        if (offerRecord.price !== undefined) {
+          regularPrices.push({ path: `json-ld[${scriptIndex}].offers.offers[${offerIndex}].price`, value: offerRecord.price });
+        }
       }
     } catch {
       // Ignore unrelated or malformed JSON-LD blocks and keep looking.
     }
+    scriptIndex += 1;
   }
 
-  if (listPrices.some((value) => value !== undefined && value !== null && value !== "")) return extractJsonPrice(...listPrices);
-  return extractJsonPrice(...regularPrices);
+  if (listPrices.length > 0) return selectPriceCandidate(listPrices);
+  return selectPriceCandidate(regularPrices);
 }
 
 async function fetchTataMontevideoSession(rawUrl: string): Promise<void> {
@@ -101,15 +115,13 @@ async function fetchTataMontevideoSession(rawUrl: string): Promise<void> {
   }
 }
 
-async function fetchTataHtml(rawUrl: string): Promise<string> {
-  const response = await fetchWithRetry(
-    tataLocalityUrl(rawUrl),
+async function fetchTataHtml(rawUrl: string) {
+  const url = tataLocalityUrl(rawUrl);
+  return requireResponseTextSnapshot(
+    url,
     { headers: TATA_HTML_HEADERS },
-    undefined,
     (candidate) => candidate.status === 429 || candidate.status >= 500,
   );
-  if (!response.ok) throw new ScraperError(`No se pudo leer ${rawUrl}: HTTP ${response.status}`);
-  return response.text();
 }
 
 export const tataScraper: StoreScraper = {
@@ -117,7 +129,14 @@ export const tataScraper: StoreScraper = {
   async scrape(record: StoreProductRecord): Promise<ScrapeResult> {
     extractTataSlug(record.url);
     await fetchTataMontevideoSession(record.url);
-    const html = await fetchTataHtml(record.url);
-    return { price: parseTataHtml(html), source: "html", imageUrl: extractProductImageFromHtml(html, record.url) };
+    const rawResponse = await fetchTataHtml(record.url);
+    let parsed: PriceEvidence & { price: number };
+    try {
+      parsed = parseTataHtmlWithEvidence(rawResponse.body);
+    } catch (error) {
+      throw scraperErrorWithResponse(error, rawResponse, "html");
+    }
+    const { price, ...evidence } = parsed;
+    return { price, source: "html", evidence, rawResponse, imageUrl: extractProductImageFromHtml(rawResponse.body, record.url) };
   },
 };

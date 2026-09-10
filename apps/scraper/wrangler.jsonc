@@ -11,6 +11,12 @@
     "enabled": true,
     "head_sampling_rate": 1
   },
+  "r2_buckets": [
+    {
+      "binding": "SCRAPE_RESPONSES_BUCKET",
+      "bucket_name": "cuanto-scraper-raw"
+    }
+  ],
   "queues": {
     "producers": [
       {

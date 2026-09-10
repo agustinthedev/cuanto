@@ -17,6 +17,8 @@ describe("ejecución diaria", () => {
     const savedPriceBodies: unknown[] = [];
     const savedStoreImageBodies: unknown[] = [];
     const savedProductImageBodies: unknown[] = [];
+    const savedAttemptBodies: unknown[] = [];
+    const putRawResponse = vi.fn(async () => undefined);
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url.includes("/rest/v1/stores")) return new Response(JSON.stringify([{ id: "store-1", slug: "disco" }]), { status: 200 });
@@ -43,7 +45,11 @@ describe("ejecución diaria", () => {
         image_source_store_product_id: null,
         image_updated_at: null,
       }]), { status: 200 });
-      if (url === "https://example.test/product") return new Response('<meta property="og:image" content="/images/product.jpg"><meta property="product:price:amount" content="1299.00"><main><h1>Producto</h1><strong>$ 1.299</strong></main>', { status: 200 });
+      if (url === "https://example.test/product") return new Response('<meta property="og:image" content="/images/product.jpg"><meta property="product:price:amount" content="1299.00"><main><h1>Producto</h1><strong>$ 1.299</strong></main>', { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } });
+      if (url.includes("/rest/v1/scrape_attempts")) {
+        savedAttemptBodies.push(...JSON.parse(String(init?.body)) as unknown[]);
+        return new Response(null, { status: 201 });
+      }
       if (url.includes("/rest/v1/prices")) {
         savedPriceBodies.push(JSON.parse(String(init?.body)));
         return new Response(null, { status: 201 });
@@ -51,7 +57,11 @@ describe("ejecución diaria", () => {
       return new Response("Not found", { status: 404 });
     }));
 
-    const result = await runScrape({ SUPABASE_URL: "https://project.supabase.co", SUPABASE_SERVICE_ROLE_KEY: "service-role" }, new Date("2026-08-25T12:00:00Z"));
+    const result = await runScrape({
+      SUPABASE_URL: "https://project.supabase.co",
+      SUPABASE_SERVICE_ROLE_KEY: "service-role",
+      SCRAPE_RESPONSES_BUCKET: { put: putRawResponse } as unknown as R2Bucket,
+    } as unknown as Env, new Date("2026-08-25T12:00:00Z"));
     expect(result).toEqual({ attempted: 1, saved: 1, failed: 0 });
     expect(savedPriceBodies).toEqual([{ store_product_id: "store-product-1", price: 1299, date: "2026-08-25", scraped_at: expect.any(String) }]);
     expect(savedStoreImageBodies).toEqual([{ image_url: "https://example.test/images/product.jpg", image_fetched_at: expect.any(String) }]);
@@ -60,8 +70,80 @@ describe("ejecución diaria", () => {
       image_source_store_product_id: "store-product-1",
       image_updated_at: expect.any(String),
     }]);
+    expect(putRawResponse).toHaveBeenCalledTimes(1);
+    expect(savedAttemptBodies).toEqual([{
+      run_id: "manual-2026-08-25T12:00:00.000Z",
+      product_id: "product-1",
+      store_product_id: "store-product-1",
+      store_id: "store-1",
+      date: "2026-08-25",
+      attempted_at: expect.any(String),
+      status: "success",
+      source_type: "html",
+      source_url: "https://example.test/product",
+      response_url: "https://example.test/product",
+      http_status: 200,
+      content_type: "text/html; charset=utf-8",
+      response_size_bytes: expect.any(Number),
+      response_sha256: expect.stringMatching(/^[0-9a-f]{64}$/),
+      raw_object_key: expect.stringMatching(/^raw\/success\/2026-08-25\/manual-2026-08-25T12_00_00_000Z\/disco\/store-product-1\/.+\.body\.gz$/),
+      price: 1299,
+      selected_path: 'meta[property="product:price:amount"]',
+      candidates: [{ path: 'meta[property="product:price:amount"]', value: 1299 }],
+      error: null,
+    }]);
     const calledUrls = vi.mocked(fetch).mock.calls.map(([input]) => String(input));
     expect(calledUrls.some((url) => url.includes("on_conflict=store_product_id,date"))).toBe(true);
+  });
+
+  it("guarda el body original cuando una página no tiene precio", async () => {
+    const savedAttemptBodies: unknown[] = [];
+    const putRawResponse = vi.fn(async () => undefined);
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/rest/v1/stores")) return new Response(JSON.stringify([{ id: "store-1", slug: "disco" }]), { status: 200 });
+      if (url.includes("/rest/v1/store_products")) return new Response(JSON.stringify([{
+        id: "store-product-1",
+        product_id: "product-1",
+        store_id: "store-1",
+        location_id: null,
+        url: "https://example.test/product",
+        external_name: null,
+        image_url: null,
+      }]), { status: 200 });
+      if (url.includes("/rest/v1/products")) return new Response(JSON.stringify([{
+        id: "product-1",
+        image_url: null,
+        image_source_store_product_id: null,
+        image_updated_at: null,
+      }]), { status: 200 });
+      if (url === "https://example.test/product") return new Response("<main>Producto no encontrado</main>", { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } });
+      if (url.includes("/rest/v1/scrape_attempts")) {
+        savedAttemptBodies.push(...JSON.parse(String(init?.body)) as unknown[]);
+        return new Response(null, { status: 201 });
+      }
+      return new Response("Not found", { status: 404 });
+    }));
+
+    const result = await runScrape({
+      SUPABASE_URL: "https://project.supabase.co",
+      SUPABASE_SERVICE_ROLE_KEY: "service-role",
+      SCRAPE_RESPONSES_BUCKET: { put: putRawResponse } as unknown as R2Bucket,
+    } as unknown as Env, new Date("2026-08-25T12:00:00Z"));
+
+    expect(result).toEqual({ attempted: 1, saved: 0, failed: 1 });
+    expect(putRawResponse).toHaveBeenCalledTimes(1);
+    expect(savedAttemptBodies).toHaveLength(1);
+    expect(savedAttemptBodies[0]).toMatchObject({
+      status: "failed",
+      source_type: "html",
+      response_url: "https://example.test/product",
+      http_status: 200,
+      raw_object_key: expect.stringMatching(/^raw\/failed\/2026-08-25\/manual-2026-08-25T12_00_00_000Z\/disco\/store-product-1\/.+\.body\.gz$/),
+      price: null,
+      candidates: [],
+      error: "Disco no incluyó un precio original identificable",
+    });
   });
 
   it("espera entre productos consecutivos de Tienda Inglesa", async () => {
@@ -78,13 +160,14 @@ describe("ejecución diaria", () => {
         { id: "product-1", image_url: null, image_source_store_product_id: null, image_updated_at: null },
         { id: "product-2", image_url: null, image_source_store_product_id: null, image_updated_at: null },
       ]), { status: 200 });
+      if (url.includes("/rest/v1/scrape_attempts")) return new Response(null, { status: 201 });
       if (url.includes("/rest/v1/prices")) return new Response(null, { status: 201 });
       if (url.startsWith("https://example.test/")) return new Response('{"WProductUI_PARM":{"Prices":[{"Label":"Precio","Price":10}]}}', { status: 200 });
       return new Response("Not found", { status: 404 });
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const scrape = runScrape({ SUPABASE_URL: "https://project.supabase.co", SUPABASE_SERVICE_ROLE_KEY: "service-role" }, new Date("2026-08-25T12:00:00Z"));
+    const scrape = runScrape({ SUPABASE_URL: "https://project.supabase.co", SUPABASE_SERVICE_ROLE_KEY: "service-role" } as unknown as Env, new Date("2026-08-25T12:00:00Z"));
     await vi.runAllTimersAsync();
     await expect(scrape).resolves.toEqual({ attempted: 2, saved: 2, failed: 0 });
     expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 500);
@@ -114,6 +197,7 @@ describe("ejecución diaria", () => {
         image_source_store_product_id: null,
         image_updated_at: null,
       }]), { status: 200 });
+      if (url.includes("/rest/v1/scrape_attempts")) return new Response(null, { status: 201 });
       if (url.includes("/rest/v1/prices")) {
         savedPriceBodies.push(JSON.parse(String(init?.body)));
         return new Response(null, { status: 201 });
@@ -135,7 +219,7 @@ describe("ejecución diaria", () => {
         SUPABASE_URL: "https://project.supabase.co",
         SUPABASE_SERVICE_ROLE_KEY: "service-role",
         TIENDA_INGLESA_FALLBACK_ORIGIN: "https://prod-web-blue.tiendainglesa.com.uy",
-      },
+      } as unknown as Env,
       new Date("2026-08-25T12:00:00Z"),
     );
     await vi.runAllTimersAsync();
@@ -155,7 +239,7 @@ describe("ejecución diaria", () => {
     }));
 
     await runScrape(
-      { SUPABASE_URL: "https://project.supabase.co", SUPABASE_SERVICE_ROLE_KEY: "service-role" },
+      { SUPABASE_URL: "https://project.supabase.co", SUPABASE_SERVICE_ROLE_KEY: "service-role" } as unknown as Env,
       new Date("2026-08-25T12:00:00Z"),
       { productId: "product-1" },
     );
@@ -199,7 +283,7 @@ describe("ejecución diaria", () => {
         SUPABASE_URL: "https://project.supabase.co",
         SUPABASE_SERVICE_ROLE_KEY: "service-role",
         CORS_ORIGIN: "http://localhost:5173",
-      },
+      } as unknown as Env,
       { waitUntil: (task: Promise<unknown>) => { pendingTasks.push(task); } } as unknown as ExecutionContext,
     );
 
@@ -228,7 +312,7 @@ describe("ejecución diaria", () => {
         SUPABASE_URL: "https://project.supabase.co",
         SUPABASE_SERVICE_ROLE_KEY: "service-role",
         CORS_ORIGIN: "http://localhost:5173",
-      },
+      } as unknown as Env,
       { waitUntil: () => undefined } as unknown as ExecutionContext,
     );
 
@@ -327,6 +411,7 @@ describe("flujo con Queue", () => {
     const savedProductImageBodies: unknown[] = [];
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
+      if (url.includes("/rest/v1/scrape_attempts")) return new Response(null, { status: 201 });
       if (url.includes("/rest/v1/prices")) {
         savedPriceBodies.push(JSON.parse(String(init?.body)));
         return new Response(null, { status: 201 });
@@ -414,6 +499,7 @@ describe("flujo con Queue", () => {
     const queue = { sendBatch: vi.fn(async () => undefined) };
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
+      if (url.includes("/rest/v1/scrape_attempts")) return new Response(null, { status: 201 });
       if (url.includes("/rest/v1/prices")) {
         savedPriceBodies.push(JSON.parse(String(init?.body)));
         return new Response(null, { status: 201 });
@@ -558,6 +644,7 @@ describe("flujo con Queue", () => {
         scraperUrls.push(url);
         return new Response('{"W0032AV27ProductUI_PARM":{"Prices":[{"Label":"Precio","Price":123.45}]}}', { status: 200 });
       }
+      if (url.includes("/rest/v1/scrape_attempts")) return new Response(null, { status: 201 });
       if (url.includes("/rest/v1/prices")) return new Response(null, { status: 201 });
       return new Response("Not found", { status: 404 });
     });
@@ -606,6 +693,7 @@ describe("flujo con Queue", () => {
         scraperUrls.push(url);
         return new Response("Service unavailable", { status: 503 });
       }
+      if (url.includes("/rest/v1/scrape_attempts")) return new Response(null, { status: 201 });
       return new Response("Not found", { status: 404 });
     }));
 
@@ -648,6 +736,7 @@ describe("flujo con Queue", () => {
       if (url === "https://example.test/tienda-inglesa") {
         return new Response('<div data-config="{&quot;WProductUI_PARM&quot;:{&quot;Prices&quot;:[{&quot;Label&quot;:&quot;Precio&quot;,&quot;Price&quot;:1299}]}}"></div>', { status: 200 });
       }
+      if (url.includes("/rest/v1/scrape_attempts")) return new Response(null, { status: 201 });
       if (url.includes("/rest/v1/prices")) return new Response(null, { status: 201 });
       return new Response("Not found", { status: 404 });
     });
@@ -685,5 +774,38 @@ describe("flujo con Queue", () => {
     await second;
 
     expect(fetchMock.mock.calls.filter(([input]) => String(input) === message.store_products[0].url)).toHaveLength(2);
+  });
+
+  it("limpia exitosos y fallos con retenciones distintas", async () => {
+    const queue = { sendBatch: vi.fn(async () => undefined) };
+    const deletedUrls: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/rest/v1/stores")) return new Response(JSON.stringify([{ id: "store-1", slug: "disco" }]), { status: 200 });
+      if (url.includes("/rest/v1/store_products")) return new Response(JSON.stringify([]), { status: 200 });
+      if (url.includes("/rest/v1/products")) return new Response(JSON.stringify([]), { status: 200 });
+      if (url.includes("/rest/v1/scrape_attempts") && init?.method === "DELETE") {
+        deletedUrls.push(url);
+        return new Response(null, { status: 204 });
+      }
+      return new Response("Not found", { status: 404 });
+    }));
+
+    await worker.scheduled(
+      { scheduledTime: new Date("2026-09-10T07:00:00Z").getTime() } as unknown as ScheduledController,
+      {
+        SUPABASE_URL: "https://project.supabase.co",
+        SUPABASE_SERVICE_ROLE_KEY: "service-role",
+        SCRAPE_QUEUE: queue,
+      } as unknown as Env,
+    );
+
+    expect(deletedUrls).toHaveLength(2);
+    const filters = deletedUrls.map((url) => new URL(url).searchParams);
+    expect(filters.map((params) => params.get("status"))).toEqual(["eq.success", "eq.failed"]);
+    expect(filters.map((params) => params.get("attempted_at"))).toEqual([
+      "lt.2026-08-26T07:00:00.000Z",
+      "lt.2026-07-12T07:00:00.000Z",
+    ]);
   });
 });

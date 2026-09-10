@@ -1,6 +1,6 @@
-import { extractJsonPrice } from "../price";
-import type { ScrapeResult, StoreProductRecord, StoreScraper } from "../types";
-import { extractProductImageFromPayload, requireResponseJson } from "./base";
+import { selectPriceCandidate } from "../price";
+import type { PriceEvidence, ScrapeResult, StoreProductRecord, StoreScraper } from "../types";
+import { extractProductImageFromPayload, requireResponseTextSnapshot, scraperErrorWithResponse, ScraperError } from "./base";
 
 interface RedExpressEnv {
   RED_EXPRESS_BASIC_AUTH?: string;
@@ -15,20 +15,24 @@ function withLocationContext(rawUrl: string, env: RedExpressEnv): string {
 }
 
 export function parseRedExpressJson(payload: unknown): number {
-  const prices: unknown[] = [];
-  const visit = (value: unknown, depth: number) => {
+  return parseRedExpressJsonWithEvidence(payload).price;
+}
+
+export function parseRedExpressJsonWithEvidence(payload: unknown): PriceEvidence & { price: number } {
+  const prices: Array<{ path: string; value: unknown }> = [];
+  const visit = (value: unknown, depth: number, path: string) => {
     if (depth > 6 || value === null || typeof value !== "object") return;
     if (Array.isArray(value)) {
-      value.forEach((item) => visit(item, depth + 1));
+      value.forEach((item, index) => visit(item, depth + 1, `${path}[${index}]`));
       return;
     }
     const object = value as Record<string, unknown>;
-    if ("precioUnitario" in object) prices.push(object.precioUnitario);
-    if ("precio" in object) prices.push(object.precio);
-    Object.values(object).forEach((child) => visit(child, depth + 1));
+    if ("precioUnitario" in object) prices.push({ path: `${path}.precioUnitario`, value: object.precioUnitario });
+    if ("precio" in object) prices.push({ path: `${path}.precio`, value: object.precio });
+    Object.entries(object).forEach(([key, child]) => visit(child, depth + 1, `${path}.${key}`));
   };
-  visit(payload, 0);
-  return extractJsonPrice(...prices);
+  visit(payload, 0, "json");
+  return selectPriceCandidate(prices);
 }
 
 export const redExpressScraper: StoreScraper = {
@@ -38,7 +42,20 @@ export const redExpressScraper: StoreScraper = {
     if (env.RED_EXPRESS_BASIC_AUTH) {
       headers.Authorization = env.RED_EXPRESS_BASIC_AUTH.startsWith("Basic ") ? env.RED_EXPRESS_BASIC_AUTH : `Basic ${env.RED_EXPRESS_BASIC_AUTH}`;
     }
-    const payload = await requireResponseJson(withLocationContext(record.url, env), { headers });
-    return { price: parseRedExpressJson(payload), source: "json", imageUrl: extractProductImageFromPayload(payload, record.url) };
+    const rawResponse = await requireResponseTextSnapshot(withLocationContext(record.url, env), { headers });
+    let payload: unknown;
+    try {
+      payload = JSON.parse(rawResponse.body);
+    } catch {
+      throw new ScraperError("El producto de Red Express no devolvió JSON válido", rawResponse, "json");
+    }
+    let parsed: PriceEvidence & { price: number };
+    try {
+      parsed = parseRedExpressJsonWithEvidence(payload);
+    } catch (error) {
+      throw scraperErrorWithResponse(error, rawResponse, "json");
+    }
+    const { price, ...evidence } = parsed;
+    return { price, source: "json", evidence, rawResponse, imageUrl: extractProductImageFromPayload(payload, record.url) };
   },
 };
