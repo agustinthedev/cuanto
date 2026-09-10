@@ -82,7 +82,7 @@ export function PriceBarChart({ data, unavailable = [] }: { data: LatestPrice[];
             <span className="price-vertical-value"><strong>—</strong><small>Precio no disponible</small></span>
             <span className="price-vertical-track price-vertical-track-unavailable" aria-hidden="true"><i /></span>
             <span className="price-vertical-store"><StoreLogo compact name={item.store_name} slug={item.store_slug} /><strong>{item.store_name}</strong></span>
-            <span className="price-vertical-footer">No disponible ahora</span>
+            <span className="price-vertical-footer">Sin precio reciente — esperando una actualización</span>
           </div>
         ))}
       </div>
