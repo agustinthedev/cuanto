@@ -162,8 +162,8 @@ export const demoStorePrices: StorePrice[] = demoStores.flatMap((store) => dates
 
 export function getDemoProductPageData(id: string): ProductPageData {
   const product = demoProducts.find((item) => item.id === id);
-  if (!product) return { product: null, latestPrices: [], averagePrices: [], storePrices: [] };
-  if (product.id === "demo-olive-oil") return { product, latestPrices: demoLatestPrices, averagePrices: demoAveragePrices, storePrices: demoStorePrices };
+  if (!product) return { product: null, latestPrices: [], unavailablePrices: [], averagePrices: [], storePrices: [] };
+  if (product.id === "demo-olive-oil") return { product, latestPrices: demoLatestPrices, unavailablePrices: [], averagePrices: demoAveragePrices, storePrices: demoStorePrices };
   const current = product.current_price ?? 0;
   const latestPrices = demoStores.map((store, index) => ({
     store_product_id: `demo-${product.id}-${store.slug}`,
@@ -180,5 +180,5 @@ export function getDemoProductPageData(id: string): ProductPageData {
   }));
   const averagePrices = dates.map((date, index) => ({ product_id: product.id, date, average_price: Math.round(current * [1.09, 1.06, 1.05, 1.03, 1.01, 1, .98][index]), observation_count: 3 }));
   const storePrices = demoStores.flatMap((store, storeIndex) => dates.map((date, index) => ({ product_id: product.id, store_id: store.id, store_name: store.name, store_slug: store.slug, date, price: Math.round(current * [1, 1.08, .96][storeIndex] * [1.08, 1.06, 1.04, 1.03, 1.01, 1, .98][index]), observation_count: 1 })));
-  return { product, latestPrices, averagePrices, storePrices };
+  return { product, latestPrices, unavailablePrices: [], averagePrices, storePrices };
 }
