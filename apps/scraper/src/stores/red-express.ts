@@ -47,13 +47,13 @@ export const redExpressScraper: StoreScraper = {
     try {
       payload = JSON.parse(rawResponse.body);
     } catch {
-      throw new ScraperError("El producto de Red Express no devolvió JSON válido", rawResponse);
+      throw new ScraperError("El producto de Red Express no devolvió JSON válido", rawResponse, "json");
     }
     let parsed: PriceEvidence & { price: number };
     try {
       parsed = parseRedExpressJsonWithEvidence(payload);
     } catch (error) {
-      throw scraperErrorWithResponse(error, rawResponse);
+      throw scraperErrorWithResponse(error, rawResponse, "json");
     }
     const { price, ...evidence } = parsed;
     return { price, source: "json", evidence, rawResponse, imageUrl: extractProductImageFromPayload(payload, record.url) };

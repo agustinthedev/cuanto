@@ -148,20 +148,20 @@ export const elDoradoScraper: StoreScraper = {
     const productUrl = productApiUrl(slug);
     const response = await fetchWithRetry(productUrl, { headers: headersWithCookie(session.cookie) });
     const rawResponse = await readResponseSnapshot(response, productUrl);
-    if (!response.ok) throw new ScraperError(`No se pudo leer el producto de El Dorado: HTTP ${response.status}`, rawResponse);
+    if (!response.ok) throw new ScraperError(`No se pudo leer el producto de El Dorado: HTTP ${response.status}`, rawResponse, "json");
 
     let payload: unknown;
     try {
       payload = JSON.parse(rawResponse.body);
     } catch {
-      throw new ScraperError("El producto de El Dorado no devolvió JSON válido", rawResponse);
+      throw new ScraperError("El producto de El Dorado no devolvió JSON válido", rawResponse, "json");
     }
 
     let parsed: PriceEvidence & { price: number };
     try {
       parsed = parseElDoradoProductWithEvidence(payload);
     } catch (error) {
-      throw scraperErrorWithResponse(error, rawResponse);
+      throw scraperErrorWithResponse(error, rawResponse, "json");
     }
     const { price, ...evidence } = parsed;
     return {

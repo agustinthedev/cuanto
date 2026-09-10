@@ -186,7 +186,7 @@ export const tiendaInglesaScraper: StoreScraper = {
     try {
       parsed = parseTiendaInglesaHtmlWithEvidence(rawResponse.body);
     } catch (error) {
-      throw scraperErrorWithResponse(error, rawResponse);
+      throw scraperErrorWithResponse(error, rawResponse, "html");
     }
     const { price, ...evidence } = parsed;
     return { price, source: "html", evidence, rawResponse, imageUrl: extractProductImageFromHtml(rawResponse.body, record.url) };

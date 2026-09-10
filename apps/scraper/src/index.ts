@@ -246,7 +246,7 @@ async function scrapeStoreProduct(env: Env, record: StoreProductRecord, context?
 
   const result = await scraper.scrape(record, env, context);
   if (!Number.isFinite(result.price) || result.price <= 0) {
-    throw new ScraperError("El adapter devolvió un precio inválido", result.rawResponse);
+    throw new ScraperError("El adapter devolvió un precio inválido", result.rawResponse, result.source);
   }
   return result;
 }

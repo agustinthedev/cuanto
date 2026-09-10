@@ -1,4 +1,4 @@
-import { fetchWithRetry } from "./stores/base";
+import { fetchWithRetry, ScraperError } from "./stores/base";
 import type { RawResponseReference } from "./raw-responses";
 import type { ScrapeAttemptUpsert, ScrapeRawResponse, ScrapeResult, StoreProductRecord } from "./types";
 
@@ -33,7 +33,7 @@ export function buildScrapeAttempt(input: ScrapeAttemptInput): ScrapeAttemptUpse
     date: input.date,
     attempted_at: input.attemptedAt,
     status: input.status,
-    source_type: input.result?.source ?? null,
+    source_type: input.result?.source ?? (input.error instanceof ScraperError ? input.error.source ?? null : null),
     source_url: input.record.url,
     response_url: rawResponse?.url ?? null,
     http_status: rawResponse?.status ?? null,

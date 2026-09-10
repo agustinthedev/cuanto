@@ -29,6 +29,8 @@ export interface PriceEvidence {
   candidates: PriceCandidate[];
 }
 
+export type ScrapeSource = "html" | "json";
+
 export interface ScrapeRawResponse {
   url: string;
   status: number;
@@ -46,7 +48,7 @@ export interface ScrapeAttemptUpsert {
   date: string;
   attempted_at: string;
   status: ScrapeAttemptStatus;
-  source_type: "html" | "json" | null;
+  source_type: ScrapeSource | null;
   source_url: string;
   response_url: string | null;
   http_status: number | null;
@@ -62,7 +64,7 @@ export interface ScrapeAttemptUpsert {
 
 export interface ScrapeResult {
   price: number;
-  source: "html" | "json";
+  source: ScrapeSource;
   evidence: PriceEvidence;
   rawResponse: ScrapeRawResponse;
   imageUrl?: string;

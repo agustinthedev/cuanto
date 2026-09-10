@@ -1,17 +1,19 @@
-import type { ScrapeRawResponse } from "../types";
+import type { ScrapeRawResponse, ScrapeSource } from "../types";
 
 export class ScraperError extends Error {
   readonly rawResponse?: ScrapeRawResponse;
+  readonly source?: ScrapeSource;
 
-  constructor(message: string, rawResponse?: ScrapeRawResponse) {
+  constructor(message: string, rawResponse?: ScrapeRawResponse, source?: ScrapeSource) {
     super(message);
     this.name = "ScraperError";
     this.rawResponse = rawResponse;
+    this.source = source;
   }
 }
 
-export function scraperErrorWithResponse(error: unknown, rawResponse: ScrapeRawResponse): ScraperError {
-  return new ScraperError(error instanceof Error ? error.message : String(error), rawResponse);
+export function scraperErrorWithResponse(error: unknown, rawResponse: ScrapeRawResponse, source?: ScrapeSource): ScraperError {
+  return new ScraperError(error instanceof Error ? error.message : String(error), rawResponse, source);
 }
 
 const RETRY_DELAYS_MS = [2_000, 5_000] as const;
