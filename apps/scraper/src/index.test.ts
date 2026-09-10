@@ -17,6 +17,7 @@ describe("ejecución diaria", () => {
     const savedPriceBodies: unknown[] = [];
     const savedStoreImageBodies: unknown[] = [];
     const savedProductImageBodies: unknown[] = [];
+    const putRawResponse = vi.fn(async () => undefined);
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url.includes("/rest/v1/stores")) return new Response(JSON.stringify([{ id: "store-1", slug: "disco" }]), { status: 200 });
@@ -51,7 +52,11 @@ describe("ejecución diaria", () => {
       return new Response("Not found", { status: 404 });
     }));
 
-    const result = await runScrape({ SUPABASE_URL: "https://project.supabase.co", SUPABASE_SERVICE_ROLE_KEY: "service-role" } as unknown as Env, new Date("2026-08-25T12:00:00Z"));
+    const result = await runScrape({
+      SUPABASE_URL: "https://project.supabase.co",
+      SUPABASE_SERVICE_ROLE_KEY: "service-role",
+      SCRAPE_RESPONSES_BUCKET: { put: putRawResponse } as unknown as R2Bucket,
+    } as unknown as Env, new Date("2026-08-25T12:00:00Z"));
     expect(result).toEqual({ attempted: 1, saved: 1, failed: 0 });
     expect(savedPriceBodies).toEqual([{ store_product_id: "store-product-1", price: 1299, date: "2026-08-25", scraped_at: expect.any(String) }]);
     expect(savedStoreImageBodies).toEqual([{ image_url: "https://example.test/images/product.jpg", image_fetched_at: expect.any(String) }]);
@@ -60,6 +65,7 @@ describe("ejecución diaria", () => {
       image_source_store_product_id: "store-product-1",
       image_updated_at: expect.any(String),
     }]);
+    expect(putRawResponse).toHaveBeenCalledTimes(1);
     const calledUrls = vi.mocked(fetch).mock.calls.map(([input]) => String(input));
     expect(calledUrls.some((url) => url.includes("on_conflict=store_product_id,date"))).toBe(true);
   });

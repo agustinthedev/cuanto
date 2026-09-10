@@ -1,7 +1,8 @@
 import { getScraper } from "./stores";
-import { fetchWithRetry, sleep } from "./stores/base";
+import { fetchWithRetry, ScraperError, sleep } from "./stores/base";
 import { probeTiendaInglesaFallbackOrigin, tiendaInglesaFallbackOrigins } from "./stores/tienda-inglesa";
-import type { ScrapeQueueMessage, ScrapeSummary, ScrapeResult, StoreProductRecord, StoreScrapeContext } from "./types";
+import { saveRawResponse, type RawResponseReference } from "./raw-responses";
+import type { ScrapeQueueMessage, ScrapeRawResponse, ScrapeSummary, ScrapeResult, StoreProductRecord, StoreScrapeContext } from "./types";
 
 const API_TABLES = {
   products: "products",
@@ -238,8 +239,44 @@ async function scrapeStoreProduct(env: Env, record: StoreProductRecord, context?
   if (!scraper) throw new Error(`No hay adapter para ${record.store_slug}`);
 
   const result = await scraper.scrape(record, env, context);
-  if (!Number.isFinite(result.price) || result.price <= 0) throw new Error("El adapter devolvió un precio inválido");
+  if (!Number.isFinite(result.price) || result.price <= 0) {
+    throw new ScraperError("El adapter devolvió un precio inválido", result.rawResponse);
+  }
   return result;
+}
+
+async function persistRawResponse(
+  env: Env,
+  runId: string,
+  date: string,
+  record: StoreProductRecord,
+  rawResponse: ScrapeRawResponse | undefined,
+): Promise<RawResponseReference | undefined> {
+  if (!rawResponse || !env.SCRAPE_RESPONSES_BUCKET) return undefined;
+
+  try {
+    const reference = await saveRawResponse(env.SCRAPE_RESPONSES_BUCKET, runId, date, record, rawResponse);
+    console.log(JSON.stringify({
+      event: "raw_response_saved",
+      run_id: runId,
+      store: record.store_slug,
+      store_product_id: record.id,
+      status: rawResponse.status,
+      object_key: reference.objectKey,
+      response_size_bytes: reference.responseSizeBytes,
+    }));
+    return reference;
+  } catch (error) {
+    console.error(JSON.stringify({
+      event: "raw_response_save_failed",
+      run_id: runId,
+      store: record.store_slug,
+      store_product_id: record.id,
+      status: rawResponse.status,
+      reason: error instanceof Error ? error.message : String(error),
+    }));
+    return undefined;
+  }
 }
 
 function isScrapeQueueMessage(value: unknown): value is ScrapeQueueMessage {
@@ -299,9 +336,11 @@ export async function performScrapeMessage(env: Env, message: ScrapeQueueMessage
 
     try {
       const result = await scrapeStoreProduct(env, record, context);
+      await persistRawResponse(env, message.run_id, message.date, record, result.rawResponse);
       successful.push({ record, result });
     } catch (error) {
       failed.push({ record, error });
+      await persistRawResponse(env, message.run_id, message.date, record, error instanceof ScraperError ? error.rawResponse : undefined);
       console.error(JSON.stringify({
         event: "scrape_failed",
         run_id: message.run_id,
@@ -365,6 +404,7 @@ export async function runScrape(env: Env, now = new Date(), options: ScrapeOptio
   const [records, productImages] = await Promise.all([loadActiveStoreProducts(env, options.productId), loadProductImages(env, options.productId)]);
   records.sort((left, right) => imagePriority(left.store_slug) - imagePriority(right.store_slug));
   const date = uruguayDate(now);
+  const runId = `manual-${now.toISOString()}`;
   const summary: ScrapeSummary = { attempted: records.length, saved: 0, failed: 0 };
   const context: StoreScrapeContext = {};
   let previousStoreSlug: string | undefined;
@@ -377,6 +417,7 @@ export async function runScrape(env: Env, now = new Date(), options: ScrapeOptio
 
     try {
       const result = await scrapeStoreProduct(env, record, context);
+      await persistRawResponse(env, runId, date, record, result.rawResponse);
       await savePrice(env, record, result.price, date);
       summary.saved += 1;
       if (result.imageUrl) {
@@ -392,6 +433,7 @@ export async function runScrape(env: Env, now = new Date(), options: ScrapeOptio
       console.log(JSON.stringify({ event: "price_saved", store: record.store_slug, store_product_id: record.id, date, price: result.price }));
     } catch (error) {
       summary.failed += 1;
+      await persistRawResponse(env, runId, date, record, error instanceof ScraperError ? error.rawResponse : undefined);
       console.error(JSON.stringify({ event: "scrape_failed", store: record.store_slug, store_product_id: record.id, url: record.url, timestamp: new Date().toISOString(), reason: error instanceof Error ? error.message : String(error) }));
     } finally {
       previousStoreSlug = record.store_slug;
