@@ -28,6 +28,7 @@ import type {
   Tag,
 } from "./types";
 import { isProductUnit, normalizeProductQuantity, type ProductUnit } from "./productMeasurement";
+import { isLatestPriceFresh, uruguayDate } from "./priceFreshness";
 import { demoAveragePrices, demoCategories, demoProducts, demoSuggestionStats, demoSuggestions, demoStats, demoStores, demoTags, getDemoProductPageData } from "./demoData";
 import { sortProducts, type ProductSort } from "./productSearch";
 
@@ -53,13 +54,13 @@ function normalizeProduct(value: any): Product {
   };
 }
 
-type HomepagePriceRow = Pick<LatestPrice, "product_id" | "price" | "store_name">;
+type HomepagePriceRow = Pick<LatestPrice, "product_id" | "price" | "store_name" | "date">;
 
-export function attachLatestPrices(products: Product[], latestPrices: HomepagePriceRow[]): Product[] {
+export function attachLatestPrices(products: Product[], latestPrices: HomepagePriceRow[], today = uruguayDate()): Product[] {
   const bestPriceByProduct = new Map<string, { price: number; store: string }>();
   const comparisonStoresByProduct = new Map<string, Set<string>>();
 
-  latestPrices.forEach((row) => {
+  latestPrices.filter((row) => isLatestPriceFresh(row.date, today)).forEach((row) => {
     const price = Number(row.price);
     if (!Number.isFinite(price) || price <= 0 || !row.store_name) return;
     const stores = comparisonStoresByProduct.get(row.product_id) ?? new Set<string>();
@@ -402,8 +403,8 @@ async function getProducts(filters?: { search?: string; categoryId?: string }, l
   if (!products.length) return { products, total: count ?? 0 };
 
   const { data: latestPrices, error: latestPricesError } = await supabase
-    .from("latest_store_product_prices")
-    .select("product_id,price,store_name")
+    .from("current_store_product_prices")
+    .select("product_id,price,store_name,date")
     .in("product_id", products.map((product) => product.id));
   if (latestPricesError) throw latestPricesError;
 
@@ -518,12 +519,6 @@ async function countSuggestions(status?: ProductSuggestionStatus): Promise<numbe
   const { count, error } = await query;
   if (error) throw error;
   return count ?? 0;
-}
-
-function uruguayDate(now = new Date()): string {
-  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Montevideo", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now);
-  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  return `${values.year}-${values.month}-${values.day}`;
 }
 
 function addDays(dateValue: string, days: number): string {
@@ -741,7 +736,7 @@ export async function getAdminAnalytics(period: AnalyticsPeriod): Promise<AdminA
 
 export async function getProductPageData(id: string): Promise<ProductPageData> {
   if (isDemoMode) return getDemoProductPageData(id);
-  if (!supabase) return { product: null, latestPrices: [], averagePrices: [], storePrices: [] };
+  if (!supabase) return { product: null, latestPrices: [], unavailablePrices: [], averagePrices: [], storePrices: [] };
   const [productResult, latestResult, averageResult, storeResult] = await Promise.all([
     supabase.from("products").select(productSelect).eq("id", id).maybeSingle(),
     supabase.from("latest_store_product_prices").select("*").eq("product_id", id).order("store_name"),
@@ -752,9 +747,12 @@ export async function getProductPageData(id: string): Promise<ProductPageData> {
   if (latestResult.error) throw latestResult.error;
   if (averageResult.error) throw averageResult.error;
   if (storeResult.error) throw storeResult.error;
+  const allLatestPrices = (latestResult.data ?? []) as LatestPrice[];
+  const today = uruguayDate();
   return {
     product: productResult.data ? normalizeProduct(productResult.data) : null,
-    latestPrices: (latestResult.data ?? []) as LatestPrice[],
+    latestPrices: allLatestPrices.filter((row) => isLatestPriceFresh(row.date, today)),
+    unavailablePrices: allLatestPrices.filter((row) => !isLatestPriceFresh(row.date, today)),
     averagePrices: (averageResult.data ?? []) as AveragePrice[],
     storePrices: (storeResult.data ?? []) as StorePrice[],
   };
