@@ -34,22 +34,25 @@ function percentageDifference(value: number, base: number) {
   return new Intl.NumberFormat("es-UY", { style: "percent", maximumFractionDigits: 1 }).format(base ? value / base : 0);
 }
 
-export function PriceBarChart({ data }: { data: LatestPrice[] }) {
+export function PriceBarChart({ data, unavailable = [] }: { data: LatestPrice[]; unavailable?: LatestPrice[] }) {
   const sortedPrices = [...data].sort((left, right) => Number(left.price) - Number(right.price));
-  if (!sortedPrices.length) return <div className="chart-empty">Todavía no hay precios comparables.</div>;
+  const sortedUnavailable = [...unavailable].sort((left, right) => left.store_name.localeCompare(right.store_name, "es"));
+  if (!sortedPrices.length && !sortedUnavailable.length) return <div className="chart-empty">Todavía no hay precios comparables.</div>;
 
-  const lowestPrice = Number(sortedPrices[0].price);
-  const highestPrice = Number(sortedPrices[sortedPrices.length - 1].price);
+  const lowestPrice = sortedPrices.length ? Number(sortedPrices[0].price) : 0;
+  const highestPrice = sortedPrices.length ? Number(sortedPrices[sortedPrices.length - 1].price) : 0;
   const spread = highestPrice - lowestPrice || 1;
+  const comparisonLabel = sortedPrices.length === 1 ? "1 cadena con precio reciente" : `${sortedPrices.length} cadenas con precio reciente`;
+  const hasPrices = sortedPrices.length > 0;
 
   return (
     <div className="price-bars" role="list" aria-label="Últimos precios por cadena">
       <div className="price-bars-intro">
         <div>
-          <strong>{sortedPrices.length} cadenas comparadas</strong>
-          <span>La barra muestra la distancia relativa frente al precio más bajo.</span>
+          <strong>{hasPrices ? comparisonLabel : "No hay precios recientes"}</strong>
+          <span>{hasPrices ? "Las cadenas sin precio aparecen atenuadas." : "Las cadenas se actualizarán cuando haya nuevos precios."}</span>
         </div>
-        <span className="price-bars-key"><i /> Mejor precio</span>
+        {hasPrices && <span className="price-bars-key"><i /> Mejor precio</span>}
       </div>
       <div className="price-vertical-stage">
         {sortedPrices.map((item) => {
@@ -74,6 +77,14 @@ export function PriceBarChart({ data }: { data: LatestPrice[] }) {
             </a>
           );
         })}
+        {sortedUnavailable.map((item) => (
+          <div className="price-vertical-unavailable" key={item.store_product_id} role="listitem" aria-disabled="true" aria-label={`${item.store_name}: precio no disponible`}>
+            <span className="price-vertical-value"><strong>—</strong><small>Precio no disponible</small></span>
+            <span className="price-vertical-track price-vertical-track-unavailable" aria-hidden="true"><i /></span>
+            <span className="price-vertical-store"><StoreLogo compact name={item.store_name} slug={item.store_slug} /><strong>{item.store_name}</strong></span>
+            <span className="price-vertical-footer">Sin precio reciente — esperando una actualización</span>
+          </div>
+        ))}
       </div>
     </div>
   );

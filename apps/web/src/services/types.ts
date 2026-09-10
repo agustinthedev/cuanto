@@ -204,6 +204,7 @@ export interface AdminAnalytics {
 export interface ProductPageData {
   product: Product | null;
   latestPrices: LatestPrice[];
+  unavailablePrices: LatestPrice[];
   averagePrices: AveragePrice[];
   storePrices: StorePrice[];
 }

@@ -43,10 +43,10 @@ const products: Product[] = [
 describe("attachLatestPrices", () => {
   it("attaches the lowest valid latest price and its store to each product", () => {
     expect(attachLatestPrices(products, [
-      { product_id: "product-1", price: 120, store_name: "Ta-Ta" },
-      { product_id: "product-1", price: 100, store_name: "Disco" },
-      { product_id: "product-1", price: 0, store_name: "Invalid" },
-    ])).toEqual([
+      { product_id: "product-1", price: 120, store_name: "Ta-Ta", date: "2026-09-10" },
+      { product_id: "product-1", price: 100, store_name: "Disco", date: "2026-09-09" },
+      { product_id: "product-1", price: 0, store_name: "Invalid", date: "2026-09-10" },
+    ], "2026-09-10")).toEqual([
       { ...products[0], current_price: 100, best_store: "Disco", comparison_count: 2 },
       products[1],
     ]);
@@ -54,17 +54,23 @@ describe("attachLatestPrices", () => {
 
   it("counts distinct chains with a valid latest price", () => {
     expect(attachLatestPrices(products, [
-      { product_id: "product-1", price: 120, store_name: "Ta-Ta" },
-      { product_id: "product-1", price: 118, store_name: "Ta-Ta" },
-      { product_id: "product-1", price: 130, store_name: "Disco" },
-    ])[0]).toMatchObject({ comparison_count: 2 });
+      { product_id: "product-1", price: 120, store_name: "Ta-Ta", date: "2026-09-10" },
+      { product_id: "product-1", price: 118, store_name: "Ta-Ta", date: "2026-09-09" },
+      { product_id: "product-1", price: 130, store_name: "Disco", date: "2026-09-10" },
+    ], "2026-09-10")[0]).toMatchObject({ comparison_count: 2 });
   });
 
   it("keeps products without a valid observation unchanged", () => {
     expect(attachLatestPrices(products, [
-      { product_id: "product-2", price: Number.NaN, store_name: "Disco" },
-      { product_id: "unknown", price: 80, store_name: "Ta-Ta" },
-    ])).toEqual(products);
+      { product_id: "product-2", price: Number.NaN, store_name: "Disco", date: "2026-09-10" },
+      { product_id: "unknown", price: 80, store_name: "Ta-Ta", date: "2026-09-10" },
+    ], "2026-09-10")).toEqual(products);
+  });
+
+  it("does not expose stale observations as current prices", () => {
+    expect(attachLatestPrices(products, [
+      { product_id: "product-1", price: 100, store_name: "Disco", date: "2026-09-08" },
+    ], "2026-09-10")).toEqual(products);
   });
 });
 
