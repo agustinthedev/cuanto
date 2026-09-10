@@ -1,4 +1,4 @@
-import type { ScrapeRawResponse, StoreProductRecord } from "./types";
+import type { ScrapeAttemptStatus, ScrapeRawResponse, StoreProductRecord } from "./types";
 
 export interface RawResponseReference {
   objectKey: string;
@@ -10,9 +10,16 @@ function safePathSegment(value: string): string {
   return value.replace(/[^a-zA-Z0-9_-]/g, "_");
 }
 
-export function rawResponseObjectKey(runId: string, date: string, record: StoreProductRecord, attemptId: string = crypto.randomUUID()): string {
+export function rawResponseObjectKey(
+  runId: string,
+  date: string,
+  record: StoreProductRecord,
+  scrapeStatus: ScrapeAttemptStatus,
+  attemptId: string = crypto.randomUUID(),
+): string {
   return [
     "raw",
+    scrapeStatus,
     safePathSegment(date),
     safePathSegment(runId),
     safePathSegment(record.store_slug),
@@ -33,11 +40,12 @@ export async function saveRawResponse(
   runId: string,
   date: string,
   record: StoreProductRecord,
+  scrapeStatus: ScrapeAttemptStatus,
   rawResponse: ScrapeRawResponse,
 ): Promise<RawResponseReference> {
   const bodyBytes = new TextEncoder().encode(rawResponse.body);
   const sha256 = await sha256Hex(bodyBytes);
-  const objectKey = rawResponseObjectKey(runId, date, record);
+  const objectKey = rawResponseObjectKey(runId, date, record, scrapeStatus);
   const compressedBody = new Response(rawResponse.body).body?.pipeThrough(new CompressionStream("gzip"));
   if (!compressedBody) throw new Error("No se pudo preparar la respuesta para comprimir");
 
@@ -48,6 +56,7 @@ export async function saveRawResponse(
     },
     customMetadata: {
       sourceUrl: rawResponse.url,
+      scrapeStatus,
       status: String(rawResponse.status),
       sha256,
     },

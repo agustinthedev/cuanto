@@ -3,7 +3,7 @@ import { fetchWithRetry, ScraperError, sleep } from "./stores/base";
 import { probeTiendaInglesaFallbackOrigin, tiendaInglesaFallbackOrigins } from "./stores/tienda-inglesa";
 import { saveRawResponse, type RawResponseReference } from "./raw-responses";
 import { buildScrapeAttempt, saveScrapeAttempts } from "./scrape-attempts";
-import type { ScrapeAttemptUpsert, ScrapeQueueMessage, ScrapeRawResponse, ScrapeSummary, ScrapeResult, StoreProductRecord, StoreScrapeContext } from "./types";
+import type { ScrapeAttemptStatus, ScrapeAttemptUpsert, ScrapeQueueMessage, ScrapeRawResponse, ScrapeSummary, ScrapeResult, StoreProductRecord, StoreScrapeContext } from "./types";
 
 const API_TABLES = {
   products: "products",
@@ -263,12 +263,13 @@ async function persistRawResponse(
   runId: string,
   date: string,
   record: StoreProductRecord,
+  scrapeStatus: ScrapeAttemptStatus,
   rawResponse: ScrapeRawResponse | undefined,
 ): Promise<RawResponseReference | undefined> {
   if (!rawResponse || !env.SCRAPE_RESPONSES_BUCKET) return undefined;
 
   try {
-    const reference = await saveRawResponse(env.SCRAPE_RESPONSES_BUCKET, runId, date, record, rawResponse);
+    const reference = await saveRawResponse(env.SCRAPE_RESPONSES_BUCKET, runId, date, record, scrapeStatus, rawResponse);
     console.log(JSON.stringify({
       event: "raw_response_saved",
       run_id: runId,
@@ -351,7 +352,7 @@ export async function performScrapeMessage(env: Env, message: ScrapeQueueMessage
     const attemptedAt = new Date().toISOString();
     try {
       const result = await scrapeStoreProduct(env, record, context);
-      const rawReference = await persistRawResponse(env, message.run_id, message.date, record, result.rawResponse);
+      const rawReference = await persistRawResponse(env, message.run_id, message.date, record, "success", result.rawResponse);
       attempts.push(buildScrapeAttempt({
         runId: message.run_id,
         date: message.date,
@@ -364,7 +365,7 @@ export async function performScrapeMessage(env: Env, message: ScrapeQueueMessage
       successful.push({ record, result });
     } catch (error) {
       const rawResponse = error instanceof ScraperError ? error.rawResponse : undefined;
-      const rawReference = await persistRawResponse(env, message.run_id, message.date, record, rawResponse);
+      const rawReference = await persistRawResponse(env, message.run_id, message.date, record, "failed", rawResponse);
       attempts.push(buildScrapeAttempt({
         runId: message.run_id,
         date: message.date,
@@ -456,7 +457,7 @@ export async function runScrape(env: Env, now = new Date(), options: ScrapeOptio
     let result: ScrapeResult | undefined;
     try {
       result = await scrapeStoreProduct(env, record, context);
-      const rawReference = await persistRawResponse(env, runId, date, record, result.rawResponse);
+      const rawReference = await persistRawResponse(env, runId, date, record, "success", result.rawResponse);
       attempts.push(buildScrapeAttempt({
         runId,
         date,
@@ -483,7 +484,7 @@ export async function runScrape(env: Env, now = new Date(), options: ScrapeOptio
       summary.failed += 1;
       if (!result) {
         const rawResponse = error instanceof ScraperError ? error.rawResponse : undefined;
-        const rawReference = await persistRawResponse(env, runId, date, record, rawResponse);
+        const rawReference = await persistRawResponse(env, runId, date, record, "failed", rawResponse);
         attempts.push(buildScrapeAttempt({
           runId,
           date,

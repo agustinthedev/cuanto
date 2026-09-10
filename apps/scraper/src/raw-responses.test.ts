@@ -15,8 +15,8 @@ const record: StoreProductRecord = {
 
 describe("respuestas crudas", () => {
   it("genera una clave estable por intento", () => {
-    expect(rawResponseObjectKey("2026-09-09T07:00:00.000Z", "2026-09-09", record, "attempt-1"))
-      .toBe("raw/2026-09-09/2026-09-09T07_00_00_000Z/disco/11111111-1111-4111-8111-111111111111/attempt-1.body.gz");
+    expect(rawResponseObjectKey("2026-09-09T07:00:00.000Z", "2026-09-09", record, "success", "attempt-1"))
+      .toBe("raw/success/2026-09-09/2026-09-09T07_00_00_000Z/disco/11111111-1111-4111-8111-111111111111/attempt-1.body.gz");
   });
 
   it("comprime y conserva metadata de la respuesta", async () => {
@@ -29,10 +29,10 @@ describe("respuestas crudas", () => {
       body: "<main>Producto $ 1299</main>",
     };
 
-    const saved = await saveRawResponse(bucket, "run-1", "2026-09-09", record, rawResponse);
+    const saved = await saveRawResponse(bucket, "run-1", "2026-09-09", record, "failed", rawResponse);
 
     expect(saved).toMatchObject({
-      objectKey: expect.stringMatching(/^raw\/2026-09-09\/run-1\/disco\/11111111-1111-4111-8111-111111111111\/.+\.body\.gz$/),
+      objectKey: expect.stringMatching(/^raw\/failed\/2026-09-09\/run-1\/disco\/11111111-1111-4111-8111-111111111111\/.+\.body\.gz$/),
       responseSizeBytes: new TextEncoder().encode(rawResponse.body).byteLength,
       sha256: expect.stringMatching(/^[0-9a-f]{64}$/),
     });
@@ -41,7 +41,7 @@ describe("respuestas crudas", () => {
       expect.any(ReadableStream),
       expect.objectContaining({
         httpMetadata: { contentType: rawResponse.contentType, contentEncoding: "gzip" },
-        customMetadata: expect.objectContaining({ status: "200", sourceUrl: record.url, sha256: saved.sha256 }),
+        customMetadata: expect.objectContaining({ status: "200", scrapeStatus: "failed", sourceUrl: record.url, sha256: saved.sha256 }),
       }),
     );
   });
