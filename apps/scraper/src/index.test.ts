@@ -51,7 +51,7 @@ describe("ejecución diaria", () => {
       return new Response("Not found", { status: 404 });
     }));
 
-    const result = await runScrape({ SUPABASE_URL: "https://project.supabase.co", SUPABASE_SERVICE_ROLE_KEY: "service-role" }, new Date("2026-08-25T12:00:00Z"));
+    const result = await runScrape({ SUPABASE_URL: "https://project.supabase.co", SUPABASE_SERVICE_ROLE_KEY: "service-role" } as unknown as Env, new Date("2026-08-25T12:00:00Z"));
     expect(result).toEqual({ attempted: 1, saved: 1, failed: 0 });
     expect(savedPriceBodies).toEqual([{ store_product_id: "store-product-1", price: 1299, date: "2026-08-25", scraped_at: expect.any(String) }]);
     expect(savedStoreImageBodies).toEqual([{ image_url: "https://example.test/images/product.jpg", image_fetched_at: expect.any(String) }]);
@@ -84,7 +84,7 @@ describe("ejecución diaria", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const scrape = runScrape({ SUPABASE_URL: "https://project.supabase.co", SUPABASE_SERVICE_ROLE_KEY: "service-role" }, new Date("2026-08-25T12:00:00Z"));
+    const scrape = runScrape({ SUPABASE_URL: "https://project.supabase.co", SUPABASE_SERVICE_ROLE_KEY: "service-role" } as unknown as Env, new Date("2026-08-25T12:00:00Z"));
     await vi.runAllTimersAsync();
     await expect(scrape).resolves.toEqual({ attempted: 2, saved: 2, failed: 0 });
     expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 500);
@@ -135,7 +135,7 @@ describe("ejecución diaria", () => {
         SUPABASE_URL: "https://project.supabase.co",
         SUPABASE_SERVICE_ROLE_KEY: "service-role",
         TIENDA_INGLESA_FALLBACK_ORIGIN: "https://prod-web-blue.tiendainglesa.com.uy",
-      },
+      } as unknown as Env,
       new Date("2026-08-25T12:00:00Z"),
     );
     await vi.runAllTimersAsync();
@@ -155,7 +155,7 @@ describe("ejecución diaria", () => {
     }));
 
     await runScrape(
-      { SUPABASE_URL: "https://project.supabase.co", SUPABASE_SERVICE_ROLE_KEY: "service-role" },
+      { SUPABASE_URL: "https://project.supabase.co", SUPABASE_SERVICE_ROLE_KEY: "service-role" } as unknown as Env,
       new Date("2026-08-25T12:00:00Z"),
       { productId: "product-1" },
     );
@@ -199,7 +199,7 @@ describe("ejecución diaria", () => {
         SUPABASE_URL: "https://project.supabase.co",
         SUPABASE_SERVICE_ROLE_KEY: "service-role",
         CORS_ORIGIN: "http://localhost:5173",
-      },
+      } as unknown as Env,
       { waitUntil: (task: Promise<unknown>) => { pendingTasks.push(task); } } as unknown as ExecutionContext,
     );
 
@@ -228,7 +228,7 @@ describe("ejecución diaria", () => {
         SUPABASE_URL: "https://project.supabase.co",
         SUPABASE_SERVICE_ROLE_KEY: "service-role",
         CORS_ORIGIN: "http://localhost:5173",
-      },
+      } as unknown as Env,
       { waitUntil: () => undefined } as unknown as ExecutionContext,
     );
 
