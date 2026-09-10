@@ -38,7 +38,7 @@ describe("respuestas crudas", () => {
     });
     expect(put).toHaveBeenCalledWith(
       saved.objectKey,
-      expect.any(ReadableStream),
+      expect.any(ArrayBuffer),
       expect.objectContaining({
         httpMetadata: { contentType: rawResponse.contentType, contentEncoding: "gzip" },
         customMetadata: expect.objectContaining({ status: "200", scrapeStatus: "failed", sourceUrl: record.url, sha256: saved.sha256 }),

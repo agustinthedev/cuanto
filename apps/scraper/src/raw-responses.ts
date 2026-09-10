@@ -46,8 +46,9 @@ export async function saveRawResponse(
   const bodyBytes = new TextEncoder().encode(rawResponse.body);
   const sha256 = await sha256Hex(bodyBytes);
   const objectKey = rawResponseObjectKey(runId, date, record, scrapeStatus);
-  const compressedBody = new Response(rawResponse.body).body?.pipeThrough(new CompressionStream("gzip"));
-  if (!compressedBody) throw new Error("No se pudo preparar la respuesta para comprimir");
+  const compressedStream = new Response(rawResponse.body).body?.pipeThrough(new CompressionStream("gzip"));
+  if (!compressedStream) throw new Error("No se pudo preparar la respuesta para comprimir");
+  const compressedBody = await new Response(compressedStream).arrayBuffer();
 
   await bucket.put(objectKey, compressedBody, {
     httpMetadata: {
