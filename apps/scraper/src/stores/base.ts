@@ -85,7 +85,7 @@ export async function requireResponseText(url: string, init?: RequestInit): Prom
 
 export async function readResponseSnapshot(response: Response, url: string): Promise<ScrapeRawResponse> {
   return {
-    url,
+    url: response.url || url,
     status: response.status,
     contentType: response.headers.get("content-type"),
     body: await response.text(),
