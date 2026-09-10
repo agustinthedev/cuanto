@@ -9,7 +9,8 @@ apps/web        React + TypeScript + Vite + React Router
                 └── lecturas públicas con Supabase anon key
 
 apps/scraper    Cloudflare Worker + Cron Trigger diario
-                └── adapters HTML/JSON → Supabase REST con service role
+                ├── adapters HTML/JSON → Supabase REST con service role
+                └── respuestas originales gzip → Cloudflare R2
 
 supabase/       migración PostgreSQL, RLS, vistas de agregación y seed
 ```
@@ -46,7 +47,7 @@ npm run build
 
 1. Crear un proyecto gratuito en Supabase.
 2. Aplicar `supabase/migrations/202608250001_initial_schema.sql` desde el SQL Editor o con Supabase CLI.
-3. Aplicar las migraciones posteriores, incluida `supabase/migrations/202608260001_add_product_image_sources.sql`, las migraciones de propuestas `202608260002`, `202608260003`, `202608260004`, `202608260005` y `202608260006`, `supabase/migrations/202608270001_add_direct_product_creation.sql`, las migraciones `202608280001` y `202608280002`, `supabase/migrations/202609030001_add_product_measurements.sql`, `supabase/migrations/202609030002_add_product_tags.sql`, `supabase/migrations/202609040001_add_analytics.sql`, `supabase/migrations/202609050004_restore_analytics_validator_access.sql`, `supabase/migrations/202609050005_bound_anonymous_analytics_payloads.sql` y `supabase/migrations/202609050006_fill_analytics_traffic_buckets.sql`.
+3. Aplicar las migraciones posteriores, incluida `supabase/migrations/202608260001_add_product_image_sources.sql`, las migraciones de propuestas `202608260002`, `202608260003`, `202608260004`, `202608260005` y `202608260006`, `supabase/migrations/202608270001_add_direct_product_creation.sql`, las migraciones `202608280001` y `202608280002`, `supabase/migrations/202609030001_add_product_measurements.sql`, `supabase/migrations/202609030002_add_product_tags.sql`, `supabase/migrations/202609040001_add_analytics.sql`, `supabase/migrations/202609050004_restore_analytics_validator_access.sql`, `supabase/migrations/202609050005_bound_anonymous_analytics_payloads.sql`, `supabase/migrations/202609050006_fill_analytics_traffic_buckets.sql` y `supabase/migrations/202609090001_add_scrape_attempts.sql`.
 4. Ejecutar `supabase/seed.sql` para crear Disco, Tienda Inglesa, Ta-Ta y categorías iniciales.
 5. Copiar `apps/web/.env.example` como `.env.local` y completar:
 
@@ -101,6 +102,10 @@ No se incluyen productos de ejemplo ni precios históricos ficticios en producci
 
 El Worker carga todas las publicaciones activas, elige el adapter por `stores.slug`, obtiene el precio original/de lista —sin descuentos ni promociones— y hace upsert en `prices` con la clave `(store_product_id, date)`. Un fallo individual se registra como JSON en los logs y no detiene las demás publicaciones.
 
+En cada intento, incluso cuando no se puede obtener un precio, el Worker conserva la respuesta final de la publicación en el bucket privado de R2 `cuanto-scraper-raw` como un objeto gzip. La tabla `scrape_attempts` guarda el índice consultable: corrida, producto, publicación, estado, URL efectiva, status HTTP, tamaño/hash, clave de R2, tipo de fuente (`html` o `json`), campo seleccionado, candidatos encontrados y error. En HTML, por ejemplo, `selected_path` identifica un selector o una ruta como `html[data-testid="list-price"]`; en JSON identifica la ruta del objeto. Las respuestas de sesión o de validación auxiliares no se guardan en esta primera versión.
+
+La evidencia se retiene durante 60 días. R2 debe tener una regla de lifecycle para borrar los objetos `raw/` después de 60 días; el cron del Worker elimina también los registros correspondientes de `scrape_attempts`. R2 es privado: la clave del objeto se guarda en Supabase, pero no se publica una URL accesible desde la web.
+
 Cuando un adapter encuentra una imagen, la guarda en `store_products.image_url` junto con `image_fetched_at`. Si el producto canónico todavía no tiene imagen, la primera publicación disponible la dona a `products.image_url`; también queda registrada en `products.image_source_store_product_id`. La prioridad actual de donantes es Disco, Tienda Inglesa, Ta-Ta y Red Express. Una imagen existente —incluida una cargada manualmente— no se reemplaza automáticamente.
 
 Variables locales de ejemplo: `apps/scraper/.dev.vars.example`.
@@ -114,10 +119,14 @@ npm run scraper:dev
 Para desplegar, configurar los secretos sin commitearlos:
 
 ```bash
+npx wrangler r2 bucket create cuanto-scraper-raw
+npx wrangler r2 bucket lifecycle add cuanto-scraper-raw raw-retention raw/ --expire-days 60
 npx wrangler secret put SUPABASE_URL
 npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
 npm run scraper:deploy
 ```
+
+El bucket y la regla de lifecycle se crean una sola vez. Antes de desplegar la nueva versión hay que aplicar en Supabase la migración `supabase/migrations/202609090001_add_scrape_attempts.sql`; si falta esa tabla, el Worker no podrá registrar la evidencia y la Queue reintentará los mensajes. El binding `SCRAPE_RESPONSES_BUCKET` ya está declarado en `apps/scraper/wrangler.jsonc`, por lo que no hace falta agregar otra variable secreta.
 
 Configurar también la variable `CORS_ORIGIN` del Worker con el origen exacto de la web, por ejemplo `https://cuanto.uy` (en desarrollo, `http://localhost:5173`). El cron inicial es `0 7 * * *` en UTC dentro de `apps/scraper/wrangler.jsonc`; se puede cambiar allí. El endpoint `/health` es una comprobación pública. Los administradores autenticados pueden solicitar un scrape puntual con `POST /scrape/product` y un cuerpo `{ "product_id": "..." }`; el Worker valida el token de Supabase y procesa solo las publicaciones activas de ese producto.
 
