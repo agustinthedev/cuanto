@@ -1,6 +1,6 @@
 import { extractPriceCandidatesFromText, selectPriceCandidate } from "../price";
 import type { PriceEvidence, ScrapeRawResponse, ScrapeResult, StoreProductRecord, StoreScrapeContext, StoreScraper } from "../types";
-import { extractProductImageFromHtml, fetchWithRetry, htmlToText, readResponseSnapshot, ScraperError } from "./base";
+import { extractProductImageFromHtml, fetchWithRetry, htmlToText, readResponseSnapshot, scraperErrorWithResponse, ScraperError } from "./base";
 
 const DEFAULT_FALLBACK_ORIGINS = [
   "https://prod-web-blue.tiendainglesa.com.uy",
@@ -182,7 +182,12 @@ export const tiendaInglesaScraper: StoreScraper = {
   slug: "tienda-inglesa",
   async scrape(record: StoreProductRecord, env, context?: StoreScrapeContext): Promise<ScrapeResult> {
     const rawResponse = await fetchTiendaInglesaHtml(record, env, context);
-    const parsed = parseTiendaInglesaHtmlWithEvidence(rawResponse.body);
+    let parsed: PriceEvidence & { price: number };
+    try {
+      parsed = parseTiendaInglesaHtmlWithEvidence(rawResponse.body);
+    } catch (error) {
+      throw scraperErrorWithResponse(error, rawResponse);
+    }
     const { price, ...evidence } = parsed;
     return { price, source: "html", evidence, rawResponse, imageUrl: extractProductImageFromHtml(rawResponse.body, record.url) };
   },

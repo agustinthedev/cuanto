@@ -1,6 +1,6 @@
 import { selectPriceCandidate } from "../price";
 import type { ElDoradoSession, PriceEvidence, ScrapeResult, StoreProductRecord, StoreScrapeContext, StoreScraper } from "../types";
-import { extractProductImageFromPayload, fetchWithRetry, readResponseSnapshot, ScraperError } from "./base";
+import { extractProductImageFromPayload, fetchWithRetry, readResponseSnapshot, scraperErrorWithResponse, ScraperError } from "./base";
 
 export const EL_DORADO_ORIGIN = "https://www.eldorado.com.uy";
 export const EL_DORADO_REGION_ID = "SW#eldoradouy2099";
@@ -157,7 +157,12 @@ export const elDoradoScraper: StoreScraper = {
       throw new ScraperError("El producto de El Dorado no devolvió JSON válido", rawResponse);
     }
 
-    const parsed = parseElDoradoProductWithEvidence(payload);
+    let parsed: PriceEvidence & { price: number };
+    try {
+      parsed = parseElDoradoProductWithEvidence(payload);
+    } catch (error) {
+      throw scraperErrorWithResponse(error, rawResponse);
+    }
     const { price, ...evidence } = parsed;
     return {
       price,

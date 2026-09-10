@@ -1,6 +1,6 @@
 import { extractPriceCandidatesFromText, selectPriceCandidate } from "../price";
 import type { PriceEvidence, ScrapeResult, StoreProductRecord, StoreScraper } from "../types";
-import { extractProductImageFromHtml, htmlToText, requireResponseTextSnapshot } from "./base";
+import { extractProductImageFromHtml, htmlToText, requireResponseTextSnapshot, scraperErrorWithResponse } from "./base";
 
 function metaContent(html: string, property: string): string | undefined {
   const metaTags = html.match(/<meta\b[^>]*>/gi) ?? [];
@@ -40,7 +40,12 @@ export const discoScraper: StoreScraper = {
     const rawResponse = await requireResponseTextSnapshot(record.url, {
       headers: { "User-Agent": "Cuanto.uy price tracker/0.1 (+https://cuanto.uy)" },
     });
-    const parsed = parseDiscoHtmlWithEvidence(rawResponse.body);
+    let parsed: PriceEvidence & { price: number };
+    try {
+      parsed = parseDiscoHtmlWithEvidence(rawResponse.body);
+    } catch (error) {
+      throw scraperErrorWithResponse(error, rawResponse);
+    }
     const { price, ...evidence } = parsed;
     return { price, source: "html", evidence, rawResponse, imageUrl: extractProductImageFromHtml(rawResponse.body, record.url) };
   },

@@ -10,6 +10,10 @@ export class ScraperError extends Error {
   }
 }
 
+export function scraperErrorWithResponse(error: unknown, rawResponse: ScrapeRawResponse): ScraperError {
+  return new ScraperError(error instanceof Error ? error.message : String(error), rawResponse);
+}
+
 const RETRY_DELAYS_MS = [2_000, 5_000] as const;
 const DEFAULT_ATTEMPTS = RETRY_DELAYS_MS.length + 1;
 

@@ -1,6 +1,6 @@
 import { selectPriceCandidate } from "../price";
 import type { PriceEvidence, ScrapeResult, StoreProductRecord, StoreScraper } from "../types";
-import { extractProductImageFromHtml, fetchWithRetry, requireResponseJson, requireResponseTextSnapshot, ScraperError } from "./base";
+import { extractProductImageFromHtml, fetchWithRetry, requireResponseJson, requireResponseTextSnapshot, scraperErrorWithResponse, ScraperError } from "./base";
 
 const TATA_HTML_HEADERS = {
   Accept: "text/html,application/xhtml+xml",
@@ -130,7 +130,12 @@ export const tataScraper: StoreScraper = {
     extractTataSlug(record.url);
     await fetchTataMontevideoSession(record.url);
     const rawResponse = await fetchTataHtml(record.url);
-    const parsed = parseTataHtmlWithEvidence(rawResponse.body);
+    let parsed: PriceEvidence & { price: number };
+    try {
+      parsed = parseTataHtmlWithEvidence(rawResponse.body);
+    } catch (error) {
+      throw scraperErrorWithResponse(error, rawResponse);
+    }
     const { price, ...evidence } = parsed;
     return { price, source: "html", evidence, rawResponse, imageUrl: extractProductImageFromHtml(rawResponse.body, record.url) };
   },
