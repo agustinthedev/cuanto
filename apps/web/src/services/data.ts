@@ -28,6 +28,7 @@ import type {
   Tag,
 } from "./types";
 import { isProductUnit, normalizeProductQuantity, type ProductUnit } from "./productMeasurement";
+import { isLatestPriceFresh, uruguayDate } from "./priceFreshness";
 import { demoAveragePrices, demoCategories, demoProducts, demoSuggestionStats, demoSuggestions, demoStats, demoStores, demoTags, getDemoProductPageData } from "./demoData";
 import { sortProducts, type ProductSort } from "./productSearch";
 
@@ -53,13 +54,13 @@ function normalizeProduct(value: any): Product {
   };
 }
 
-type HomepagePriceRow = Pick<LatestPrice, "product_id" | "price" | "store_name">;
+type HomepagePriceRow = Pick<LatestPrice, "product_id" | "price" | "store_name" | "date">;
 
-export function attachLatestPrices(products: Product[], latestPrices: HomepagePriceRow[]): Product[] {
+export function attachLatestPrices(products: Product[], latestPrices: HomepagePriceRow[], today = uruguayDate()): Product[] {
   const bestPriceByProduct = new Map<string, { price: number; store: string }>();
   const comparisonStoresByProduct = new Map<string, Set<string>>();
 
-  latestPrices.forEach((row) => {
+  latestPrices.filter((row) => isLatestPriceFresh(row.date, today)).forEach((row) => {
     const price = Number(row.price);
     if (!Number.isFinite(price) || price <= 0 || !row.store_name) return;
     const stores = comparisonStoresByProduct.get(row.product_id) ?? new Set<string>();
@@ -403,7 +404,7 @@ async function getProducts(filters?: { search?: string; categoryId?: string }, l
 
   const { data: latestPrices, error: latestPricesError } = await supabase
     .from("latest_store_product_prices")
-    .select("product_id,price,store_name")
+    .select("product_id,price,store_name,date")
     .in("product_id", products.map((product) => product.id));
   if (latestPricesError) throw latestPricesError;
 
@@ -518,12 +519,6 @@ async function countSuggestions(status?: ProductSuggestionStatus): Promise<numbe
   const { count, error } = await query;
   if (error) throw error;
   return count ?? 0;
-}
-
-function uruguayDate(now = new Date()): string {
-  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Montevideo", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now);
-  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  return `${values.year}-${values.month}-${values.day}`;
 }
 
 function addDays(dateValue: string, days: number): string {
@@ -754,7 +749,7 @@ export async function getProductPageData(id: string): Promise<ProductPageData> {
   if (storeResult.error) throw storeResult.error;
   return {
     product: productResult.data ? normalizeProduct(productResult.data) : null,
-    latestPrices: (latestResult.data ?? []) as LatestPrice[],
+    latestPrices: (latestResult.data ?? []).filter((row) => isLatestPriceFresh(row.date)) as LatestPrice[],
     averagePrices: (averageResult.data ?? []) as AveragePrice[],
     storePrices: (storeResult.data ?? []) as StorePrice[],
   };
