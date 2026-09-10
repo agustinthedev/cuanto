@@ -30,7 +30,10 @@ const IMAGE_STORE_PRIORITY: Record<string, number> = {
 
 const TIENDA_INGLESA_REQUEST_DELAY_MS = 500;
 const QUEUE_SEND_BATCH_SIZE = 100;
-const SCRAPE_ATTEMPT_RETENTION_DAYS = 60;
+const SCRAPE_ATTEMPT_RETENTION_DAYS: Record<ScrapeAttemptStatus, number> = {
+  success: 15,
+  failed: 60,
+};
 
 function apiUrl(env: Env, table: string, query = "") {
   return `${env.SUPABASE_URL.replace(/\/$/, "")}/rest/v1/${table}${query ? `?${query}` : ""}`;
@@ -249,13 +252,15 @@ async function scrapeStoreProduct(env: Env, record: StoreProductRecord, context?
 }
 
 async function pruneExpiredScrapeAttempts(env: Env, now: Date): Promise<void> {
-  const cutoff = new Date(now.getTime() - SCRAPE_ATTEMPT_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
-  const response = await fetchWithRetry(apiUrl(env, API_TABLES.scrapeAttempts, `attempted_at=lt.${encodeURIComponent(cutoff)}`), {
-    method: "DELETE",
-    headers: apiHeaders(env, "return=minimal"),
-  });
-  if (!response.ok) throw new Error(`No se pudieron limpiar los intentos de scraping: HTTP ${response.status} ${await response.text()}`);
-  console.log(JSON.stringify({ event: "scrape_attempts_pruned", cutoff, retention_days: SCRAPE_ATTEMPT_RETENTION_DAYS }));
+  for (const [status, retentionDays] of Object.entries(SCRAPE_ATTEMPT_RETENTION_DAYS) as Array<[ScrapeAttemptStatus, number]>) {
+    const cutoff = new Date(now.getTime() - retentionDays * 24 * 60 * 60 * 1000).toISOString();
+    const response = await fetchWithRetry(apiUrl(env, API_TABLES.scrapeAttempts, `status=eq.${status}&attempted_at=lt.${encodeURIComponent(cutoff)}`), {
+      method: "DELETE",
+      headers: apiHeaders(env, "return=minimal"),
+    });
+    if (!response.ok) throw new Error(`No se pudieron limpiar los intentos ${status} de scraping: HTTP ${response.status} ${await response.text()}`);
+    console.log(JSON.stringify({ event: "scrape_attempts_pruned", status, cutoff, retention_days: retentionDays }));
+  }
 }
 
 async function persistRawResponse(

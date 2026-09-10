@@ -775,4 +775,37 @@ describe("flujo con Queue", () => {
 
     expect(fetchMock.mock.calls.filter(([input]) => String(input) === message.store_products[0].url)).toHaveLength(2);
   });
+
+  it("limpia exitosos y fallos con retenciones distintas", async () => {
+    const queue = { sendBatch: vi.fn(async () => undefined) };
+    const deletedUrls: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/rest/v1/stores")) return new Response(JSON.stringify([{ id: "store-1", slug: "disco" }]), { status: 200 });
+      if (url.includes("/rest/v1/store_products")) return new Response(JSON.stringify([]), { status: 200 });
+      if (url.includes("/rest/v1/products")) return new Response(JSON.stringify([]), { status: 200 });
+      if (url.includes("/rest/v1/scrape_attempts") && init?.method === "DELETE") {
+        deletedUrls.push(url);
+        return new Response(null, { status: 204 });
+      }
+      return new Response("Not found", { status: 404 });
+    }));
+
+    await worker.scheduled(
+      { scheduledTime: new Date("2026-09-10T07:00:00Z").getTime() } as unknown as ScheduledController,
+      {
+        SUPABASE_URL: "https://project.supabase.co",
+        SUPABASE_SERVICE_ROLE_KEY: "service-role",
+        SCRAPE_QUEUE: queue,
+      } as unknown as Env,
+    );
+
+    expect(deletedUrls).toHaveLength(2);
+    const filters = deletedUrls.map((url) => new URL(url).searchParams);
+    expect(filters.map((params) => params.get("status"))).toEqual(["eq.success", "eq.failed"]);
+    expect(filters.map((params) => params.get("attempted_at"))).toEqual([
+      "lt.2026-08-26T07:00:00.000Z",
+      "lt.2026-07-12T07:00:00.000Z",
+    ]);
+  });
 });
