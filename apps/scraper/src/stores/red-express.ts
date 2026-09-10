@@ -1,6 +1,6 @@
 import { selectPriceCandidate } from "../price";
 import type { PriceEvidence, ScrapeResult, StoreProductRecord, StoreScraper } from "../types";
-import { extractProductImageFromPayload, requireResponseJson } from "./base";
+import { extractProductImageFromPayload, requireResponseTextSnapshot, ScraperError } from "./base";
 
 interface RedExpressEnv {
   RED_EXPRESS_BASIC_AUTH?: string;
@@ -42,9 +42,15 @@ export const redExpressScraper: StoreScraper = {
     if (env.RED_EXPRESS_BASIC_AUTH) {
       headers.Authorization = env.RED_EXPRESS_BASIC_AUTH.startsWith("Basic ") ? env.RED_EXPRESS_BASIC_AUTH : `Basic ${env.RED_EXPRESS_BASIC_AUTH}`;
     }
-    const payload = await requireResponseJson(withLocationContext(record.url, env), { headers });
+    const rawResponse = await requireResponseTextSnapshot(withLocationContext(record.url, env), { headers });
+    let payload: unknown;
+    try {
+      payload = JSON.parse(rawResponse.body);
+    } catch {
+      throw new ScraperError("El producto de Red Express no devolvió JSON válido", rawResponse);
+    }
     const parsed = parseRedExpressJsonWithEvidence(payload);
     const { price, ...evidence } = parsed;
-    return { price, source: "json", evidence, imageUrl: extractProductImageFromPayload(payload, record.url) };
+    return { price, source: "json", evidence, rawResponse, imageUrl: extractProductImageFromPayload(payload, record.url) };
   },
 };

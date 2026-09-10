@@ -1,7 +1,12 @@
+import type { ScrapeRawResponse } from "../types";
+
 export class ScraperError extends Error {
-  constructor(message: string) {
+  readonly rawResponse?: ScrapeRawResponse;
+
+  constructor(message: string, rawResponse?: ScrapeRawResponse) {
     super(message);
     this.name = "ScraperError";
+    this.rawResponse = rawResponse;
   }
 }
 
@@ -72,6 +77,26 @@ export async function requireResponseText(url: string, init?: RequestInit): Prom
   const response = await fetchWithRetry(url, init);
   if (!response.ok) throw new ScraperError(`No se pudo leer ${url}: HTTP ${response.status}`);
   return response.text();
+}
+
+export async function readResponseSnapshot(response: Response, url: string): Promise<ScrapeRawResponse> {
+  return {
+    url,
+    status: response.status,
+    contentType: response.headers.get("content-type"),
+    body: await response.text(),
+  };
+}
+
+export async function requireResponseTextSnapshot(
+  url: string,
+  init?: RequestInit,
+  shouldRetryResponse?: (response: Response) => boolean,
+): Promise<ScrapeRawResponse> {
+  const response = await fetchWithRetry(url, init, undefined, shouldRetryResponse);
+  const snapshot = await readResponseSnapshot(response, url);
+  if (!response.ok) throw new ScraperError(`No se pudo leer ${url}: HTTP ${response.status}`, snapshot);
+  return snapshot;
 }
 
 export async function requireResponseJson(url: string, init?: RequestInit): Promise<unknown> {

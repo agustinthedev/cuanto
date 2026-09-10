@@ -1,6 +1,6 @@
 import { extractPriceCandidatesFromText, selectPriceCandidate } from "../price";
-import type { PriceEvidence, ScrapeResult, StoreProductRecord, StoreScrapeContext, StoreScraper } from "../types";
-import { extractProductImageFromHtml, fetchWithRetry, htmlToText, ScraperError } from "./base";
+import type { PriceEvidence, ScrapeRawResponse, ScrapeResult, StoreProductRecord, StoreScrapeContext, StoreScraper } from "../types";
+import { extractProductImageFromHtml, fetchWithRetry, htmlToText, readResponseSnapshot, ScraperError } from "./base";
 
 const DEFAULT_FALLBACK_ORIGINS = [
   "https://prod-web-blue.tiendainglesa.com.uy",
@@ -120,10 +120,11 @@ async function fetchFromFallbackOrigins(
   env: Env,
   preferredOrigins?: string[],
   previouslyFailedOrigins?: string[],
-): Promise<string> {
+): Promise<ScrapeRawResponse> {
   const init = { headers: { "User-Agent": TIENDA_INGLESA_USER_AGENT } };
   const failedOrigins: string[] = [];
   const previouslyFailed = new Set(previouslyFailedOrigins);
+  let lastResponse: ScrapeRawResponse | undefined;
 
   for (const fallbackOrigin of orderedFallbackOrigins(env, preferredOrigins)) {
     let targetUrl: string;
@@ -141,24 +142,24 @@ async function fetchFromFallbackOrigins(
 
     const attempts = previouslyFailed.has(fallbackOrigin) ? 1 : undefined;
     const response = await fetchWithRetry(targetUrl, init, attempts, (candidate) => candidate.status !== 403 && !candidate.ok);
+    const rawResponse = await readResponseSnapshot(response, targetUrl);
+    lastResponse = rawResponse;
     if (!response.ok) {
-      await response.body?.cancel();
       failedOrigins.push(`${fallbackOrigin}: HTTP ${response.status}`);
       console.warn(JSON.stringify({ event: "tienda_inglesa_alias_failed", origin: fallbackOrigin, target_url: targetUrl, status: response.status, attempts }));
       continue;
     }
 
-    const html = await response.text();
-    if (hasTiendaInglesaProductData(html)) return html;
+    if (hasTiendaInglesaProductData(rawResponse.body)) return rawResponse;
 
     failedOrigins.push(`${fallbackOrigin}: respuesta sin datos de producto`);
     console.warn(JSON.stringify({ event: "tienda_inglesa_alias_failed", origin: fallbackOrigin, target_url: targetUrl, status: response.status, reason: "missing_product_data" }));
   }
 
-  throw new ScraperError(`No se pudo leer ningún alias de Tienda Inglesa para ${record.url}: ${failedOrigins.join("; ")}`);
+  throw new ScraperError(`No se pudo leer ningún alias de Tienda Inglesa para ${record.url}: ${failedOrigins.join("; ")}`, lastResponse);
 }
 
-async function fetchTiendaInglesaHtml(record: StoreProductRecord, env: Env, context?: StoreScrapeContext): Promise<string> {
+async function fetchTiendaInglesaHtml(record: StoreProductRecord, env: Env, context?: StoreScrapeContext): Promise<ScrapeRawResponse> {
   const { tiendaInglesaFallbackOrigins: preferredOrigins, tiendaInglesaPreviouslyFailedOrigins: previouslyFailedOrigins } = context ?? {};
   if (preferredOrigins?.length) {
     return fetchFromFallbackOrigins(record, env, preferredOrigins, previouslyFailedOrigins);
@@ -166,12 +167,11 @@ async function fetchTiendaInglesaHtml(record: StoreProductRecord, env: Env, cont
 
   const init = { headers: { "User-Agent": TIENDA_INGLESA_USER_AGENT } };
   const response = await fetchWithRetry(record.url, init, undefined, (candidate) => candidate.status !== 403 && !candidate.ok);
+  const rawResponse = await readResponseSnapshot(response, record.url);
   if (response.ok) {
-    const html = await response.text();
-    if (hasTiendaInglesaProductData(html)) return html;
+    if (hasTiendaInglesaProductData(rawResponse.body)) return rawResponse;
     console.warn(JSON.stringify({ event: "tienda_inglesa_primary_failed", source_url: record.url, status: response.status, reason: "missing_product_data" }));
   } else {
-    await response.body?.cancel();
     console.warn(JSON.stringify({ event: "tienda_inglesa_primary_failed", source_url: record.url, status: response.status }));
   }
 
@@ -181,9 +181,9 @@ async function fetchTiendaInglesaHtml(record: StoreProductRecord, env: Env, cont
 export const tiendaInglesaScraper: StoreScraper = {
   slug: "tienda-inglesa",
   async scrape(record: StoreProductRecord, env, context?: StoreScrapeContext): Promise<ScrapeResult> {
-    const html = await fetchTiendaInglesaHtml(record, env, context);
-    const parsed = parseTiendaInglesaHtmlWithEvidence(html);
+    const rawResponse = await fetchTiendaInglesaHtml(record, env, context);
+    const parsed = parseTiendaInglesaHtmlWithEvidence(rawResponse.body);
     const { price, ...evidence } = parsed;
-    return { price, source: "html", evidence, imageUrl: extractProductImageFromHtml(html, record.url) };
+    return { price, source: "html", evidence, rawResponse, imageUrl: extractProductImageFromHtml(rawResponse.body, record.url) };
   },
 };

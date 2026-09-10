@@ -1,6 +1,6 @@
 import { selectPriceCandidate } from "../price";
 import type { PriceEvidence, ScrapeResult, StoreProductRecord, StoreScraper } from "../types";
-import { extractProductImageFromHtml, fetchWithRetry, requireResponseJson, ScraperError } from "./base";
+import { extractProductImageFromHtml, fetchWithRetry, requireResponseJson, requireResponseTextSnapshot, ScraperError } from "./base";
 
 const TATA_HTML_HEADERS = {
   Accept: "text/html,application/xhtml+xml",
@@ -115,15 +115,13 @@ async function fetchTataMontevideoSession(rawUrl: string): Promise<void> {
   }
 }
 
-async function fetchTataHtml(rawUrl: string): Promise<string> {
-  const response = await fetchWithRetry(
-    tataLocalityUrl(rawUrl),
+async function fetchTataHtml(rawUrl: string) {
+  const url = tataLocalityUrl(rawUrl);
+  return requireResponseTextSnapshot(
+    url,
     { headers: TATA_HTML_HEADERS },
-    undefined,
     (candidate) => candidate.status === 429 || candidate.status >= 500,
   );
-  if (!response.ok) throw new ScraperError(`No se pudo leer ${rawUrl}: HTTP ${response.status}`);
-  return response.text();
 }
 
 export const tataScraper: StoreScraper = {
@@ -131,9 +129,9 @@ export const tataScraper: StoreScraper = {
   async scrape(record: StoreProductRecord): Promise<ScrapeResult> {
     extractTataSlug(record.url);
     await fetchTataMontevideoSession(record.url);
-    const html = await fetchTataHtml(record.url);
-    const parsed = parseTataHtmlWithEvidence(html);
+    const rawResponse = await fetchTataHtml(record.url);
+    const parsed = parseTataHtmlWithEvidence(rawResponse.body);
     const { price, ...evidence } = parsed;
-    return { price, source: "html", evidence, imageUrl: extractProductImageFromHtml(html, record.url) };
+    return { price, source: "html", evidence, rawResponse, imageUrl: extractProductImageFromHtml(rawResponse.body, record.url) };
   },
 };

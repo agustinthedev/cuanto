@@ -29,10 +29,18 @@ export interface PriceEvidence {
   candidates: PriceCandidate[];
 }
 
+export interface ScrapeRawResponse {
+  url: string;
+  status: number;
+  contentType: string | null;
+  body: string;
+}
+
 export interface ScrapeResult {
   price: number;
   source: "html" | "json";
   evidence: PriceEvidence;
+  rawResponse: ScrapeRawResponse;
   imageUrl?: string;
 }
 

@@ -1,6 +1,6 @@
 import { selectPriceCandidate } from "../price";
 import type { ElDoradoSession, PriceEvidence, ScrapeResult, StoreProductRecord, StoreScrapeContext, StoreScraper } from "../types";
-import { extractProductImageFromPayload, fetchWithRetry, ScraperError } from "./base";
+import { extractProductImageFromPayload, fetchWithRetry, readResponseSnapshot, ScraperError } from "./base";
 
 export const EL_DORADO_ORIGIN = "https://www.eldorado.com.uy";
 export const EL_DORADO_REGION_ID = "SW#eldoradouy2099";
@@ -145,15 +145,17 @@ export const elDoradoScraper: StoreScraper = {
   async scrape(record: StoreProductRecord, _env: Env, context: StoreScrapeContext = {}): Promise<ScrapeResult> {
     const slug = extractElDoradoSlug(record.url);
     const session = await regionalSession(context);
-    const payload = await fetchWithRetry(productApiUrl(slug), { headers: headersWithCookie(session.cookie) })
-      .then(async (response) => {
-        if (!response.ok) throw new ScraperError(`No se pudo leer el producto de El Dorado: HTTP ${response.status}`);
-        try {
-          return await response.json();
-        } catch {
-          throw new ScraperError("El producto de El Dorado no devolvió JSON válido");
-        }
-      });
+    const productUrl = productApiUrl(slug);
+    const response = await fetchWithRetry(productUrl, { headers: headersWithCookie(session.cookie) });
+    const rawResponse = await readResponseSnapshot(response, productUrl);
+    if (!response.ok) throw new ScraperError(`No se pudo leer el producto de El Dorado: HTTP ${response.status}`, rawResponse);
+
+    let payload: unknown;
+    try {
+      payload = JSON.parse(rawResponse.body);
+    } catch {
+      throw new ScraperError("El producto de El Dorado no devolvió JSON válido", rawResponse);
+    }
 
     const parsed = parseElDoradoProductWithEvidence(payload);
     const { price, ...evidence } = parsed;
@@ -161,6 +163,7 @@ export const elDoradoScraper: StoreScraper = {
       price,
       source: "json",
       evidence,
+      rawResponse,
       imageUrl: extractProductImageFromPayload(payload, record.url),
     };
   },
