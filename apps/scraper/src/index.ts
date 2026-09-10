@@ -2,7 +2,8 @@ import { getScraper } from "./stores";
 import { fetchWithRetry, ScraperError, sleep } from "./stores/base";
 import { probeTiendaInglesaFallbackOrigin, tiendaInglesaFallbackOrigins } from "./stores/tienda-inglesa";
 import { saveRawResponse, type RawResponseReference } from "./raw-responses";
-import type { ScrapeQueueMessage, ScrapeRawResponse, ScrapeSummary, ScrapeResult, StoreProductRecord, StoreScrapeContext } from "./types";
+import { buildScrapeAttempt, saveScrapeAttempts } from "./scrape-attempts";
+import type { ScrapeAttemptUpsert, ScrapeQueueMessage, ScrapeRawResponse, ScrapeSummary, ScrapeResult, StoreProductRecord, StoreScrapeContext } from "./types";
 
 const API_TABLES = {
   products: "products",
@@ -323,6 +324,7 @@ export async function performScrapeMessage(env: Env, message: ScrapeQueueMessage
   }]]);
   const successful: Array<{ record: StoreProductRecord; result: ScrapeResult }> = [];
   const failed: FailedStoreProduct[] = [];
+  const attempts: ScrapeAttemptUpsert[] = [];
   const context: StoreScrapeContext = {
     tiendaInglesaFallbackOrigins: message.tienda_inglesa_fallback_origins,
     tiendaInglesaPreviouslyFailedOrigins: message.tienda_inglesa_previously_failed_origins,
@@ -334,13 +336,34 @@ export async function performScrapeMessage(env: Env, message: ScrapeQueueMessage
       await sleep(TIENDA_INGLESA_REQUEST_DELAY_MS);
     }
 
+    const attemptedAt = new Date().toISOString();
     try {
       const result = await scrapeStoreProduct(env, record, context);
-      await persistRawResponse(env, message.run_id, message.date, record, result.rawResponse);
+      const rawReference = await persistRawResponse(env, message.run_id, message.date, record, result.rawResponse);
+      attempts.push(buildScrapeAttempt({
+        runId: message.run_id,
+        date: message.date,
+        record,
+        attemptedAt,
+        status: "success",
+        result,
+        rawReference,
+      }));
       successful.push({ record, result });
     } catch (error) {
+      const rawResponse = error instanceof ScraperError ? error.rawResponse : undefined;
+      const rawReference = await persistRawResponse(env, message.run_id, message.date, record, rawResponse);
+      attempts.push(buildScrapeAttempt({
+        runId: message.run_id,
+        date: message.date,
+        record,
+        attemptedAt,
+        status: "failed",
+        rawResponse,
+        rawReference,
+        error,
+      }));
       failed.push({ record, error });
-      await persistRawResponse(env, message.run_id, message.date, record, error instanceof ScraperError ? error.rawResponse : undefined);
       console.error(JSON.stringify({
         event: "scrape_failed",
         run_id: message.run_id,
@@ -353,6 +376,7 @@ export async function performScrapeMessage(env: Env, message: ScrapeQueueMessage
     }
   }
 
+  await saveScrapeAttempts(env, attempts);
   await savePrices(env, successful.map(({ record, result }) => ({
     store_product_id: record.id,
     price: result.price,
@@ -406,6 +430,7 @@ export async function runScrape(env: Env, now = new Date(), options: ScrapeOptio
   const date = uruguayDate(now);
   const runId = `manual-${now.toISOString()}`;
   const summary: ScrapeSummary = { attempted: records.length, saved: 0, failed: 0 };
+  const attempts: ScrapeAttemptUpsert[] = [];
   const context: StoreScrapeContext = {};
   let previousStoreSlug: string | undefined;
 
@@ -415,9 +440,20 @@ export async function runScrape(env: Env, now = new Date(), options: ScrapeOptio
       await sleep(TIENDA_INGLESA_REQUEST_DELAY_MS);
     }
 
+    const attemptedAt = new Date().toISOString();
+    let result: ScrapeResult | undefined;
     try {
-      const result = await scrapeStoreProduct(env, record, context);
-      await persistRawResponse(env, runId, date, record, result.rawResponse);
+      result = await scrapeStoreProduct(env, record, context);
+      const rawReference = await persistRawResponse(env, runId, date, record, result.rawResponse);
+      attempts.push(buildScrapeAttempt({
+        runId,
+        date,
+        record,
+        attemptedAt,
+        status: "success",
+        result,
+        rawReference,
+      }));
       await savePrice(env, record, result.price, date);
       summary.saved += 1;
       if (result.imageUrl) {
@@ -433,12 +469,26 @@ export async function runScrape(env: Env, now = new Date(), options: ScrapeOptio
       console.log(JSON.stringify({ event: "price_saved", store: record.store_slug, store_product_id: record.id, date, price: result.price }));
     } catch (error) {
       summary.failed += 1;
-      await persistRawResponse(env, runId, date, record, error instanceof ScraperError ? error.rawResponse : undefined);
+      if (!result) {
+        const rawResponse = error instanceof ScraperError ? error.rawResponse : undefined;
+        const rawReference = await persistRawResponse(env, runId, date, record, rawResponse);
+        attempts.push(buildScrapeAttempt({
+          runId,
+          date,
+          record,
+          attemptedAt,
+          status: "failed",
+          rawResponse,
+          rawReference,
+          error,
+        }));
+      }
       console.error(JSON.stringify({ event: "scrape_failed", store: record.store_slug, store_product_id: record.id, url: record.url, timestamp: new Date().toISOString(), reason: error instanceof Error ? error.message : String(error) }));
     } finally {
       previousStoreSlug = record.store_slug;
     }
   }
+  await saveScrapeAttempts(env, attempts);
   return summary;
 }
 

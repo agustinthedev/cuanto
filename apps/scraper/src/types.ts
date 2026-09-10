@@ -36,6 +36,30 @@ export interface ScrapeRawResponse {
   body: string;
 }
 
+export type ScrapeAttemptStatus = "success" | "failed";
+
+export interface ScrapeAttemptUpsert {
+  run_id: string;
+  product_id: string;
+  store_product_id: string;
+  store_id: string;
+  date: string;
+  attempted_at: string;
+  status: ScrapeAttemptStatus;
+  source_type: "html" | "json" | null;
+  source_url: string;
+  response_url: string | null;
+  http_status: number | null;
+  content_type: string | null;
+  response_size_bytes: number | null;
+  response_sha256: string | null;
+  raw_object_key: string | null;
+  price: number | null;
+  selected_path: string | null;
+  candidates: PriceCandidate[];
+  error: string | null;
+}
+
 export interface ScrapeResult {
   price: number;
   source: "html" | "json";
