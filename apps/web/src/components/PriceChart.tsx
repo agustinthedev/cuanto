@@ -34,24 +34,26 @@ function percentageDifference(value: number, base: number) {
   return new Intl.NumberFormat("es-UY", { style: "percent", maximumFractionDigits: 1 }).format(base ? value / base : 0);
 }
 
-export function PriceBarChart({ data }: { data: LatestPrice[] }) {
+export function PriceBarChart({ data, unavailable = [] }: { data: LatestPrice[]; unavailable?: LatestPrice[] }) {
   const sortedPrices = [...data].sort((left, right) => Number(left.price) - Number(right.price));
-  if (!sortedPrices.length) return <div className="chart-empty">Todavía no hay precios comparables.</div>;
+  const sortedUnavailable = [...unavailable].sort((left, right) => left.store_name.localeCompare(right.store_name, "es"));
+  if (!sortedPrices.length && !sortedUnavailable.length) return <div className="chart-empty">Todavía no hay precios comparables.</div>;
 
-  const lowestPrice = Number(sortedPrices[0].price);
-  const highestPrice = Number(sortedPrices[sortedPrices.length - 1].price);
+  const lowestPrice = sortedPrices.length ? Number(sortedPrices[0].price) : 0;
+  const highestPrice = sortedPrices.length ? Number(sortedPrices[sortedPrices.length - 1].price) : 0;
   const spread = highestPrice - lowestPrice || 1;
+  const comparisonLabel = sortedPrices.length === 1 ? "1 cadena con precio reciente" : `${sortedPrices.length} cadenas con precio reciente`;
 
   return (
     <div className="price-bars" role="list" aria-label="Últimos precios por cadena">
       <div className="price-bars-intro">
         <div>
-          <strong>{sortedPrices.length} cadenas comparadas</strong>
-          <span>La barra muestra la distancia relativa frente al precio más bajo.</span>
+          <strong>{sortedPrices.length ? comparisonLabel : "No hay precios recientes"}</strong>
+          <span>{sortedPrices.length ? "La barra muestra la distancia relativa frente al precio más bajo." : "Las cadenas sin una observación reciente aparecen debajo."}</span>
         </div>
-        <span className="price-bars-key"><i /> Mejor precio</span>
+        {sortedPrices.length > 0 && <span className="price-bars-key"><i /> Mejor precio</span>}
       </div>
-      <div className="price-vertical-stage">
+      {sortedPrices.length > 0 && <div className="price-vertical-stage">
         {sortedPrices.map((item) => {
           const price = Number(item.price);
           const isBest = item.store_product_id === sortedPrices[0].store_product_id;
@@ -74,7 +76,19 @@ export function PriceBarChart({ data }: { data: LatestPrice[] }) {
             </a>
           );
         })}
-      </div>
+      </div>}
+      {sortedUnavailable.length > 0 && <div className="price-bars-unavailable-list">
+        <div className="price-bars-unavailable-intro">
+          <strong>Sin precio reciente</strong>
+          <span>La última observación queda como referencia, pero no participa en la comparación.</span>
+        </div>
+        {sortedUnavailable.map((item) => (
+          <div className="price-unavailable-row" key={item.store_product_id} role="listitem" aria-label={`${item.store_name}: precio no disponible`}>
+            <span className="price-unavailable-store"><StoreLogo compact name={item.store_name} slug={item.store_slug} /><strong>{item.store_name}</strong></span>
+            <span className="price-unavailable-copy"><strong>Precio no disponible</strong><small>Última observación: {item.date}</small></span>
+          </div>
+        ))}
+      </div>}
     </div>
   );
 }

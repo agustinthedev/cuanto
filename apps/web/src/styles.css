@@ -224,6 +224,16 @@ a { color: inherit; text-decoration: none; }
 .price-vertical-store strong { overflow: hidden; color: #2a564b; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .price-vertical-footer { display: flex; align-items: center; justify-content: flex-end; gap: 3px; min-width: 0; color: #3d7c69; font-size: 8px; font-weight: 700; }
 .price-vertical-footer b { margin-left: 2px; color: var(--accent-strong); font-size: 12px; vertical-align: -1px; }
+.price-bars-unavailable-list { display: grid; gap: 8px; padding: 15px 19px 19px; border-top: 1px solid #d8ebe1; background: rgba(245, 251, 247, .72); }
+.price-bars-unavailable-intro { display: grid; gap: 3px; padding: 0 5px 3px; }
+.price-bars-unavailable-intro strong { color: #536f67; font-size: 11px; }
+.price-bars-unavailable-intro span { color: #78918c; font-size: 9px; line-height: 1.45; }
+.price-unavailable-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 11px 12px; border: 1px solid #dbe9e1; border-radius: 12px; color: #70867f; background: rgba(236, 245, 240, .72); opacity: .72; }
+.price-unavailable-store { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
+.price-unavailable-store strong { overflow: hidden; color: #5c756d; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.price-unavailable-copy { display: grid; justify-items: end; gap: 2px; flex: 0 0 auto; text-align: right; }
+.price-unavailable-copy strong { color: #6a8179; font-size: 10px; font-weight: 700; }
+.price-unavailable-copy small { color: #879a94; font-size: 8px; }
 .price-card { min-width: 0; display: flex; flex-direction: column; gap: 16px; padding: 17px; border: 1px solid #d5e9df; border-radius: 15px; color: var(--ink); background: rgba(255, 255, 255, .78); box-shadow: 0 8px 20px rgba(26, 73, 57, .06); transition: transform .2s, border .2s, box-shadow .2s; }
 .price-card:hover { transform: translateY(-3px); border-color: #a8dcc3; box-shadow: 0 15px 25px rgba(26, 73, 57, .11); }
 .price-card.is-best { border-color: #82cba7; background: linear-gradient(145deg, #f0fcf3, #e5f6ef); }
@@ -463,6 +473,9 @@ a { color: inherit; text-decoration: none; }
   .chart-date-picker { align-self: flex-start; }
   .chart-date-popover { right: auto; left: 0; width: min(246px, calc(100vw - 44px)); }
   .price-bars-intro { align-items: flex-start; flex-direction: column; gap: 10px; padding: 15px; }
+  .price-bars-unavailable-list { padding: 13px 15px 15px; }
+  .price-unavailable-row { align-items: flex-start; flex-direction: column; gap: 7px; }
+  .price-unavailable-copy { justify-items: start; text-align: left; }
   .price-bar-row { padding: 15px; }
   .price-bar-row:hover, .price-bar-row:focus-visible { padding-left: 17px; }
   .price-bar-row-topline { align-items: flex-start; }

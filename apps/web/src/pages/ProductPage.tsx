@@ -6,7 +6,7 @@ import { getProductPageData } from "../services/data";
 import type { ProductEntryNavigationState, ProductReturnNavigationState } from "../services/navigation";
 import type { ProductPageData } from "../services/types";
 
-const emptyData: ProductPageData = { product: null, latestPrices: [], averagePrices: [], storePrices: [] };
+const emptyData: ProductPageData = { product: null, latestPrices: [], unavailablePrices: [], averagePrices: [], storePrices: [] };
 
 interface ProductPageProps {
   onReady?: (productId: string) => void;
@@ -49,7 +49,7 @@ export function ProductPage({ onReady }: ProductPageProps) {
   if (error) return <div className="container page-state"><StateMessage title="No pudimos cargar este producto" text="Revisá la conexión o volvé a intentarlo en unos segundos." /></div>;
   if (!data.product) return <div className="container page-state"><StateMessage title="Producto no encontrado" text="Este producto todavía no forma parte del catálogo seguido." /></div>;
 
-  const { product, latestPrices, averagePrices, storePrices } = data;
+  const { product, latestPrices, unavailablePrices, averagePrices, storePrices } = data;
   const entryState = location.state as Partial<ProductEntryNavigationState> | null;
   const returnTo = typeof entryState?.returnTo === "string" ? entryState.returnTo : "/";
   const returnState: ProductReturnNavigationState | undefined = typeof entryState?.returnScrollY === "number"
@@ -57,7 +57,7 @@ export function ProductPage({ onReady }: ProductPageProps) {
     : undefined;
   const bestLatest = [...latestPrices].sort((left, right) => Number(left.price) - Number(right.price))[0] ?? null;
   const bestPrice = bestLatest ? Number(bestLatest.price) : null;
-  const latestObservationDate = latestPrices.reduce((latest, item) => item.date > latest ? item.date : latest, "");
+  const latestObservationDate = [...latestPrices, ...unavailablePrices].reduce((latest, item) => item.date > latest ? item.date : latest, "");
 
   return (
     <div className="container product-page">
@@ -81,7 +81,7 @@ export function ProductPage({ onReady }: ProductPageProps) {
 
       <section className="comparison-section">
         <div className="section-heading"><div><span className="section-kicker">Ahora</span><h2>¿Dónde conviene hoy?</h2><p className="section-subcopy">Compará el último precio válido en cada cadena.</p></div><span className="section-note">Mejor precio primero</span></div>
-        {latestPrices.length ? <PriceBarChart data={latestPrices} /> : <StateMessage compact title="Precio no disponible" text="No encontramos un precio registrado hoy ni ayer para este producto." />}
+        {latestPrices.length || unavailablePrices.length ? <PriceBarChart data={latestPrices} unavailable={unavailablePrices} /> : <StateMessage compact title="Precio no disponible" text="No encontramos un precio registrado para este producto." />}
       </section>
 
       <section className="chart-section">
