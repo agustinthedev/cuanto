@@ -47,10 +47,11 @@ describe("fetchWithRetry", () => {
       body: "Producto no encontrado",
     };
 
-    expect(scraperErrorWithResponse(new Error("No se encontró un precio"), rawResponse)).toMatchObject({
+    expect(scraperErrorWithResponse(new Error("No se encontró un precio"), rawResponse, "html")).toMatchObject({
       name: "ScraperError",
       message: "No se encontró un precio",
       rawResponse,
+      source: "html",
     });
   });
 

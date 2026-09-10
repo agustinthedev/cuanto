@@ -136,7 +136,7 @@ describe("ejecución diaria", () => {
     expect(savedAttemptBodies).toHaveLength(1);
     expect(savedAttemptBodies[0]).toMatchObject({
       status: "failed",
-      source_type: null,
+      source_type: "html",
       response_url: "https://example.test/product",
       http_status: 200,
       raw_object_key: expect.stringMatching(/^raw\/failed\/2026-08-25\/manual-2026-08-25T12_00_00_000Z\/disco\/store-product-1\/.+\.body\.gz$/),

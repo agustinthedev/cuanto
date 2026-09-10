@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildScrapeAttempt } from "./scrape-attempts";
+import { ScraperError } from "./stores/base";
 import type { StoreProductRecord } from "./types";
 
 const record: StoreProductRecord = {
@@ -86,6 +87,28 @@ describe("intentos de scraping", () => {
       price: null,
       candidates: [],
       error: "No se encontró el producto",
+    });
+  });
+
+  it("conserva el tipo de fuente conocido en un error de parseo", () => {
+    const rawResponse = {
+      url: record.url,
+      status: 200,
+      contentType: "text/html",
+      body: "Producto no encontrado",
+    };
+
+    expect(buildScrapeAttempt({
+      runId: "run-1",
+      date: "2026-09-09",
+      record,
+      attemptedAt: "2026-09-09T07:00:00.000Z",
+      status: "failed",
+      rawResponse,
+      error: new ScraperError("No se encontró un precio", rawResponse, "html"),
+    })).toMatchObject({
+      status: "failed",
+      source_type: "html",
     });
   });
 });
