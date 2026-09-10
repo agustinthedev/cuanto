@@ -19,9 +19,20 @@ export interface ScrapeQueueMessage {
   tienda_inglesa_previously_failed_origins?: string[];
 }
 
+export interface PriceCandidate {
+  path: string;
+  value: number;
+}
+
+export interface PriceEvidence {
+  selectedPath: string;
+  candidates: PriceCandidate[];
+}
+
 export interface ScrapeResult {
   price: number;
   source: "html" | "json";
+  evidence: PriceEvidence;
   imageUrl?: string;
 }
 

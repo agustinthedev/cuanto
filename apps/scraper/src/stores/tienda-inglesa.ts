@@ -1,5 +1,5 @@
-import { extractJsonPrice, extractPriceFromText } from "../price";
-import type { ScrapeResult, StoreProductRecord, StoreScrapeContext, StoreScraper } from "../types";
+import { extractPriceCandidatesFromText, selectPriceCandidate } from "../price";
+import type { PriceEvidence, ScrapeResult, StoreProductRecord, StoreScrapeContext, StoreScraper } from "../types";
 import { extractProductImageFromHtml, fetchWithRetry, htmlToText, ScraperError } from "./base";
 
 const DEFAULT_FALLBACK_ORIGINS = [
@@ -19,15 +19,23 @@ function decodeHtmlEntities(value: string): string {
 }
 
 export function parseTiendaInglesaHtml(html: string): number {
+  return parseTiendaInglesaHtmlWithEvidence(html).price;
+}
+
+export function parseTiendaInglesaHtmlWithEvidence(html: string): PriceEvidence & { price: number } {
   const normalizedHtml = decodeHtmlEntities(html);
   const prices = normalizedHtml.match(/"[^\"]+ProductUI_PARM"\s*:\s*\{[\s\S]*?"Prices"\s*:\s*\[([^\]]*)\]/i)?.[1];
   const originalPrice = prices?.match(/"Label"\s*:\s*"Antes[^\"]*"\s*,\s*"Price"\s*:\s*([\d]+(?:[.,]\d+)?)/i)?.[1];
-  if (originalPrice) return extractJsonPrice(Number(originalPrice.replace(",", ".")));
+  if (originalPrice) return selectPriceCandidate([{ path: 'ProductUI_PARM.Prices[Label^="Antes"].Price', value: Number(originalPrice.replace(",", ".")) }]);
 
   const regularPrice = prices?.match(/"Label"\s*:\s*"Precio[^\"]*"\s*,\s*"Price"\s*:\s*([\d]+(?:[.,]\d+)?)/i)?.[1];
-  if (regularPrice) return extractJsonPrice(Number(regularPrice.replace(",", ".")));
+  if (regularPrice) return selectPriceCandidate([{ path: 'ProductUI_PARM.Prices[Label^="Precio"].Price', value: Number(regularPrice.replace(",", ".")) }]);
 
-  return extractPriceFromText(htmlToText(html));
+  const textPrices = extractPriceCandidatesFromText(htmlToText(html));
+  const candidates = textPrices.map((value, index) => ({ path: `html.text.currency[${index}]`, value }));
+  const selected = candidates.at(-1);
+  if (!selected) throw new Error("No se encontró un precio positivo en la respuesta");
+  return { price: selected.value, selectedPath: selected.path, candidates };
 }
 
 function uniqueOrigins(origins: string[]): string[] {
@@ -174,6 +182,8 @@ export const tiendaInglesaScraper: StoreScraper = {
   slug: "tienda-inglesa",
   async scrape(record: StoreProductRecord, env, context?: StoreScrapeContext): Promise<ScrapeResult> {
     const html = await fetchTiendaInglesaHtml(record, env, context);
-    return { price: parseTiendaInglesaHtml(html), source: "html", imageUrl: extractProductImageFromHtml(html, record.url) };
+    const parsed = parseTiendaInglesaHtmlWithEvidence(html);
+    const { price, ...evidence } = parsed;
+    return { price, source: "html", evidence, imageUrl: extractProductImageFromHtml(html, record.url) };
   },
 };

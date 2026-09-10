@@ -48,6 +48,13 @@ describe("adapter de El Dorado", () => {
     expect(first).toEqual({
       price: 499,
       source: "json",
+      evidence: {
+        selectedPath: "products[0].items[0].sellers[0].commertialOffer.ListPrice",
+        candidates: [
+          { path: "products[0].items[0].sellers[0].commertialOffer.ListPrice", value: 499 },
+          { path: "products[0].items[0].sellers[0].commertialOffer.Price", value: 429 },
+        ],
+      },
       imageUrl: "https://eldoradouy.vtexassets.com/arquivos/muzzarella.jpg",
     });
     expect(second.price).toBe(499);

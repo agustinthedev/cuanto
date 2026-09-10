@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import redFixture from "../fixtures/red-product.json";
-import { parseDiscoHtml } from "./disco";
-import { extractElDoradoSlug, parseElDoradoProduct } from "./el-dorado";
+import { parseDiscoHtml, parseDiscoHtmlWithEvidence } from "./disco";
+import { extractElDoradoSlug, parseElDoradoProduct, parseElDoradoProductWithEvidence } from "./el-dorado";
 import { parseRedExpressJson } from "./red-express";
 import { parseTiendaInglesaHtml } from "./tienda-inglesa";
-import { extractTataSlug, parseTataHtml } from "./tata";
+import { extractTataSlug, parseTataHtml, parseTataHtmlWithEvidence } from "./tata";
 import { extractProductImageFromHtml, extractProductImageFromPayload } from "./base";
 
 const fixture = (name: string) => readFileSync(fileURLToPath(new URL(`../fixtures/${name}`, import.meta.url)), "utf8");
@@ -24,6 +24,14 @@ describe("adapters de supermercados", () => {
         <div class="lbl-dcto">20%</div>
       </div>
     `)).toBe(1299);
+  });
+
+  it("conserva la ruta del precio original de Disco", () => {
+    expect(parseDiscoHtmlWithEvidence('<meta property="product:price:amount" content="1299.00">')).toEqual({
+      price: 1299,
+      selectedPath: 'meta[property="product:price:amount"]',
+      candidates: [{ path: 'meta[property="product:price:amount"]', value: 1299 }],
+    });
   });
 
   it("no usa un precio promocional como precio original de Disco si faltan señales explícitas", () => {
@@ -56,6 +64,16 @@ describe("adapters de supermercados", () => {
     expect(parseElDoradoProduct(JSON.parse(fixture("eldorado-product.json")))).toBe(499);
   });
 
+  it("identifica el fallback Price de El Dorado cuando falta ListPrice", () => {
+    expect(parseElDoradoProductWithEvidence([{
+      items: [{ sellers: [{ commertialOffer: { Price: 429, ListPrice: null } }] }],
+    }])).toEqual({
+      price: 429,
+      selectedPath: "products[0].items[0].sellers[0].commertialOffer.Price",
+      candidates: [{ path: "products[0].items[0].sellers[0].commertialOffer.Price", value: 429 }],
+    });
+  });
+
   it("usa el precio vigente de El Dorado cuando falta el precio de lista", () => {
     expect(parseElDoradoProduct([{
       items: [{ sellers: [{ commertialOffer: { Price: 429, ListPrice: null } }] }],
@@ -69,6 +87,19 @@ describe("adapters de supermercados", () => {
 
   it("prioriza el precio de lista visible de Ta-Ta sobre el JSON-LD desactualizado", () => {
     expect(parseTataHtml(fixture("tata-product-promo.html"))).toBe(230);
+  });
+
+  it("conserva las fuentes candidatas de Ta-Ta", () => {
+    expect(parseTataHtmlWithEvidence(`
+      <span data-testid="price" data-value="207">$ 207,00</span>
+      <script type="application/ld+json">
+        {"@type":"Product","offers":{"offers":[{"price":207,"listPrice":230}]}}
+      </script>
+    `)).toEqual({
+      price: 230,
+      selectedPath: "json-ld[0].offers.offers[0].listPrice",
+      candidates: [{ path: "json-ld[0].offers.offers[0].listPrice", value: 230 }],
+    });
   });
 
   it("prioriza el precio original del JSON-LD si el HTML solo muestra el precio promocional", () => {

@@ -1,3 +1,5 @@
+import type { PriceCandidate, PriceEvidence } from "./types";
+
 export class InvalidPriceError extends Error {
   constructor(message = "El precio no es válido") {
     super(message);
@@ -53,6 +55,10 @@ export function parseNumericPrice(value: unknown): number {
 }
 
 export function extractPriceFromText(text: string): number {
+  return extractPriceCandidatesFromText(text).at(-1)!;
+}
+
+export function extractPriceCandidatesFromText(text: string): number[] {
   const matches = text.match(/(?:U\$S|\$)\s*[\d.\s]+(?:,\d{1,2})?/gi) ?? [];
   const prices = matches
     .map((match) => {
@@ -70,7 +76,22 @@ export function extractPriceFromText(text: string): number {
 
   // Product pages can show a cart total before the product card. The final
   // positive currency value is the product's displayed price for this MVP.
-  return prices[prices.length - 1];
+  return prices;
+}
+
+export function selectPriceCandidate(candidates: Array<{ path: string; value: unknown }>): PriceEvidence & { price: number } {
+  const normalized: PriceCandidate[] = [];
+  for (const candidate of candidates) {
+    try {
+      normalized.push({ path: candidate.path, value: parseNumericPrice(candidate.value) });
+    } catch {
+      // Ignore malformed or non-positive candidates and keep looking.
+    }
+  }
+
+  const selected = normalized[0];
+  if (!selected) throw new InvalidPriceError("La respuesta no contiene un precio positivo");
+  return { price: selected.value, selectedPath: selected.path, candidates: normalized };
 }
 
 export function extractJsonPrice(...values: unknown[]): number {

@@ -1,5 +1,5 @@
-import { extractJsonPrice } from "../price";
-import type { ElDoradoSession, ScrapeResult, StoreProductRecord, StoreScrapeContext, StoreScraper } from "../types";
+import { selectPriceCandidate } from "../price";
+import type { ElDoradoSession, PriceEvidence, ScrapeResult, StoreProductRecord, StoreScrapeContext, StoreScraper } from "../types";
 import { extractProductImageFromPayload, fetchWithRetry, ScraperError } from "./base";
 
 export const EL_DORADO_ORIGIN = "https://www.eldorado.com.uy";
@@ -77,6 +77,10 @@ function productApiUrl(slug: string): string {
 }
 
 export function parseElDoradoProduct(payload: unknown): number {
+  return parseElDoradoProductWithEvidence(payload).price;
+}
+
+export function parseElDoradoProductWithEvidence(payload: unknown): PriceEvidence & { price: number } {
   const products = Array.isArray(payload) ? payload : [];
   const product = asRecord(products[0]);
   const items = product?.items;
@@ -87,7 +91,10 @@ export function parseElDoradoProduct(payload: unknown): number {
   if (!offer) throw new ScraperError("El Dorado no devolvió una oferta para el producto");
 
   // Keep the original/list price, matching the current scraper contract.
-  return extractJsonPrice(offer.ListPrice, offer.Price);
+  return selectPriceCandidate([
+    { path: "products[0].items[0].sellers[0].commertialOffer.ListPrice", value: offer.ListPrice },
+    { path: "products[0].items[0].sellers[0].commertialOffer.Price", value: offer.Price },
+  ]);
 }
 
 async function createRegionalSession(): Promise<ElDoradoSession> {
@@ -148,9 +155,12 @@ export const elDoradoScraper: StoreScraper = {
         }
       });
 
+    const parsed = parseElDoradoProductWithEvidence(payload);
+    const { price, ...evidence } = parsed;
     return {
-      price: parseElDoradoProduct(payload),
+      price,
       source: "json",
+      evidence,
       imageUrl: extractProductImageFromPayload(payload, record.url),
     };
   },
