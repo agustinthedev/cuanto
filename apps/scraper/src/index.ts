@@ -10,6 +10,7 @@ const API_TABLES = {
   storeProducts: "store_products",
   stores: "stores",
   prices: "prices",
+  scrapeAttempts: "scrape_attempts",
 } as const;
 
 interface ProductImageRecord {
@@ -29,6 +30,7 @@ const IMAGE_STORE_PRIORITY: Record<string, number> = {
 
 const TIENDA_INGLESA_REQUEST_DELAY_MS = 500;
 const QUEUE_SEND_BATCH_SIZE = 100;
+const SCRAPE_ATTEMPT_RETENTION_DAYS = 60;
 
 function apiUrl(env: Env, table: string, query = "") {
   return `${env.SUPABASE_URL.replace(/\/$/, "")}/rest/v1/${table}${query ? `?${query}` : ""}`;
@@ -244,6 +246,16 @@ async function scrapeStoreProduct(env: Env, record: StoreProductRecord, context?
     throw new ScraperError("El adapter devolvió un precio inválido", result.rawResponse);
   }
   return result;
+}
+
+async function pruneExpiredScrapeAttempts(env: Env, now: Date): Promise<void> {
+  const cutoff = new Date(now.getTime() - SCRAPE_ATTEMPT_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const response = await fetchWithRetry(apiUrl(env, API_TABLES.scrapeAttempts, `attempted_at=lt.${encodeURIComponent(cutoff)}`), {
+    method: "DELETE",
+    headers: apiHeaders(env, "return=minimal"),
+  });
+  if (!response.ok) throw new Error(`No se pudieron limpiar los intentos de scraping: HTTP ${response.status} ${await response.text()}`);
+  console.log(JSON.stringify({ event: "scrape_attempts_pruned", cutoff, retention_days: SCRAPE_ATTEMPT_RETENTION_DAYS }));
 }
 
 async function persistRawResponse(
@@ -568,8 +580,14 @@ async function handleProductScrape(request: Request, env: Env, ctx: ExecutionCon
 
 export default {
   async scheduled(controller: ScheduledController, env: Env) {
-    const summary = await dispatchDailyRun(env, new Date(controller.scheduledTime));
+    const scheduledTime = new Date(controller.scheduledTime);
+    const summary = await dispatchDailyRun(env, scheduledTime);
     console.log(JSON.stringify({ event: "scrape_dispatch_finished", ...summary }));
+    try {
+      await pruneExpiredScrapeAttempts(env, scheduledTime);
+    } catch (error) {
+      console.error(JSON.stringify({ event: "scrape_attempts_prune_failed", reason: error instanceof Error ? error.message : String(error) }));
+    }
   },
   async queue(batch: MessageBatch<unknown>, env: Env) {
     for (const message of batch.messages) {
