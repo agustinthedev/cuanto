@@ -2,6 +2,8 @@ import { supabase } from "../lib/supabase";
 import type {
   AveragePrice,
   AdminAnalytics,
+  AdminAnalyticsContext,
+  AdminAnalyticsDimensionRow,
   AdminAnalyticsPageRow,
   AdminAnalyticsProductRow,
   AdminAnalyticsReferralRow,
@@ -612,11 +614,38 @@ export const emptyAdminAnalytics: AdminAnalytics = {
   zeroResultSearches: [],
   mostVisitedPages: [],
   topProductReferrals: [],
+  context: {
+    devices: [],
+    browsers: [],
+    operatingSystems: [],
+    locales: [],
+    countries: [],
+  },
 };
 
 function analyticsNumber(value: unknown, fallback = 0): number {
   const numberValue = typeof value === "number" ? value : Number(value);
   return Number.isFinite(numberValue) ? numberValue : fallback;
+}
+
+function normalizeAnalyticsDimensionRows(value: unknown): AdminAnalyticsDimensionRow[] {
+  return Array.isArray(value)
+    ? value.map((row) => {
+      const item = row && typeof row === "object" ? row as Record<string, unknown> : {};
+      return { value: String(item.value ?? "unknown"), visitors: analyticsNumber(item.visitors) };
+    }).filter((row) => row.value)
+    : [];
+}
+
+export function normalizeAdminAnalyticsContext(value: unknown): AdminAnalyticsContext {
+  const raw = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  return {
+    devices: normalizeAnalyticsDimensionRows(raw.devices),
+    browsers: normalizeAnalyticsDimensionRows(raw.browsers),
+    operatingSystems: normalizeAnalyticsDimensionRows(raw.operating_systems),
+    locales: normalizeAnalyticsDimensionRows(raw.locales),
+    countries: normalizeAnalyticsDimensionRows(raw.countries),
+  };
 }
 
 export function normalizeAdminAnalytics(value: unknown, period: AnalyticsPeriod): AdminAnalytics {
@@ -707,23 +736,27 @@ export function normalizeAdminAnalytics(value: unknown, period: AnalyticsPeriod)
     zeroResultSearches,
     mostVisitedPages,
     topProductReferrals,
+    context: normalizeAdminAnalyticsContext(raw.context),
   };
 }
 
 export async function getAdminAnalytics(period: AnalyticsPeriod): Promise<AdminAnalytics> {
   if (isDemoMode || !supabase) return { ...emptyAdminAnalytics, period };
-  const [analyticsResult, emailCaptureResult] = await Promise.all([
+  const [analyticsResult, emailCaptureResult, contextResult] = await Promise.all([
     supabase.rpc("get_admin_analytics", { p_period: period }),
     supabase.rpc("get_admin_email_capture_metrics", { p_period: period }),
+    supabase.rpc("get_admin_analytics_context", { p_period: period }),
   ]);
   if (analyticsResult.error) throw analyticsResult.error;
   if (emailCaptureResult.error) throw emailCaptureResult.error;
+  if (contextResult.error) throw contextResult.error;
   const analytics = normalizeAdminAnalytics(analyticsResult.data, period);
   const emailCapture = emailCaptureResult.data && typeof emailCaptureResult.data === "object"
     ? emailCaptureResult.data as Record<string, unknown>
     : {};
   return {
     ...analytics,
+    context: normalizeAdminAnalyticsContext(contextResult.data),
     summary: {
       ...analytics.summary,
       emailCaptureShown: analyticsNumber(emailCapture.shown),

@@ -9,7 +9,7 @@ vi.mock("../lib/supabase", () => ({
   supabase: { from: mockFrom, rpc: mockRpc },
 }));
 
-import { attachLatestPrices, getAdminStores, getHomepageProducts, getHomepageStats, normalizeAdminAnalytics } from "./data";
+import { attachLatestPrices, getAdminStores, getHomepageProducts, getHomepageStats, normalizeAdminAnalytics, normalizeAdminAnalyticsContext } from "./data";
 import type { Product } from "./types";
 
 beforeEach(() => {
@@ -160,6 +160,22 @@ describe("normalizeAdminAnalytics", () => {
       emailCaptureSubmitted: 3,
       emailCaptureDismissed: 6,
       emailCaptureConversionPercentage: 30,
+    });
+  });
+
+  it("normalizes captured visitor context dimensions", () => {
+    expect(normalizeAdminAnalyticsContext({
+      devices: [{ value: "mobile", visitors: 4 }],
+      browsers: [{ value: "Safari", visitors: 2 }],
+      operating_systems: [{ value: "iOS", visitors: 2 }],
+      locales: [{ value: "es-UY", visitors: 3 }],
+      countries: [{ value: "unknown", visitors: 4 }],
+    })).toEqual({
+      devices: [{ value: "mobile", visitors: 4 }],
+      browsers: [{ value: "Safari", visitors: 2 }],
+      operatingSystems: [{ value: "iOS", visitors: 2 }],
+      locales: [{ value: "es-UY", visitors: 3 }],
+      countries: [{ value: "unknown", visitors: 4 }],
     });
   });
 });
