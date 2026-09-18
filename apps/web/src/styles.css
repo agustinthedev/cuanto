@@ -1000,6 +1000,12 @@ a { color: inherit; }
 .analytics-table-card .admin-dashboard-card-heading { margin-bottom: 10px; }
 .analytics-table-card .admin-dashboard-card-heading h2 { font-size: 18px; }
 .analytics-referrals-card { grid-column: 1 / -1; }
+.analytics-context-card { grid-column: 1 / -1; }
+.analytics-context-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }
+.analytics-context-dimension { min-width: 0; }
+.analytics-context-dimension h3 { margin: 0 0 7px; color: var(--ink); font-size: 13px; font-weight: 600; }
+.analytics-context-dimension .analytics-table { font-size: 11px; }
+.analytics-context-dimension .analytics-table th, .analytics-context-dimension .analytics-table td { padding: 8px 6px; }
 .analytics-table-scroll { overflow-x: auto; }
 .analytics-table { width: 100%; border-collapse: collapse; color: #5c7d73; font-size: 12px; }
 .analytics-table th { padding: 8px 10px; border-bottom: 1px solid #d5e9df; color: #78918c; font-size: 10px; font-weight: 600; text-align: left; white-space: nowrap; }
@@ -1019,7 +1025,7 @@ a { color: inherit; }
   .admin-analytics-heading h2 { font-size: 24px; }
   .analytics-period-picker { flex-wrap: nowrap; max-width: 100%; overflow-x: auto; padding-bottom: 2px; }
   .analytics-period-picker button { flex: 0 0 auto; }
-  .admin-analytics-stat-grid, .admin-analytics-tables { grid-template-columns: 1fr; }
+  .admin-analytics-stat-grid, .admin-analytics-tables, .analytics-context-grid { grid-template-columns: 1fr; }
   .analytics-referrals-card { grid-column: auto; }
 }
 
