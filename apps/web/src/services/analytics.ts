@@ -25,6 +25,18 @@ export interface AnalyticsIdentity {
   sessionId: string;
 }
 
+export interface AnalyticsClientContext {
+  locale?: string;
+  timezone?: string;
+  browserFamily?: string;
+  browserVersion?: string;
+  osFamily?: string;
+  osVersion?: string;
+  deviceType?: "desktop" | "mobile" | "tablet" | "bot" | "unknown";
+  viewportWidth?: number;
+  viewportHeight?: number;
+}
+
 export interface AnalyticsStorage {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
@@ -107,6 +119,93 @@ function readTimestamp(storage: AnalyticsStorage): number | null {
   if (!raw) return null;
   const timestamp = Number(raw);
   return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function browserContextSource() {
+  if (typeof navigator === "undefined") return null;
+  return {
+    userAgent: navigator.userAgent,
+    language: navigator.language,
+    timezone: (() => {
+      try {
+        return Intl.DateTimeFormat().resolvedOptions().timeZone;
+      } catch {
+        return undefined;
+      }
+    })(),
+    viewportWidth: typeof window === "undefined" ? undefined : window.innerWidth,
+    viewportHeight: typeof window === "undefined" ? undefined : window.innerHeight,
+  };
+}
+
+function parseVersion(userAgent: string, pattern: RegExp): string | undefined {
+  return userAgent.match(pattern)?.[1];
+}
+
+function parseBrowser(userAgent: string): Pick<AnalyticsClientContext, "browserFamily" | "browserVersion"> {
+  const browsers: Array<[string, RegExp]> = [
+    ["Edge", /(?:Edg|Edge|EdgA|EdgiOS)\/([\d.]+)/i],
+    ["Opera", /(?:OPR|Opera)\/([\d.]+)/i],
+    ["Samsung Internet", /SamsungBrowser\/([\d.]+)/i],
+    ["Chrome", /(?:Chrome|CriOS)\/([\d.]+)/i],
+    ["Firefox", /(?:Firefox|FxiOS)\/([\d.]+)/i],
+    ["Safari", /Version\/([\d.]+).*Safari\//i],
+  ];
+  for (const [browserFamily, pattern] of browsers) {
+    const browserVersion = parseVersion(userAgent, pattern);
+    if (browserVersion) return { browserFamily, browserVersion };
+  }
+  return {};
+}
+
+function parseOperatingSystem(userAgent: string): Pick<AnalyticsClientContext, "osFamily" | "osVersion"> {
+  const iosVersion = parseVersion(userAgent, /OS ([\d_]+) like Mac OS X/i);
+  if (iosVersion) return { osFamily: "iOS", osVersion: iosVersion.replace(/_/g, ".") };
+
+  const androidVersion = parseVersion(userAgent, /Android ([\d.]+)/i);
+  if (androidVersion) return { osFamily: "Android", osVersion: androidVersion };
+
+  const windowsVersion = parseVersion(userAgent, /Windows NT ([\d.]+)/i);
+  if (windowsVersion) return { osFamily: "Windows", osVersion: windowsVersion };
+
+  const macVersion = parseVersion(userAgent, /Mac OS X ([\d_]+)/i);
+  if (macVersion) return { osFamily: "macOS", osVersion: macVersion.replace(/_/g, ".") };
+
+  if (/CrOS/i.test(userAgent)) return { osFamily: "ChromeOS" };
+  if (/Linux/i.test(userAgent)) return { osFamily: "Linux" };
+  return {};
+}
+
+function parseDeviceType(userAgent: string): AnalyticsClientContext["deviceType"] {
+  if (/bot|crawler|spider|headless|slurp/i.test(userAgent)) return "bot";
+  if (/iPad|Tablet|Android(?!.*Mobile)/i.test(userAgent)) return "tablet";
+  if (/Mobile|iPhone|iPod|Android/i.test(userAgent)) return "mobile";
+  if (userAgent) return "desktop";
+  return "unknown";
+}
+
+export function buildAnalyticsClientContext(input: {
+  userAgent?: string;
+  language?: string;
+  timezone?: string;
+  viewportWidth?: number;
+  viewportHeight?: number;
+} = {}): AnalyticsClientContext {
+  const source = { ...browserContextSource(), ...input };
+  const userAgent = source.userAgent?.trim() ?? "";
+  const browser = parseBrowser(userAgent);
+  const operatingSystem = parseOperatingSystem(userAgent);
+  const context: AnalyticsClientContext = {
+    ...browser,
+    ...operatingSystem,
+    deviceType: parseDeviceType(userAgent),
+  };
+
+  if (source.language?.trim()) context.locale = source.language.trim().slice(0, 64);
+  if (source.timezone?.trim()) context.timezone = source.timezone.trim().slice(0, 128);
+  if (Number.isFinite(source.viewportWidth)) context.viewportWidth = Math.max(0, Math.min(10000, Math.floor(source.viewportWidth!)));
+  if (Number.isFinite(source.viewportHeight)) context.viewportHeight = Math.max(0, Math.min(10000, Math.floor(source.viewportHeight!)));
+  return context;
 }
 
 export function getOrCreateAnalyticsIdentity(options: {
@@ -358,23 +457,35 @@ export async function trackEvent(input: {
   try {
     const identity = getOrCreateAnalyticsIdentity();
     const referrer = input.referrer ?? { referrer: null, referrerPath: null, referrerType: "direct" as const };
+    const path = input.path ?? currentPath();
     const storage = browserStorage();
     const now = Date.now();
     storage?.setItem(SESSION_LAST_ACTIVITY_STORAGE_KEY, String(now));
     cachedSessionLastActivity = now;
     if (!supabase) return;
 
-    const { error } = await supabase.from("analytics_events").insert({
-      anon_id: identity.anonId,
-      session_id: identity.sessionId,
-      event_type: input.eventType,
-      path: input.path ?? currentPath(),
-      referrer: referrer.referrer,
-      referrer_path: referrer.referrerPath,
-      referrer_type: referrer.referrerType,
-      metadata: input.metadata,
-    });
-    if (error) safeTrackError(input.eventType, error);
+    const [eventResult, contextResult] = await Promise.all([
+      supabase.from("analytics_events").insert({
+        anon_id: identity.anonId,
+        session_id: identity.sessionId,
+        event_type: input.eventType,
+        path,
+        referrer: referrer.referrer,
+        referrer_path: referrer.referrerPath,
+        referrer_type: referrer.referrerType,
+        metadata: input.metadata,
+      }),
+      supabase.rpc("record_analytics_context", {
+        p_anon_id: identity.anonId,
+        p_session_id: identity.sessionId,
+        p_event_type: input.eventType,
+        p_path: path,
+        p_referrer: referrer.referrer,
+        p_context: buildAnalyticsClientContext(),
+      }),
+    ]);
+    if (eventResult.error) safeTrackError(input.eventType, eventResult.error);
+    if (contextResult.error) safeTrackError(input.eventType, contextResult.error);
   } catch (reason) {
     safeTrackError(input.eventType, reason);
   }

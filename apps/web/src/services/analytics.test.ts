@@ -8,6 +8,7 @@ import {
   buildPageViewMetadata,
   buildSearchMetadata,
   buildEmailCaptureMetadata,
+  buildAnalyticsClientContext,
   getPageViewReferrer,
   getProductIdFromPath,
   normalizeSearchQuery,
@@ -125,6 +126,35 @@ describe("analytics referrers and query normalization", () => {
 
   it("normalizes whitespace and casing for aggregation", () => {
     expect(normalizeSearchQuery("  Coca   Cola ")).toBe("coca cola");
+  });
+
+  it("derives bounded browser context without storing the raw user agent", () => {
+    expect(buildAnalyticsClientContext({
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36",
+      language: "es-UY",
+      timezone: "America/Montevideo",
+      viewportWidth: 1440.8,
+      viewportHeight: 900.9,
+    })).toEqual({
+      browserFamily: "Chrome",
+      browserVersion: "140.0.0.0",
+      osFamily: "Windows",
+      osVersion: "10.0",
+      deviceType: "desktop",
+      locale: "es-UY",
+      timezone: "America/Montevideo",
+      viewportWidth: 1440,
+      viewportHeight: 900,
+    });
+  });
+
+  it("classifies mobile Safari and tablet devices", () => {
+    expect(buildAnalyticsClientContext({
+      userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) Version/17.5 Mobile/15E148 Safari/604.1",
+    })).toMatchObject({ browserFamily: "Safari", osFamily: "iOS", osVersion: "17.5", deviceType: "mobile" });
+    expect(buildAnalyticsClientContext({
+      userAgent: "Mozilla/5.0 (iPad; CPU OS 17_5 like Mac OS X) Version/17.5 Mobile/15E148 Safari/604.1",
+    })).toMatchObject({ deviceType: "tablet" });
   });
 
   it("builds structured page and search metadata", () => {
