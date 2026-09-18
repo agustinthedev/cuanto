@@ -418,6 +418,12 @@ function safeTrackError(eventType: AnalyticsEventType, reason: unknown) {
   }
 }
 
+function safeTrackContextError(eventType: AnalyticsEventType, reason: unknown) {
+  if (typeof console !== "undefined" && typeof console.warn === "function") {
+    console.warn(`[analytics] No se pudo guardar el contexto del evento ${eventType}.`, reason);
+  }
+}
+
 export function buildPageViewMetadata(input: Pick<TrackPageViewInput, "pageType" | "productId" | "referrer">): Record<string, unknown> {
   const metadata: Record<string, unknown> = { page_type: input.pageType };
   if (input.productId) metadata.product_id = input.productId;
@@ -485,7 +491,7 @@ export async function trackEvent(input: {
       }),
     ]);
     if (eventResult.error) safeTrackError(input.eventType, eventResult.error);
-    if (contextResult.error) safeTrackError(input.eventType, contextResult.error);
+    if (contextResult.error) safeTrackContextError(input.eventType, contextResult.error);
   } catch (reason) {
     safeTrackError(input.eventType, reason);
   }
