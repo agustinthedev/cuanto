@@ -433,10 +433,11 @@ describe("flujo con Queue", () => {
           locale: "es-uy",
         } },
       }), { status: 200 });
-      if (url.startsWith("https://example.test/tata/producto-p?")) return new Response(`
-        <span data-testid="list-price" data-value="1400">$ 1.400,00</span>
-        <span data-testid="price" data-value="1190">$ 1.190,00</span>
-      `, { status: 200 });
+      if (url.includes("operationName=BrowserProductQuery")) return new Response(JSON.stringify({
+        data: { product: {
+          offers: { offers: [{ price: 1190, listPrice: 1400 }] },
+        } },
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
       return new Response("Not found", { status: 404 });
     }));
 
@@ -483,11 +484,14 @@ describe("flujo con Queue", () => {
       { store_product_id: "store-product-2", price: 1400, date: "2026-09-02", scraped_at: expect.any(String) },
     ]);
     const calledUrls = vi.mocked(fetch).mock.calls.map(([input]) => String(input));
-    const tataUrl = calledUrls.find((url) => url.startsWith("https://example.test/tata/producto-p?"));
+    const tataUrl = calledUrls.find((url) => url.includes("operationName=BrowserProductQuery"));
     expect(tataUrl).toBeDefined();
-    expect(new URL(tataUrl!).searchParams.get("country")).toBe("URY");
-    expect(new URL(tataUrl!).searchParams.get("postalCode")).toBe("11800");
-    expect(calledUrls.some((url) => url.includes("operationName=BrowserProductQuery"))).toBe(false);
+    const tataVariables = JSON.parse(new URL(tataUrl!).searchParams.get("variables")!);
+    expect(tataVariables.locator).toEqual([
+      { key: "slug", value: "producto-p" },
+      { key: "channel", value: '{"salesChannel":"4","regionId":"U1cjdGF0YXRhdW1vbnRldmlkZW8="}' },
+      { key: "locale", value: "es-uy" },
+    ]);
     expect(savedStoreImageBodies).toHaveLength(1);
     expect(savedProductImageBodies).toHaveLength(1);
   });

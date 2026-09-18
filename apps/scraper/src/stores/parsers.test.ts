@@ -6,7 +6,7 @@ import { parseDiscoHtml, parseDiscoHtmlWithEvidence } from "./disco";
 import { extractElDoradoSlug, parseElDoradoProduct, parseElDoradoProductWithEvidence } from "./el-dorado";
 import { parseRedExpressJson } from "./red-express";
 import { parseTiendaInglesaHtml } from "./tienda-inglesa";
-import { extractTataSlug, parseTataHtml, parseTataHtmlWithEvidence } from "./tata";
+import { extractTataSlug, parseTataHtml, parseTataHtmlWithEvidence, parseTataProductPayloadWithEvidence } from "./tata";
 import { extractProductImageFromHtml, extractProductImageFromPayload } from "./base";
 
 const fixture = (name: string) => readFileSync(fileURLToPath(new URL(`../fixtures/${name}`, import.meta.url)), "utf8");
@@ -99,6 +99,16 @@ describe("adapters de supermercados", () => {
       price: 230,
       selectedPath: "json-ld[0].offers.offers[0].listPrice",
       candidates: [{ path: "json-ld[0].offers.offers[0].listPrice", value: 230 }],
+    });
+  });
+
+  it("usa el listPrice de Ta-Ta y conserva la promoción sin seleccionarla", () => {
+    expect(parseTataProductPayloadWithEvidence({
+      data: { product: { offers: { offers: [{ price: 75, listPrice: 118 }] } } },
+    })).toEqual({
+      price: 118,
+      selectedPath: "data.product.offers.offers[0].listPrice",
+      candidates: [{ path: "data.product.offers.offers[0].listPrice", value: 118 }],
     });
   });
 
