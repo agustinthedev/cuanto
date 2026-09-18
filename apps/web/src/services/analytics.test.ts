@@ -9,6 +9,7 @@ import {
   buildSearchMetadata,
   buildEmailCaptureMetadata,
   buildAnalyticsClientContext,
+  serializeAnalyticsClientContext,
   getPageViewReferrer,
   getProductIdFromPath,
   normalizeSearchQuery,
@@ -129,13 +130,14 @@ describe("analytics referrers and query normalization", () => {
   });
 
   it("derives bounded browser context without storing the raw user agent", () => {
-    expect(buildAnalyticsClientContext({
+    const context = buildAnalyticsClientContext({
       userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36",
       language: "es-UY",
       timezone: "America/Montevideo",
       viewportWidth: 1440.8,
       viewportHeight: 900.9,
-    })).toEqual({
+    });
+    expect(context).toEqual({
       browserFamily: "Chrome",
       browserVersion: "140.0.0.0",
       osFamily: "Windows",
@@ -145,6 +147,17 @@ describe("analytics referrers and query normalization", () => {
       timezone: "America/Montevideo",
       viewportWidth: 1440,
       viewportHeight: 900,
+    });
+    expect(serializeAnalyticsClientContext(context)).toEqual({
+      browser_family: "Chrome",
+      browser_version: "140.0.0.0",
+      os_family: "Windows",
+      os_version: "10.0",
+      device_type: "desktop",
+      locale: "es-UY",
+      timezone: "America/Montevideo",
+      viewport_width: 1440,
+      viewport_height: 900,
     });
   });
 

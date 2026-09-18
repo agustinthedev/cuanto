@@ -208,6 +208,20 @@ export function buildAnalyticsClientContext(input: {
   return context;
 }
 
+export function serializeAnalyticsClientContext(context: AnalyticsClientContext): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  if (context.locale) payload.locale = context.locale;
+  if (context.timezone) payload.timezone = context.timezone;
+  if (context.browserFamily) payload.browser_family = context.browserFamily;
+  if (context.browserVersion) payload.browser_version = context.browserVersion;
+  if (context.osFamily) payload.os_family = context.osFamily;
+  if (context.osVersion) payload.os_version = context.osVersion;
+  if (context.deviceType) payload.device_type = context.deviceType;
+  if (context.viewportWidth !== undefined) payload.viewport_width = context.viewportWidth;
+  if (context.viewportHeight !== undefined) payload.viewport_height = context.viewportHeight;
+  return payload;
+}
+
 export function getOrCreateAnalyticsIdentity(options: {
   storage?: AnalyticsStorage | null;
   now?: number;
@@ -487,7 +501,7 @@ export async function trackEvent(input: {
         p_event_type: input.eventType,
         p_path: path,
         p_referrer: referrer.referrer,
-        p_context: buildAnalyticsClientContext(),
+        p_context: serializeAnalyticsClientContext(buildAnalyticsClientContext()),
       }),
     ]);
     if (eventResult.error) safeTrackError(input.eventType, eventResult.error);
