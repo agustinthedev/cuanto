@@ -146,6 +146,81 @@ describe("ejecución diaria", () => {
     });
   });
 
+  it("guarda el body JSON de Ta-Ta cuando la respuesta regional no contiene un precio", async () => {
+    const savedAttemptBodies: unknown[] = [];
+    const putRawResponse = vi.fn(async () => undefined);
+    const tataBody = JSON.stringify({ errors: [{ message: "Product unavailable" }] });
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/rest/v1/stores")) return new Response(JSON.stringify([{ id: "store-tata", slug: "ta-ta" }]), { status: 200 });
+      if (url.includes("/rest/v1/store_products")) return new Response(JSON.stringify([{
+        id: "store-product-tata",
+        product_id: "product-1",
+        store_id: "store-tata",
+        location_id: null,
+        url: "https://www.tata.com.uy/producto/p",
+        external_name: null,
+        image_url: null,
+      }]), { status: 200 });
+      if (url.includes("/rest/v1/products")) return new Response(JSON.stringify([{
+        id: "product-1",
+        image_url: null,
+        image_source_store_product_id: null,
+        image_updated_at: null,
+      }]), { status: 200 });
+      if (url.includes("/rest/v1/scrape_attempts")) {
+        savedAttemptBodies.push(...JSON.parse(String(init?.body)) as unknown[]);
+        return new Response(null, { status: 201 });
+      }
+      if (url.includes("operationName=ValidateSession")) return new Response(JSON.stringify({
+        data: { validateSession: {
+          country: "URY",
+          postalCode: "11800",
+          channel: '{"salesChannel":"4","regionId":"U1cjdGF0YXRhdW1vbnRldmlkZW8="}',
+          locale: "es-uy",
+        } },
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+      if (url.includes("operationName=BrowserProductQuery")) return new Response(tataBody, {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+      return new Response("Not found", { status: 404 });
+    }));
+
+    const result = await runScrape({
+      SUPABASE_URL: "https://project.supabase.co",
+      SUPABASE_SERVICE_ROLE_KEY: "service-role",
+      SCRAPE_RESPONSES_BUCKET: { put: putRawResponse } as unknown as R2Bucket,
+    } as unknown as Env, new Date("2026-08-25T12:00:00Z"));
+
+    expect(result).toEqual({ attempted: 1, saved: 0, failed: 1 });
+    expect(putRawResponse).toHaveBeenCalledWith(
+      expect.stringMatching(/^raw\/failed\/2026-08-25\/manual-2026-08-25T12_00_00_000Z\/ta-ta\/store-product-tata\/.+\.body\.gz$/),
+      expect.any(ArrayBuffer),
+      expect.objectContaining({
+        customMetadata: expect.objectContaining({
+          sourceUrl: expect.stringContaining("operationName=BrowserProductQuery"),
+          scrapeStatus: "failed",
+          status: "200",
+        }),
+      }),
+    );
+    expect(savedAttemptBodies).toHaveLength(1);
+    expect(savedAttemptBodies[0]).toMatchObject({
+      status: "failed",
+      source_type: "json",
+      source_url: "https://www.tata.com.uy/producto/p",
+      response_url: expect.stringContaining("operationName=BrowserProductQuery"),
+      http_status: 200,
+      content_type: "application/json",
+      raw_object_key: expect.stringMatching(/^raw\/failed\/2026-08-25\/manual-2026-08-25T12_00_00_000Z\/ta-ta\/store-product-tata\/.+\.body\.gz$/),
+      price: null,
+      selected_path: null,
+      candidates: [],
+      error: "La respuesta no contiene un precio positivo",
+    });
+  });
+
   it("espera entre productos consecutivos de Tienda Inglesa", async () => {
     vi.useFakeTimers();
     const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
@@ -433,10 +508,11 @@ describe("flujo con Queue", () => {
           locale: "es-uy",
         } },
       }), { status: 200 });
-      if (url.startsWith("https://example.test/tata/producto-p?")) return new Response(`
-        <span data-testid="list-price" data-value="1400">$ 1.400,00</span>
-        <span data-testid="price" data-value="1190">$ 1.190,00</span>
-      `, { status: 200 });
+      if (url.includes("operationName=BrowserProductQuery")) return new Response(JSON.stringify({
+        data: { product: {
+          offers: { offers: [{ price: 1190, listPrice: 1400 }] },
+        } },
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
       return new Response("Not found", { status: 404 });
     }));
 
@@ -483,11 +559,14 @@ describe("flujo con Queue", () => {
       { store_product_id: "store-product-2", price: 1400, date: "2026-09-02", scraped_at: expect.any(String) },
     ]);
     const calledUrls = vi.mocked(fetch).mock.calls.map(([input]) => String(input));
-    const tataUrl = calledUrls.find((url) => url.startsWith("https://example.test/tata/producto-p?"));
+    const tataUrl = calledUrls.find((url) => url.includes("operationName=BrowserProductQuery"));
     expect(tataUrl).toBeDefined();
-    expect(new URL(tataUrl!).searchParams.get("country")).toBe("URY");
-    expect(new URL(tataUrl!).searchParams.get("postalCode")).toBe("11800");
-    expect(calledUrls.some((url) => url.includes("operationName=BrowserProductQuery"))).toBe(false);
+    const tataVariables = JSON.parse(new URL(tataUrl!).searchParams.get("variables")!);
+    expect(tataVariables.locator).toEqual([
+      { key: "slug", value: "producto-p" },
+      { key: "channel", value: '{"salesChannel":"4","regionId":"U1cjdGF0YXRhdW1vbnRldmlkZW8="}' },
+      { key: "locale", value: "es-uy" },
+    ]);
     expect(savedStoreImageBodies).toHaveLength(1);
     expect(savedProductImageBodies).toHaveLength(1);
   });
