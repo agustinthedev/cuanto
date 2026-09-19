@@ -192,8 +192,12 @@ export const tataScraper: StoreScraper = {
     const session = await fetchTataMontevideoSession(record.url);
     try {
       const { payload, rawResponse } = await fetchTataProduct(record.url, session);
-      const { price, ...evidence } = parseTataProductPayloadWithEvidence(payload);
-      return { price, source: "json", evidence, rawResponse, imageUrl: extractProductImageFromPayload(payload, record.url) };
+      try {
+        const { price, ...evidence } = parseTataProductPayloadWithEvidence(payload);
+        return { price, source: "json", evidence, rawResponse, imageUrl: extractProductImageFromPayload(payload, record.url) };
+      } catch (error) {
+        throw scraperErrorWithResponse(error, rawResponse, "json");
+      }
     } catch (error) {
       if (!(error instanceof ScraperError) || error.rawResponse?.status === undefined || error.rawResponse.status < 500) {
         throw error;
