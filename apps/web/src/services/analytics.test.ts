@@ -1,4 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const { mockRpc } = vi.hoisted(() => ({ mockRpc: vi.fn() }));
+
+vi.mock("../lib/supabase", () => ({ supabase: { rpc: mockRpc } }));
+
 import {
   ANON_ID_STORAGE_KEY,
   SESSION_ID_STORAGE_KEY,
@@ -8,12 +13,19 @@ import {
   buildPageViewMetadata,
   buildSearchMetadata,
   buildEmailCaptureMetadata,
+  buildAnalyticsClientContext,
+  serializeAnalyticsClientContext,
+  trackEvent,
   getPageViewReferrer,
   getProductIdFromPath,
   normalizeSearchQuery,
   registerUniqueProductPageView,
   resetAnalyticsStateForTests,
 } from "./analytics";
+
+beforeEach(() => {
+  mockRpc.mockReset();
+});
 
 class MemoryStorage {
   private values: Map<string, string>;
@@ -127,6 +139,49 @@ describe("analytics referrers and query normalization", () => {
     expect(normalizeSearchQuery("  Coca   Cola ")).toBe("coca cola");
   });
 
+  it("derives bounded browser context without storing the raw user agent", () => {
+    const context = buildAnalyticsClientContext({
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36",
+      language: "es-UY",
+      timezone: "America/Montevideo",
+      viewportWidth: 1440.8,
+      viewportHeight: 900.9,
+    });
+    expect(context).toEqual({
+      browserFamily: "Chrome",
+      browserVersion: "140.0.0.0",
+      osFamily: "Windows",
+      osVersion: "10.0",
+      deviceType: "desktop",
+      locale: "es-UY",
+      timezone: "America/Montevideo",
+      viewportWidth: 1440,
+      viewportHeight: 900,
+    });
+    const payload = serializeAnalyticsClientContext(context);
+    expect(payload).toEqual({
+      browser_family: "Chrome",
+      browser_version: "140.0.0.0",
+      os_family: "Windows",
+      os_version: "10.0",
+      device_type: "desktop",
+      locale: "es-UY",
+      timezone: "America/Montevideo",
+      viewport_width: 1440,
+      viewport_height: 900,
+    });
+    expect(payload).not.toHaveProperty("country_code");
+  });
+
+  it("classifies mobile Safari and tablet devices", () => {
+    expect(buildAnalyticsClientContext({
+      userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) Version/17.5 Mobile/15E148 Safari/604.1",
+    })).toMatchObject({ browserFamily: "Safari", osFamily: "iOS", osVersion: "17.5", deviceType: "mobile" });
+    expect(buildAnalyticsClientContext({
+      userAgent: "Mozilla/5.0 (iPad; CPU OS 17_5 like Mac OS X) Version/17.5 Mobile/15E148 Safari/604.1",
+    })).toMatchObject({ deviceType: "tablet" });
+  });
+
   it("builds structured page and search metadata", () => {
     expect(buildPageViewMetadata({
       pageType: "product",
@@ -189,5 +244,25 @@ describe("analytics referrers and query normalization", () => {
       product_id: "44444444-4444-4444-8444-444444444444",
       unique_product_count: 3,
     });
+  });
+});
+
+describe("analytics event persistence", () => {
+  it("uses the transactional event RPC for event and context persistence", async () => {
+    mockRpc.mockResolvedValue({ error: null });
+    resetAnalyticsStateForTests();
+
+    await trackEvent({
+      eventType: "page_view",
+      path: "/",
+      metadata: { page_type: "home" },
+    });
+
+    expect(mockRpc).toHaveBeenCalledWith("record_analytics_event", expect.objectContaining({
+      p_event_type: "page_view",
+      p_path: "/",
+      p_metadata: { page_type: "home" },
+      p_context: expect.objectContaining({ device_type: expect.any(String) }),
+    }));
   });
 });

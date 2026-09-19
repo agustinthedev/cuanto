@@ -238,6 +238,30 @@ function AnalyticsTableEmpty() {
   return <div className="analytics-table-empty">No hay datos en este período.</div>;
 }
 
+function AnalyticsDimensionTable({ title, rows }: { title: string; rows: AdminAnalytics["context"]["devices"] }) {
+  return (
+    <div className="analytics-context-dimension">
+      <h3>{title}</h3>
+      {rows.length ? <table className="analytics-table"><thead><tr><th>Valor</th><th>Visitantes</th></tr></thead><tbody>{rows.map((row) => <tr key={row.value}><td>{row.value}</td><td>{number(row.visitors)}</td></tr>)}</tbody></table> : <AnalyticsTableEmpty />}
+    </div>
+  );
+}
+
+function AnalyticsContextTables({ analytics }: { analytics: AdminAnalytics }) {
+  return (
+    <section className="admin-dashboard-card analytics-table-card analytics-context-card">
+      <div className="admin-dashboard-card-heading"><div><span className="section-kicker">Contexto</span><h2>Visitor profile</h2></div><span className="section-note">Anónimo y agregado</span></div>
+      <div className="analytics-context-grid">
+        <AnalyticsDimensionTable title="Dispositivos" rows={analytics.context.devices} />
+        <AnalyticsDimensionTable title="Navegadores" rows={analytics.context.browsers} />
+        <AnalyticsDimensionTable title="Sistemas operativos" rows={analytics.context.operatingSystems} />
+        <AnalyticsDimensionTable title="Locales" rows={analytics.context.locales} />
+        <AnalyticsDimensionTable title="Países" rows={analytics.context.countries} />
+      </div>
+    </section>
+  );
+}
+
 function AnalyticsTables({ analytics }: { analytics: AdminAnalytics }) {
   return (
     <div className="admin-analytics-tables">
@@ -265,6 +289,7 @@ function AnalyticsTables({ analytics }: { analytics: AdminAnalytics }) {
         <div className="admin-dashboard-card-heading"><div><span className="section-kicker">Descubrimiento</span><h2>Top product referrals</h2></div></div>
         {analytics.topProductReferrals.length ? <div className="analytics-table-scroll"><table className="analytics-table"><thead><tr><th>Producto de origen</th><th>Destino</th><th>Visitas</th><th>% destino</th></tr></thead><tbody>{analytics.topProductReferrals.map((row) => <tr key={`${row.referringProductId}-${row.destinationProductId}`}><td>{row.referringProductName}</td><td>{row.destinationProductName}</td><td>{number(row.visits)}</td><td>{row.destinationViewPercentage.toLocaleString("es-UY", { maximumFractionDigits: 1 })}%</td></tr>)}</tbody></table></div> : <AnalyticsTableEmpty />}
       </section>
+      <AnalyticsContextTables analytics={analytics} />
     </div>
   );
 }

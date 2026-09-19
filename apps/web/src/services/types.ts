@@ -190,6 +190,19 @@ export interface AdminAnalyticsReferralRow {
   destinationViewPercentage: number;
 }
 
+export interface AdminAnalyticsDimensionRow {
+  value: string;
+  visitors: number;
+}
+
+export interface AdminAnalyticsContext {
+  devices: AdminAnalyticsDimensionRow[];
+  browsers: AdminAnalyticsDimensionRow[];
+  operatingSystems: AdminAnalyticsDimensionRow[];
+  locales: AdminAnalyticsDimensionRow[];
+  countries: AdminAnalyticsDimensionRow[];
+}
+
 export interface AdminAnalytics {
   period: AnalyticsPeriod;
   summary: AdminAnalyticsSummary;
@@ -199,6 +212,7 @@ export interface AdminAnalytics {
   zeroResultSearches: AdminAnalyticsZeroResultRow[];
   mostVisitedPages: AdminAnalyticsPageRow[];
   topProductReferrals: AdminAnalyticsReferralRow[];
+  context: AdminAnalyticsContext;
 }
 
 export interface ProductPageData {
