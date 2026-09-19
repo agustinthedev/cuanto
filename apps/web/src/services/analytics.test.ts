@@ -1,4 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const { mockRpc } = vi.hoisted(() => ({ mockRpc: vi.fn() }));
+
+vi.mock("../lib/supabase", () => ({ supabase: { rpc: mockRpc } }));
+
 import {
   ANON_ID_STORAGE_KEY,
   SESSION_ID_STORAGE_KEY,
@@ -10,12 +15,17 @@ import {
   buildEmailCaptureMetadata,
   buildAnalyticsClientContext,
   serializeAnalyticsClientContext,
+  trackEvent,
   getPageViewReferrer,
   getProductIdFromPath,
   normalizeSearchQuery,
   registerUniqueProductPageView,
   resetAnalyticsStateForTests,
 } from "./analytics";
+
+beforeEach(() => {
+  mockRpc.mockReset();
+});
 
 class MemoryStorage {
   private values: Map<string, string>;
@@ -148,7 +158,8 @@ describe("analytics referrers and query normalization", () => {
       viewportWidth: 1440,
       viewportHeight: 900,
     });
-    expect(serializeAnalyticsClientContext(context)).toEqual({
+    const payload = serializeAnalyticsClientContext(context);
+    expect(payload).toEqual({
       browser_family: "Chrome",
       browser_version: "140.0.0.0",
       os_family: "Windows",
@@ -159,6 +170,7 @@ describe("analytics referrers and query normalization", () => {
       viewport_width: 1440,
       viewport_height: 900,
     });
+    expect(payload).not.toHaveProperty("country_code");
   });
 
   it("classifies mobile Safari and tablet devices", () => {
@@ -232,5 +244,25 @@ describe("analytics referrers and query normalization", () => {
       product_id: "44444444-4444-4444-8444-444444444444",
       unique_product_count: 3,
     });
+  });
+});
+
+describe("analytics event persistence", () => {
+  it("uses the transactional event RPC for event and context persistence", async () => {
+    mockRpc.mockResolvedValue({ error: null });
+    resetAnalyticsStateForTests();
+
+    await trackEvent({
+      eventType: "page_view",
+      path: "/",
+      metadata: { page_type: "home" },
+    });
+
+    expect(mockRpc).toHaveBeenCalledWith("record_analytics_event", expect.objectContaining({
+      p_event_type: "page_view",
+      p_path: "/",
+      p_metadata: { page_type: "home" },
+      p_context: expect.objectContaining({ device_type: expect.any(String) }),
+    }));
   });
 });

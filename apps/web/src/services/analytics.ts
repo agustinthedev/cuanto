@@ -432,12 +432,6 @@ function safeTrackError(eventType: AnalyticsEventType, reason: unknown) {
   }
 }
 
-function safeTrackContextError(eventType: AnalyticsEventType, reason: unknown) {
-  if (typeof console !== "undefined" && typeof console.warn === "function") {
-    console.warn(`[analytics] No se pudo guardar el contexto del evento ${eventType}.`, reason);
-  }
-}
-
 export function buildPageViewMetadata(input: Pick<TrackPageViewInput, "pageType" | "productId" | "referrer">): Record<string, unknown> {
   const metadata: Record<string, unknown> = { page_type: input.pageType };
   if (input.productId) metadata.product_id = input.productId;
@@ -484,28 +478,18 @@ export async function trackEvent(input: {
     cachedSessionLastActivity = now;
     if (!supabase) return;
 
-    const [eventResult, contextResult] = await Promise.all([
-      supabase.from("analytics_events").insert({
-        anon_id: identity.anonId,
-        session_id: identity.sessionId,
-        event_type: input.eventType,
-        path,
-        referrer: referrer.referrer,
-        referrer_path: referrer.referrerPath,
-        referrer_type: referrer.referrerType,
-        metadata: input.metadata,
-      }),
-      supabase.rpc("record_analytics_context", {
-        p_anon_id: identity.anonId,
-        p_session_id: identity.sessionId,
-        p_event_type: input.eventType,
-        p_path: path,
-        p_referrer: referrer.referrer,
-        p_context: serializeAnalyticsClientContext(buildAnalyticsClientContext()),
-      }),
-    ]);
-    if (eventResult.error) safeTrackError(input.eventType, eventResult.error);
-    if (contextResult.error) safeTrackContextError(input.eventType, contextResult.error);
+    const { error } = await supabase.rpc("record_analytics_event", {
+      p_anon_id: identity.anonId,
+      p_session_id: identity.sessionId,
+      p_event_type: input.eventType,
+      p_path: path,
+      p_referrer: referrer.referrer,
+      p_referrer_path: referrer.referrerPath,
+      p_referrer_type: referrer.referrerType,
+      p_metadata: input.metadata,
+      p_context: serializeAnalyticsClientContext(buildAnalyticsClientContext()),
+    });
+    if (error) safeTrackError(input.eventType, error);
   } catch (reason) {
     safeTrackError(input.eventType, reason);
   }
