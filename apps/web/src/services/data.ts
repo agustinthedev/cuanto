@@ -215,7 +215,7 @@ export async function createProductSuggestion(title: string, categoryId: string,
 export async function createProduct(name: string, brand: string, categoryId: string, quantity: number, unit: ProductUnit, links: Array<{ store_id: string; url: string }>, tagIds: string[] = []): Promise<string> {
   if (isDemoMode) return "demo-created-product";
   if (!supabase) throw new Error("Supabase no está configurado.");
-  const { data, error } = await supabase.rpc("create_product_with_links_and_brand", {
+  const { data, error } = await supabase.rpc("create_product_with_links", {
     p_name: name,
     p_brand: brand.trim() || null,
     p_category_id: categoryId,

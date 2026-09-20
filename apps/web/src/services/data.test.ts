@@ -94,7 +94,7 @@ describe("createProduct", () => {
       { store_id: "store-1", url: "https://example.test/yerba" },
     ])).resolves.toBe("product-1");
 
-    expect(mockRpc).toHaveBeenCalledWith("create_product_with_links_and_brand", {
+    expect(mockRpc).toHaveBeenCalledWith("create_product_with_links", {
       p_name: "Yerba mate",
       p_brand: "Canarias",
       p_category_id: "category-1",
