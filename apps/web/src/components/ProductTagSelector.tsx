@@ -1,6 +1,6 @@
 import { useState, type SetStateAction } from "react";
 import type { Tag } from "../services/types";
-import { addProductTag, removeProductTag } from "./productTagSelection";
+import { addProductTag, filterAvailableProductTags, removeProductTag } from "./productTagSelection";
 
 interface ProductTagSelectorProps {
   tags: Tag[];
@@ -14,12 +14,14 @@ interface ProductTagSelectorProps {
 export function ProductTagSelector({ tags, selectedTagIds, onChange, onCreateTag, onBusyChange, disabled = false }: ProductTagSelectorProps) {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newTagName, setNewTagName] = useState("");
+  const [tagSearch, setTagSearch] = useState("");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const selectedTags = selectedTagIds
     .map((tagId) => tags.find((tag) => tag.id === tagId))
     .filter((tag): tag is Tag => Boolean(tag));
-  const availableTags = tags.filter((tag) => !selectedTagIds.includes(tag.id));
+  const hasAvailableTags = tags.some((tag) => !selectedTagIds.includes(tag.id));
+  const availableTags = filterAvailableProductTags(tags, selectedTagIds, tagSearch);
 
   function addTag(tagId: string) {
     if (!tagId) return;
@@ -56,13 +58,21 @@ export function ProductTagSelector({ tags, selectedTagIds, onChange, onCreateTag
     <fieldset className="admin-tags-fieldset">
       <legend>Tags</legend>
       <div className="admin-tags-picker">
+        <input
+          type="search"
+          value={tagSearch}
+          onChange={(event) => setTagSearch(event.target.value)}
+          placeholder="Buscar tags existentes"
+          aria-label="Buscar tags existentes"
+          disabled={disabled || creating || !hasAvailableTags}
+        />
         <select
           aria-label="Agregar tag"
           value=""
           onChange={(event) => addTag(event.target.value)}
           disabled={disabled || creating || availableTags.length === 0}
         >
-          <option value="">{availableTags.length ? "Seleccioná un tag" : "Todos los tags seleccionados"}</option>
+          <option value="">{availableTags.length ? "Seleccioná un tag" : tagSearch ? "No se encontraron tags" : "Todos los tags seleccionados"}</option>
           {availableTags.map((tag) => <option key={tag.id} value={tag.id}>{tag.name}</option>)}
         </select>
         <button

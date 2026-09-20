@@ -1,10 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { addProductTag, removeProductTag } from "./productTagSelection";
+import { addProductTag, filterAvailableProductTags, removeProductTag } from "./productTagSelection";
 
 describe("product tag selection", () => {
   it("adds a tag without duplicating an existing selection", () => {
     expect(addProductTag(["tag-existing"], "tag-new")).toEqual(["tag-existing", "tag-new"]);
     expect(addProductTag(["tag-existing"], "tag-existing")).toEqual(["tag-existing"]);
+  });
+
+  it("filters available tags by name without accents or case sensitivity", () => {
+    const tags = [
+      { id: "tag-organico", name: "Orgánico" },
+      { id: "tag-sin-tacc", name: "Sin TACC" },
+      { id: "tag-oferta", name: "Oferta" },
+    ];
+
+    expect(filterAvailableProductTags(tags, ["tag-oferta"], "organico")).toEqual([tags[0]]);
+    expect(filterAvailableProductTags(tags, [], "tacc")).toEqual([tags[1]]);
+    expect(filterAvailableProductTags(tags, [], "")).toEqual(tags);
   });
 
   it("preserves the latest selection when a pending tag creation resolves", async () => {
