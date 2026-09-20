@@ -83,6 +83,7 @@ export function StoreLinkFields({ links, stores, onChange, disabled = false, sho
 
 export function CreateProductModal({ categories, stores, tags, onCreateTag, onClose, onCreated }: { categories: Category[]; stores: Store[]; tags: Tag[]; onCreateTag: (name: string) => Promise<Tag>; onClose: () => void; onCreated: () => Promise<void> }) {
   const [title, setTitle] = useState("");
+  const [brand, setBrand] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [unit, setUnit] = useState<ProductUnit>("un");
@@ -130,8 +131,9 @@ export function CreateProductModal({ categories, stores, tags, onCreateTag, onCl
     }
     setSaving(true);
     try {
-      await createProduct(title, categoryId || categories[0].id, parsedQuantity, unit, serializeProductLinks(links), selectedTagIds);
+      await createProduct(title, brand, categoryId || categories[0].id, parsedQuantity, unit, serializeProductLinks(links), selectedTagIds);
       setTitle("");
+      setBrand("");
       setCategoryId("");
       setQuantity("1");
       setUnit("un");
@@ -161,6 +163,7 @@ export function CreateProductModal({ categories, stores, tags, onCreateTag, onCl
         <form onSubmit={handleSubmit}>
           <div className="admin-form-grid">
             <label>Título del producto<input autoFocus value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Ej. Yerba mate 1 kg" maxLength={200} required disabled={saving || creatingTag} /></label>
+            <label>Marca<input value={brand} onChange={(event) => setBrand(event.target.value)} maxLength={120} placeholder="Sin marca" disabled={saving || creatingTag} /></label>
             <label>Categoría<select value={categoryId || categories[0]?.id || ""} onChange={(event) => setCategoryId(event.target.value)} required disabled={saving || creatingTag}><option value="" disabled>Seleccioná una categoría</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
             <MeasurementFields quantity={quantity} unit={unit} onQuantityChange={setQuantity} onUnitChange={setUnit} disabled={saving || creatingTag} />
           </div>
