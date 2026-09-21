@@ -12,6 +12,10 @@ export function filterAvailableProductTags(tags: Tag[], selectedTagIds: string[]
   ));
 }
 
+export function handleProductTagSearchKeyDown(event: { key: string; preventDefault: () => void }): void {
+  if (event.key === "Enter") event.preventDefault();
+}
+
 export function addProductTag(currentTagIds: string[], tagId: string): string[] {
   if (!tagId || currentTagIds.includes(tagId)) return currentTagIds;
   return [...currentTagIds, tagId];

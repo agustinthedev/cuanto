@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addProductTag, filterAvailableProductTags, removeProductTag } from "./productTagSelection";
+import { addProductTag, filterAvailableProductTags, handleProductTagSearchKeyDown, removeProductTag } from "./productTagSelection";
 
 describe("product tag selection", () => {
   it("adds a tag without duplicating an existing selection", () => {
@@ -17,6 +17,13 @@ describe("product tag selection", () => {
     expect(filterAvailableProductTags(tags, ["tag-oferta"], "organico")).toEqual([tags[0]]);
     expect(filterAvailableProductTags(tags, [], "tacc")).toEqual([tags[1]]);
     expect(filterAvailableProductTags(tags, [], "")).toEqual(tags);
+  });
+
+  it("prevents Enter in the tag search from submitting its parent form", () => {
+    let prevented = false;
+    handleProductTagSearchKeyDown({ key: "Enter", preventDefault: () => { prevented = true; } });
+
+    expect(prevented).toBe(true);
   });
 
   it("preserves the latest selection when a pending tag creation resolves", async () => {

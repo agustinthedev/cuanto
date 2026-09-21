@@ -1,6 +1,6 @@
 import { useState, type SetStateAction } from "react";
 import type { Tag } from "../services/types";
-import { addProductTag, filterAvailableProductTags, removeProductTag } from "./productTagSelection";
+import { addProductTag, filterAvailableProductTags, handleProductTagSearchKeyDown, removeProductTag } from "./productTagSelection";
 
 interface ProductTagSelectorProps {
   tags: Tag[];
@@ -62,6 +62,7 @@ export function ProductTagSelector({ tags, selectedTagIds, onChange, onCreateTag
           type="search"
           value={tagSearch}
           onChange={(event) => setTagSearch(event.target.value)}
+          onKeyDown={handleProductTagSearchKeyDown}
           placeholder="Buscar tags existentes"
           aria-label="Buscar tags existentes"
           disabled={disabled || creating || !hasAvailableTags}
