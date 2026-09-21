@@ -9,7 +9,7 @@ vi.mock("../lib/supabase", () => ({
   supabase: { from: mockFrom, rpc: mockRpc },
 }));
 
-import { attachLatestPrices, getAdminStores, getHomepageProducts, getHomepageStats, normalizeAdminAnalytics, normalizeAdminAnalyticsContext } from "./data";
+import { attachLatestPrices, createProduct, getAdminStores, getHomepageProducts, getHomepageStats, normalizeAdminAnalytics, normalizeAdminAnalyticsContext } from "./data";
 import type { Product } from "./types";
 
 beforeEach(() => {
@@ -83,6 +83,26 @@ describe("getHomepageStats", () => {
 
     await expect(getHomepageStats()).resolves.toEqual({ products: 1, stores: 2, observations: 1, days: 1 });
     expect(mockRpc).toHaveBeenCalledWith("count_active_stores");
+  });
+});
+
+describe("createProduct", () => {
+  it("sends the brand to the direct product creation RPC", async () => {
+    mockRpc.mockResolvedValueOnce({ data: "product-1", error: null });
+
+    await expect(createProduct("Yerba mate", "Canarias", "category-1", 1, "kg", [
+      { store_id: "store-1", url: "https://example.test/yerba" },
+    ])).resolves.toBe("product-1");
+
+    expect(mockRpc).toHaveBeenCalledWith("create_product_with_links", {
+      p_name: "Yerba mate",
+      p_brand: "Canarias",
+      p_category_id: "category-1",
+      p_quantity: 1,
+      p_unit: "kg",
+      p_links: [{ store_id: "store-1", url: "https://example.test/yerba" }],
+      p_tag_ids: [],
+    });
   });
 });
 
