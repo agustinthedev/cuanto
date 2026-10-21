@@ -6,6 +6,9 @@ import { Layout } from "../components/Layout";
 import { AdminLoginPage } from "../pages/AdminLoginPage";
 import { AdminHomePage } from "../pages/AdminHomePage";
 import { AdminProductsPage } from "../pages/AdminProductsPage";
+import { AdminBasketsPage } from "../pages/AdminBasketsPage";
+import { BasketPage } from "../pages/BasketPage";
+import { BasketsPage } from "../pages/BasketsPage";
 import { HomePage } from "../pages/HomePage";
 import { ProductPage } from "../pages/ProductPage";
 import { ProductSearchPage } from "../pages/ProductSearchPage";
@@ -206,10 +209,13 @@ function AppRoutes() {
             <Route path="/" element={<HomePage />} />
             <Route path="/productos" element={<ProductSearchPage />} />
             <Route path="/productos/:id" element={<ProductPage onReady={handleProductReady} />} />
+            <Route path="/canastas" element={<BasketsPage />} />
+            <Route path="/canasta/:slug" element={<BasketPage />} />
             <Route path="/admin/login" element={<AdminLoginPage />} />
             <Route path="/admin" element={<AdminGuard />}>
               <Route index element={<AdminHomePage />} />
               <Route path="productos" element={<AdminProductsPage />} />
+              <Route path="canastas" element={<AdminBasketsPage />} />
               <Route path="productos-sugeridos" element={<ProductSuggestionsPage />} />
             </Route>
             <Route path="*" element={<HomePage />} />

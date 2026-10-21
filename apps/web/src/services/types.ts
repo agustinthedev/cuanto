@@ -57,6 +57,39 @@ export interface Product {
   comparison_count?: number;
 }
 
+export interface BasketSummary {
+  id: string;
+  name: string;
+  slug: string;
+  is_published: boolean;
+  created_at: string;
+  item_count: number;
+}
+
+export interface BasketPublicListing extends BasketSummary {
+  best_price: number | null;
+  best_store: string | null;
+  store_count: number;
+}
+
+export interface BasketItem {
+  id: string;
+  basket_id: string;
+  product_id: string;
+  quantity: number;
+  position: number;
+  product: Product;
+}
+
+export interface BasketPageData {
+  basket: BasketSummary | null;
+  items: BasketItem[];
+  basketPrices: LatestPrice[];
+  componentPrices: LatestPrice[];
+  averagePrices: AveragePrice[];
+  storePrices: StorePrice[];
+}
+
 export interface ProductLink {
   id: string;
   product_id: string;

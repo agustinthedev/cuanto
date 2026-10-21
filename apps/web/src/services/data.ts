@@ -12,6 +12,10 @@ import type {
   AdminAnalyticsTrafficPoint,
   AdminAnalyticsZeroResultRow,
   AdminDashboardData,
+  BasketItem,
+  BasketPageData,
+  BasketPublicListing,
+  BasketSummary,
   AdminProduct,
   AdminSuggestionStats,
   AnalyticsPeriod,
@@ -37,6 +41,7 @@ import { sortProducts, type ProductSort } from "./productSearch";
 const isDemoMode = import.meta.env.VITE_DEMO_MODE === "true";
 
 const productSelect = "id,name,brand,quantity,unit,image_url,created_at,category:categories(id,name,slug)";
+const basketItemSelect = `id,basket_id,product_id,quantity,position,product:products(${productSelect})`;
 const productSearchSelect = "id,name,brand,quantity,unit,image_url,created_at,category_id,category_name,category_slug,current_price,best_store,comparison_count";
 const suggestionSelect = "id,title,category_id,quantity,unit,status,created_at,updated_at,reviewed_at,category:categories(id,name,slug),links:product_suggestion_store_links(id,suggestion_id,store_id,url,store:stores(id,name,slug,active)),tags:product_suggestion_tags(tag:tags(id,name))";
 const adminProductSelect = "id,name,brand,quantity,unit,image_url,created_at,updated_at,category:categories(id,name,slug),links:store_products!store_products_product_id_fkey(id,product_id,store_id,url,external_name,active,location_id,store:stores(id,name,slug)),tags:product_tags(tag:tags(id,name))";
@@ -53,6 +58,30 @@ function normalizeProduct(value: any): Product {
     image_url: value.image_url ?? null,
     category: category ?? null,
     created_at: value.created_at,
+  };
+}
+
+function normalizeBasket(value: any): BasketSummary {
+  return {
+    id: value.id,
+    name: value.name,
+    slug: value.slug,
+    is_published: value.is_published === true,
+    created_at: value.created_at,
+    item_count: Array.isArray(value.items) ? value.items.length : Number(value.item_count ?? 0),
+  };
+}
+
+function normalizeBasketItem(value: any): BasketItem | null {
+  const product = Array.isArray(value.product) ? value.product[0] : value.product;
+  if (!product) return null;
+  return {
+    id: value.id,
+    basket_id: value.basket_id,
+    product_id: value.product_id,
+    quantity: Number(value.quantity),
+    position: Number(value.position),
+    product: normalizeProduct(product),
   };
 }
 
@@ -162,6 +191,61 @@ export async function getAdminStores(): Promise<Store[]> {
   const { data, error } = await supabase.from("stores").select("id,name,slug,active").eq("active", true).order("name");
   if (error) throw error;
   return (data ?? []) as Store[];
+}
+
+export async function getPublicBaskets(): Promise<BasketPublicListing[]> {
+  if (isDemoMode) return [];
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from("baskets")
+    .select("id,name,slug,is_published,created_at,items:basket_items(id)")
+    .eq("is_published", true)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  const baskets = (data ?? []).map(normalizeBasket);
+  if (!baskets.length) return [];
+  const { data: prices, error: priceError } = await supabase
+    .from("current_basket_store_prices")
+    .select("basket_id,store_name,price")
+    .in("basket_id", baskets.map((basket) => basket.id));
+  if (priceError) throw priceError;
+  const pricesByBasket = new Map<string, Array<{ store_name: string; price: number }>>();
+  (prices ?? []).forEach((row) => {
+    const rows = pricesByBasket.get(row.basket_id) ?? [];
+    rows.push({ store_name: row.store_name, price: Number(row.price) });
+    pricesByBasket.set(row.basket_id, rows);
+  });
+  return baskets.map((basket) => {
+    const rows = pricesByBasket.get(basket.id) ?? [];
+    const best = [...rows].sort((left, right) => left.price - right.price)[0];
+    return { ...basket, best_price: best?.price ?? null, best_store: best?.store_name ?? null, store_count: rows.length };
+  });
+}
+
+export async function getAdminBaskets(): Promise<BasketSummary[]> {
+  if (isDemoMode) return [];
+  if (!supabase) throw new Error("Supabase no está configurado.");
+  const { data, error } = await supabase
+    .from("baskets")
+    .select("id,name,slug,is_published,created_at,items:basket_items(id)")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(normalizeBasket);
+}
+
+export async function createBasket(name: string, items: Array<{ product_id: string; quantity: number }>): Promise<Pick<BasketSummary, "id" | "name" | "slug">> {
+  if (isDemoMode) throw new Error("La creación de canastas requiere Supabase.");
+  if (!supabase) throw new Error("Supabase no está configurado.");
+  const { data, error } = await supabase.rpc("create_basket", { p_name: name, p_items: items });
+  if (error) throw error;
+  return data as Pick<BasketSummary, "id" | "name" | "slug">;
+}
+
+export async function setBasketPublished(id: string, isPublished: boolean): Promise<void> {
+  if (isDemoMode) return;
+  if (!supabase) throw new Error("Supabase no está configurado.");
+  const { error } = await supabase.rpc("set_basket_published", { p_basket_id: id, p_is_published: isPublished });
+  if (error) throw error;
 }
 
 export async function getTags(): Promise<Tag[]> {
@@ -790,4 +874,68 @@ export async function getProductPageData(id: string): Promise<ProductPageData> {
     averagePrices: (averageResult.data ?? []) as AveragePrice[],
     storePrices: (storeResult.data ?? []) as StorePrice[],
   };
+}
+
+export async function getBasketPageData(slug: string): Promise<BasketPageData> {
+  const empty: BasketPageData = { basket: null, items: [], basketPrices: [], componentPrices: [], averagePrices: [], storePrices: [] };
+  if (isDemoMode || !supabase) return empty;
+
+  const { data: basketResult, error: basketError } = await supabase
+    .from("baskets")
+    .select("id,name,slug,is_published,created_at")
+    .eq("slug", slug)
+    .eq("is_published", true)
+    .maybeSingle();
+  if (basketError) throw basketError;
+  if (!basketResult) return empty;
+
+  const [itemResult, priceResult, averageResult, storeResult] = await Promise.all([
+    supabase.from("basket_items").select(basketItemSelect).eq("basket_id", basketResult.id).order("position"),
+    supabase.from("current_basket_store_prices").select("basket_id,store_id,store_name,store_slug,price,item_count,date").eq("basket_id", basketResult.id).order("price"),
+    supabase.from("basket_daily_average_prices").select("basket_id,date,average_price,observation_count").eq("basket_id", basketResult.id).order("date"),
+    supabase.from("basket_daily_store_prices").select("basket_id,store_id,store_name,store_slug,date,price,observation_count").eq("basket_id", basketResult.id).order("date"),
+  ]);
+  if (itemResult.error) throw itemResult.error;
+  if (priceResult.error) throw priceResult.error;
+  if (averageResult.error) throw averageResult.error;
+  if (storeResult.error) throw storeResult.error;
+
+  const items = (itemResult.data ?? []).map(normalizeBasketItem).filter((item): item is BasketItem => item !== null);
+  const productIds = [...new Set(items.map((item) => item.product_id))];
+  const { data: componentPriceData, error: componentPriceError } = productIds.length
+    ? await supabase.from("current_store_product_prices").select("*").in("product_id", productIds).order("store_name")
+    : { data: [], error: null };
+  if (componentPriceError) throw componentPriceError;
+
+  const basket = { ...basketResult, item_count: items.length } as BasketSummary;
+  const basketPrices = (priceResult.data ?? []).map((row: any): LatestPrice => ({
+    store_product_id: `${row.basket_id}-${row.store_id}`,
+    product_id: row.basket_id,
+    store_id: row.store_id,
+    store_name: row.store_name,
+    store_slug: row.store_slug,
+    location_id: null,
+    location_name: null,
+    url: "",
+    price: Number(row.price),
+    date: row.date,
+    scraped_at: `${row.date}T12:00:00.000Z`,
+  }));
+  const componentPrices = (componentPriceData ?? []) as LatestPrice[];
+  const averagePrices = (averageResult.data ?? []).map((row: any): AveragePrice => ({
+    product_id: row.basket_id,
+    date: row.date,
+    average_price: Number(row.average_price),
+    observation_count: Number(row.observation_count),
+  }));
+  const storePrices = (storeResult.data ?? []).map((row: any): StorePrice => ({
+    product_id: row.basket_id,
+    store_id: row.store_id,
+    store_name: row.store_name,
+    store_slug: row.store_slug,
+    date: row.date,
+    price: Number(row.price),
+    observation_count: Number(row.observation_count),
+  }));
+  return { basket, items, basketPrices, componentPrices, averagePrices, storePrices };
 }

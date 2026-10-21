@@ -23,9 +23,11 @@ export function Layout({ children }: { children: ReactNode }) {
             {isAdminArea ? <>
               <NavLink to="/admin" end className={({ isActive }) => (isActive ? "active" : "")}>Resumen</NavLink>
               <NavLink to="/admin/productos" end className={({ isActive }) => (isActive ? "active" : "")}>Productos</NavLink>
+              <NavLink to="/admin/canastas" className={({ isActive }) => (isActive ? "active" : "")}>Canastas</NavLink>
               <NavLink to="/admin/productos-sugeridos" className={({ isActive }) => (isActive ? "active" : "")}>Sugerencias</NavLink>
             </> : <>
               <NavLink to="/" end className={({ isActive }) => (isActive ? "active" : "")}>Explorar</NavLink>
+              <NavLink to="/canastas" className={({ isActive }) => (isActive ? "active" : "")}>Canastas</NavLink>
               <a href={howItWorksHref}>Cómo funciona</a>
             </>}
           </nav>
@@ -46,6 +48,7 @@ export function Layout({ children }: { children: ReactNode }) {
         <div className="footer-links">
           <a href={howItWorksHref}>Cómo funciona</a>
           <Link to="/#explorar">Explorar productos</Link>
+          <Link to="/canastas">Canastas</Link>
         </div>
       </footer>
     </div>
