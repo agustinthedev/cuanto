@@ -99,6 +99,29 @@ No hace falta cargar `products.image_url` ni `store_products.image_url`: el scra
 
 No se incluyen productos de ejemplo ni precios históricos ficticios en producción.
 
+### Matching y remediación masiva del catálogo
+
+Los scripts de `scripts/` permiten reconstruir matches entre catálogos de
+supermercados, validar las páginas vigentes y preparar una carga conservadora.
+El publicador solo acepta grupos de confianza alta, con una página de producto
+validada y al menos dos cadenas activas. Los casos ambiguos quedan en el plan
+como conflictos o exclusiones; nunca se fusionan automáticamente.
+
+```bash
+python -m pip install -r scripts/requirements-catalog.txt
+python scripts/catalog_matching.py catalogo_productos_supermercados.xlsx catalog-matches.json
+python scripts/catalog_enrich.py catalog-matches.json catalog-matches-enriched.json
+python scripts/catalog_publish.py catalog-matches-enriched.json --env-file apps/scraper/.dev.vars --output-dir catalog-output
+python -m unittest discover -s scripts -p "test_*.py"
+```
+
+El último comando es un dry-run: descarga un respaldo del catálogo actual y
+genera un plan JSON sin cambiar Supabase. Para aplicar un plan recalculado
+contra el estado más reciente se agrega `--apply`. En producción conviene sumar
+`--expected-project-ref <project-ref>` para evitar apuntar al proyecto equivocado.
+La service-role key se lee solo desde el archivo local ignorado por Git y nunca
+se incluye en respaldos, planes ni logs.
+
 ## Scraper Worker
 
 El Worker carga todas las publicaciones activas, elige el adapter por `stores.slug`, obtiene el precio original/de lista —sin descuentos ni promociones— y hace upsert en `prices` con la clave `(store_product_id, date)`. Un fallo individual se registra como JSON en los logs y no detiene las demás publicaciones.
