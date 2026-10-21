@@ -48,7 +48,7 @@ npm run build
 
 1. Crear un proyecto gratuito en Supabase.
 2. Aplicar `supabase/migrations/202608250001_initial_schema.sql` desde el SQL Editor o con Supabase CLI.
-3. Aplicar las migraciones posteriores, incluida `supabase/migrations/202608260001_add_product_image_sources.sql`, las migraciones de propuestas `202608260002`, `202608260003`, `202608260004`, `202608260005` y `202608260006`, `supabase/migrations/202608270001_add_direct_product_creation.sql`, las migraciones `202608280001` y `202608280002`, las migraciones `supabase/migrations/202609030001_add_product_measurements.sql`, `supabase/migrations/202609030002_add_product_tags.sql`, `supabase/migrations/202609040001_add_analytics.sql`, `supabase/migrations/202609050004_restore_analytics_validator_access.sql`, `supabase/migrations/202609050005_bound_anonymous_analytics_payloads.sql`, `supabase/migrations/202609050006_fill_analytics_traffic_buckets.sql`, `supabase/migrations/202609090001_add_scrape_attempts.sql`, `supabase/migrations/202609100001_limit_current_prices_to_recent_observations.sql` y `supabase/migrations/202609100002_split_current_prices_from_latest_observations.sql`.
+3. Aplicar las migraciones posteriores, incluida `supabase/migrations/202608260001_add_product_image_sources.sql`, las migraciones de propuestas `202608260002`, `202608260003`, `202608260004`, `202608260005` y `202608260006`, `supabase/migrations/202608270001_add_direct_product_creation.sql`, las migraciones `202608280001` y `202608280002`, las migraciones `supabase/migrations/202609030001_add_product_measurements.sql`, `supabase/migrations/202609030002_add_product_tags.sql`, `supabase/migrations/202609040001_add_analytics.sql`, `supabase/migrations/202609050004_restore_analytics_validator_access.sql`, `supabase/migrations/202609050005_bound_anonymous_analytics_payloads.sql`, `supabase/migrations/202609050006_fill_analytics_traffic_buckets.sql`, `supabase/migrations/202609090001_add_scrape_attempts.sql`, `supabase/migrations/202609100001_limit_current_prices_to_recent_observations.sql`, `supabase/migrations/202609100002_split_current_prices_from_latest_observations.sql` y `supabase/migrations/202610210001_add_baskets.sql`.
 4. Ejecutar `supabase/seed.sql` para crear Disco, Tienda Inglesa, Ta-Ta y categorías iniciales.
 5. Copiar `apps/web/.env.example` como `.env.local` y completar:
 
@@ -79,7 +79,9 @@ La tabla de administradores guarda únicamente UUIDs, no contraseñas. Luego se 
 
 ### Panel de administración
 
-Desde `/admin`, un administrador puede ver el resumen del catálogo, la actividad reciente de precios y el estado de las propuestas. La revisión y carga manual de productos se encuentra en `/admin/productos-sugeridos`.
+Desde `/admin`, un administrador puede ver el resumen del catálogo, la actividad reciente de precios y el estado de las propuestas. La revisión y carga manual de productos se encuentra en `/admin/productos-sugeridos`; la creación y publicación de canastas está en `/admin/canastas`.
+
+Cada canasta combina productos y cantidades, recibe un slug a partir del nombre y se publica en `/canasta/<slug>`. La página pública compara los totales completos por cadena, el promedio histórico, el historial por cadena y los precios individuales de sus productos. Los totales se muestran solo cuando la cadena tiene precios recientes para todos los productos; `/canastas` permite explorar las canastas publicadas.
 
 ### Cargar y revisar productos sugeridos
 
