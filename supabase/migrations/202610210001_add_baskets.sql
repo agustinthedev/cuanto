@@ -133,7 +133,7 @@ begin
   perform pg_advisory_xact_lock(hashtextextended(v_base_slug, 0::bigint));
   v_slug := v_base_slug;
   while exists (select 1 from public.baskets where slug = v_slug) loop
-    v_slug := left(v_base_slug, 84) || '-' || v_suffix::text;
+    v_slug := rtrim(left(v_base_slug, 84), '-') || '-' || v_suffix::text;
     v_suffix := v_suffix + 1;
   end loop;
 

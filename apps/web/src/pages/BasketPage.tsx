@@ -73,16 +73,17 @@ function CurrentBasketComparison({ prices }: { prices: LatestPrice[] }) {
   const sorted = [...prices].sort((left, right) => Number(left.price) - Number(right.price));
   if (!sorted.length) return <StateMessage compact title="Todavía no hay un total comparable" text="El total aparece cuando una cadena tiene precio reciente para todos los productos de la canasta." />;
   const maxPrice = Number(sorted[sorted.length - 1].price);
+  const lowestPrice = Number(sorted[0].price);
 
   return (
     <div className="basket-store-list" role="list" aria-label="Total reciente de la canasta por cadena">
       {sorted.map((row, index) => {
         const price = Number(row.price);
-        const savings = maxPrice - price;
+        const extraCost = price - lowestPrice;
         const width = maxPrice > 0 ? Math.max(12, price / maxPrice * 100) : 0;
         return (
           <div className={`basket-store-row${index === 0 ? " is-best" : ""}`} key={row.store_id} role="listitem">
-            <div className="basket-store-row-heading"><span><i className={`basket-store-dot store-${row.store_slug}`} />{row.store_name}</span><small>{index === 0 ? "Menor total" : savings > 0 ? `${money(savings)} más` : ""}</small></div>
+            <div className="basket-store-row-heading"><span><i className={`basket-store-dot store-${row.store_slug}`} />{row.store_name}</span><small>{index === 0 ? "Menor total" : extraCost > 0 ? `${money(extraCost)} más` : ""}</small></div>
             <div className="basket-store-track" aria-hidden="true"><i style={{ width: `${width}%` }} /></div>
             <div className="basket-store-row-footer"><strong>{money(price)}</strong><small>Todos los productos · {dateLabel(row.date)}</small></div>
           </div>
