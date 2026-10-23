@@ -571,6 +571,64 @@ describe("flujo con Queue", () => {
     expect(savedProductImageBodies).toHaveLength(1);
   });
 
+  it("pagina todas las publicaciones activas y todas las imágenes al despachar", async () => {
+    const total = 1001;
+    const storeProducts = Array.from({ length: total }, (_, index) => {
+      const id = String(index).padStart(4, "0");
+      return {
+        id: `store-product-${id}`,
+        product_id: `product-${id}`,
+        store_id: "store-1",
+        location_id: null,
+        url: `https://example.test/disco/${id}`,
+        external_name: null,
+        image_url: null,
+      };
+    });
+    const products = Array.from({ length: total }, (_, index) => ({
+      id: `product-${String(index).padStart(4, "0")}`,
+      image_url: null,
+      image_source_store_product_id: null,
+      image_updated_at: null,
+    }));
+    const storeProductRanges: string[] = [];
+    const productRanges: string[] = [];
+    const queue = { sendBatch: vi.fn(async () => undefined) };
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/rest/v1/stores")) {
+        return new Response(JSON.stringify([{ id: "store-1", slug: "disco" }]), { status: 200 });
+      }
+      if (url.includes("/rest/v1/store_products")) {
+        const range = new Headers(init?.headers).get("Range") ?? "";
+        storeProductRanges.push(range);
+        const [from, to] = range.split("-").map(Number);
+        return new Response(JSON.stringify(storeProducts.slice(from, to + 1)), { status: 200 });
+      }
+      if (url.includes("/rest/v1/products")) {
+        const range = new Headers(init?.headers).get("Range") ?? "";
+        productRanges.push(range);
+        const [from, to] = range.split("-").map(Number);
+        return new Response(JSON.stringify(products.slice(from, to + 1)), { status: 200 });
+      }
+      return new Response("Not found", { status: 404 });
+    }));
+
+    const dispatched = await dispatchDailyRun(
+      {
+        SUPABASE_URL: "https://project.supabase.co",
+        SUPABASE_SERVICE_ROLE_KEY: "service-role",
+        SCRAPE_QUEUE: queue,
+      } as unknown as Env,
+      new Date("2026-09-02T07:00:00Z"),
+    );
+
+    expect(dispatched).toMatchObject({ date: "2026-09-02", products: total, store_products: total, messages: total });
+    expect(storeProductRanges).toEqual(["0-499", "500-999", "1000-1499"]);
+    expect(productRanges).toEqual(["0-499", "500-999", "1000-1499"]);
+    expect(queue.sendBatch).toHaveBeenCalledTimes(11);
+  });
+
   it("procesa El Dorado dentro del performer y reutiliza la sesión regional del mensaje", async () => {
     const savedPriceBodies: unknown[] = [];
     const savedStoreImageBodies: unknown[] = [];
