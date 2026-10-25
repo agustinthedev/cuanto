@@ -30,6 +30,7 @@ const IMAGE_STORE_PRIORITY: Record<string, number> = {
 
 const TIENDA_INGLESA_REQUEST_DELAY_MS = 500;
 const QUEUE_SEND_BATCH_SIZE = 100;
+const SUPABASE_REST_PAGE_SIZE = 500;
 const SCRAPE_ATTEMPT_RETENTION_DAYS: Record<ScrapeAttemptStatus, number> = {
   success: 15,
   failed: 60,
@@ -49,16 +50,36 @@ function apiHeaders(env: Env, prefer?: string): Headers {
   return headers;
 }
 
+async function loadAllRows<T>(env: Env, table: string, query: string, errorMessage: string): Promise<T[]> {
+  const rows: T[] = [];
+  const orderedQuery = `${query}&order=id.asc`;
+
+  for (let offset = 0; ; offset += SUPABASE_REST_PAGE_SIZE) {
+    const headers = apiHeaders(env);
+    headers.set("Range-Unit", "items");
+    headers.set("Range", `${offset}-${offset + SUPABASE_REST_PAGE_SIZE - 1}`);
+    const response = await fetchWithRetry(apiUrl(env, table, orderedQuery), { headers });
+    if (!response.ok) throw new Error(`${errorMessage}: HTTP ${response.status}`);
+
+    const page = await response.json() as T[];
+    rows.push(...page);
+    if (page.length < SUPABASE_REST_PAGE_SIZE) return rows;
+  }
+}
+
 async function loadActiveStoreProducts(env: Env, productId?: string): Promise<StoreProductRecord[]> {
   const productFilter = productId ? `&product_id=eq.${encodeURIComponent(productId)}` : "";
-  const [storesResponse, productsResponse] = await Promise.all([
+  const [storesResponse, products] = await Promise.all([
     fetchWithRetry(apiUrl(env, API_TABLES.stores, "select=id,slug"), { headers: apiHeaders(env) }),
-    fetchWithRetry(apiUrl(env, API_TABLES.storeProducts, `select=id,product_id,store_id,location_id,url,external_name,image_url&active=eq.true${productFilter}`), { headers: apiHeaders(env) }),
+    loadAllRows<Omit<StoreProductRecord, "store_slug">>(
+      env,
+      API_TABLES.storeProducts,
+      `select=id,product_id,store_id,location_id,url,external_name,image_url&active=eq.true${productFilter}`,
+      "No se pudieron cargar los productos",
+    ),
   ]);
   if (!storesResponse.ok) throw new Error(`No se pudieron cargar las cadenas: HTTP ${storesResponse.status}`);
-  if (!productsResponse.ok) throw new Error(`No se pudieron cargar los productos: HTTP ${productsResponse.status}`);
   const stores = await storesResponse.json() as Array<{ id: string; slug: string }>;
-  const products = await productsResponse.json() as Omit<StoreProductRecord, "store_slug">[];
   const storeSlugs = new Map(stores.map((store) => [store.id, store.slug]));
   return products.flatMap((product) => {
     const storeSlug = storeSlugs.get(product.store_id);
@@ -68,9 +89,12 @@ async function loadActiveStoreProducts(env: Env, productId?: string): Promise<St
 
 async function loadProductImages(env: Env, productId?: string): Promise<Map<string, ProductImageRecord>> {
   const productFilter = productId ? `&id=eq.${encodeURIComponent(productId)}` : "";
-  const response = await fetchWithRetry(apiUrl(env, API_TABLES.products, `select=id,image_url,image_source_store_product_id,image_updated_at${productFilter}`), { headers: apiHeaders(env) });
-  if (!response.ok) throw new Error(`No se pudieron cargar las imágenes de productos: HTTP ${response.status}`);
-  const products = await response.json() as ProductImageRecord[];
+  const products = await loadAllRows<ProductImageRecord>(
+    env,
+    API_TABLES.products,
+    `select=id,image_url,image_source_store_product_id,image_updated_at${productFilter}`,
+    "No se pudieron cargar las imágenes de productos",
+  );
   return new Map(products.map((product) => [product.id, product]));
 }
 
