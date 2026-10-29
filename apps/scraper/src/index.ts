@@ -70,7 +70,7 @@ async function loadAllRows<T>(env: Env, table: string, query: string, errorMessa
 async function loadActiveStoreProducts(env: Env, productId?: string): Promise<StoreProductRecord[]> {
   const productFilter = productId ? `&product_id=eq.${encodeURIComponent(productId)}` : "";
   const [storesResponse, products] = await Promise.all([
-    fetchWithRetry(apiUrl(env, API_TABLES.stores, "select=id,slug"), { headers: apiHeaders(env) }),
+    fetchWithRetry(apiUrl(env, API_TABLES.stores, "select=id,slug&active=eq.true"), { headers: apiHeaders(env) }),
     loadAllRows<Omit<StoreProductRecord, "store_slug">>(
       env,
       API_TABLES.storeProducts,

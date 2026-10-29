@@ -629,6 +629,68 @@ describe("flujo con Queue", () => {
     expect(queue.sendBatch).toHaveBeenCalledTimes(11);
   });
 
+  it("omite cadenas inactivas aunque conserven publicaciones activas", async () => {
+    const queue = { sendBatch: vi.fn(async () => undefined) };
+    const urls: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      urls.push(url);
+      if (url.includes("/rest/v1/stores")) {
+        expect(new URL(url).searchParams.get("active")).toBe("eq.true");
+        return new Response(JSON.stringify([{ id: "store-disco", slug: "disco" }]), { status: 200 });
+      }
+      if (url.includes("/rest/v1/store_products")) {
+        return new Response(JSON.stringify([
+          {
+            id: "store-product-disco",
+            product_id: "product-1",
+            store_id: "store-disco",
+            location_id: null,
+            url: "https://example.test/disco/producto",
+            external_name: null,
+            image_url: null,
+          },
+          {
+            id: "store-product-ti",
+            product_id: "product-1",
+            store_id: "store-ti",
+            location_id: null,
+            url: "https://www.tiendainglesa.com.uy/producto",
+            external_name: null,
+            image_url: null,
+          },
+        ]), { status: 200 });
+      }
+      if (url.includes("/rest/v1/products")) {
+        return new Response(JSON.stringify([{
+          id: "product-1",
+          image_url: null,
+          image_source_store_product_id: null,
+          image_updated_at: null,
+        }]), { status: 200 });
+      }
+      return new Response("Not found", { status: 404 });
+    }));
+
+    const dispatched = await dispatchDailyRun(
+      {
+        SUPABASE_URL: "https://project.supabase.co",
+        SUPABASE_SERVICE_ROLE_KEY: "service-role",
+        SCRAPE_QUEUE: queue,
+      } as unknown as Env,
+      new Date("2026-09-02T07:00:00Z"),
+    );
+
+    expect(dispatched).toMatchObject({ products: 1, store_products: 1, messages: 1 });
+    expect(queue.sendBatch).toHaveBeenCalledWith([{
+      body: expect.objectContaining({
+        product_id: "product-1",
+        store_products: [expect.objectContaining({ id: "store-product-disco", store_slug: "disco" })],
+      }),
+    }]);
+    expect(urls.some((url) => url.includes("tiendainglesa.com.uy"))).toBe(false);
+  });
+
   it("procesa El Dorado dentro del performer y reutiliza la sesión regional del mensaje", async () => {
     const savedPriceBodies: unknown[] = [];
     const savedStoreImageBodies: unknown[] = [];
