@@ -516,7 +516,7 @@ a { color: inherit; text-decoration: none; }
   .rail-arrow { display: grid; }
 }
 
-/* Cuánto consumer system: Airbnb-inspired structure with the original brand green. */
+/* Cuanto consumer system: Airbnb-inspired structure with the original brand green. */
 :root {
   --color-primary: #08735b;
   --color-primary-active: #075343;

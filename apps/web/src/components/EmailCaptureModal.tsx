@@ -57,8 +57,8 @@ export function EmailCaptureModal({ onClose, onSubmit }: EmailCaptureModalProps)
           </div>
         ) : (
           <>
-            <span className="section-kicker">Lo próximo en Cuánto</span>
-            <h2 id="email-capture-title">¿Te está sirviendo Cuánto?</h2>
+            <span className="section-kicker">Lo próximo en Cuanto</span>
+            <h2 id="email-capture-title">¿Te está sirviendo Cuanto?</h2>
             <p className="email-capture-copy">Ya podés comparar precios e historial. Ahora estamos armando alertas de cambios de precio, una forma de seguir tus productos favoritos y otras herramientas para encontrar mejores oportunidades. Dejanos tu email y enterate cuando puedas usarlas.</p>
             {error && <div className="inline-alert" role="alert">{error}</div>}
             <form className="email-capture-form" onSubmit={handleSubmit}>

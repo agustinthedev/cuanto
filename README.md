@@ -1,6 +1,6 @@
-# Cuánto.uy
+# Cuanto.uy
 
-Cuánto.uy es un MVP público para comparar precios de supermercados en Uruguay y construir una historia diaria de cada producto. La interfaz está en español, usa pesos uruguayos y no inventa datos cuando la base todavía está vacía.
+Cuanto.uy es un MVP público para comparar precios de supermercados en Uruguay y construir una historia diaria de cada producto. La interfaz está en español, usa pesos uruguayos y no inventa datos cuando la base todavía está vacía.
 
 ## Arquitectura
 
