@@ -313,14 +313,20 @@ export function StoreChart({ data }: { data: StorePrice[] }) {
     });
     return points.length ? [{ slug, name, color, points }] : [];
   });
-  const interactionPoints = new Map<string, { point: (typeof storeSeries)[number]["points"][number]; stores: Array<{ name: string; value: number }> }>();
+  const interactionPoints = new Map<string, {
+    points: Array<{ slug: string; point: (typeof storeSeries)[number]["points"][number] }>;
+    stores: Array<{ name: string; value: number }>;
+  }>();
   storeSeries.forEach((series) => series.points.forEach((point) => {
-    const key = `${point.date}:${point.value}`;
-    const existing = interactionPoints.get(key);
+    const existing = interactionPoints.get(point.date);
     if (existing) {
+      existing.points.push({ slug: series.slug, point });
       existing.stores.push({ name: series.name, value: point.value });
     } else {
-      interactionPoints.set(key, { point, stores: [{ name: series.name, value: point.value }] });
+      interactionPoints.set(point.date, {
+        points: [{ slug: series.slug, point }],
+        stores: [{ name: series.name, value: point.value }],
+      });
     }
   }));
 
@@ -340,27 +346,29 @@ export function StoreChart({ data }: { data: StorePrice[] }) {
             {points.map((point) => <circle key={`${slug}-${point.date}`} cx={point.x} cy={point.y} r="3.5" className="chart-point" style={{ stroke: color }} pointerEvents="none" aria-hidden="true" />)}
           </g>
         ))}
-        {[...interactionPoints].map(([key, { point, stores }]) => {
-          const pointLabel = `${shortDate(point.date)}: ${stores.map((store) => `${store.name}, ${exactPriceLabel(store.value)}`).join("; ")}`;
-          const tooltipData = { point, date: point.date, value: point.value, stores };
-          return (
-            <circle
-              key={key}
-              cx={point.x}
-              cy={point.y}
-              r="8"
-              className="chart-hit-target"
-              tabIndex={0}
-              aria-label={pointLabel}
-              pointerEvents="all"
-              onMouseEnter={() => setActivePoint(tooltipData)}
-              onMouseLeave={() => setActivePoint(null)}
-              onFocus={() => setActivePoint(tooltipData)}
-              onBlur={() => setActivePoint(null)}
-            >
-              <title>{pointLabel}</title>
-            </circle>
-          );
+        {[...interactionPoints].flatMap(([date, { points, stores }]) => {
+          const pointLabel = `${shortDate(date)}: ${stores.map((store) => `${store.name}, ${exactPriceLabel(store.value)}`).join("; ")}`;
+          return points.map(({ slug, point }) => {
+            const tooltipData = { point, date, value: point.value, stores };
+            return (
+              <circle
+                key={`${slug}-${date}`}
+                cx={point.x}
+                cy={point.y}
+                r="8"
+                className="chart-hit-target"
+                tabIndex={0}
+                aria-label={pointLabel}
+                pointerEvents="all"
+                onMouseEnter={() => setActivePoint(tooltipData)}
+                onMouseLeave={() => setActivePoint(null)}
+                onFocus={() => setActivePoint(tooltipData)}
+                onBlur={() => setActivePoint(null)}
+              >
+                <title>{pointLabel}</title>
+              </circle>
+            );
+          });
         })}
         {activePoint && <ChartTooltip data={activePoint} width={width} height={height} padding={padding} />}
         <text x={padding} y={height - 8} className="chart-label">{shortDate(dates[0])}</text>
