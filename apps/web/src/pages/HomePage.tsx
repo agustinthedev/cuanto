@@ -176,7 +176,7 @@ export function HomePage() {
           </div>
             <div className="discovery-copy">
               <span className="discovery-store">
-                {leadProduct?.best_store ? <><StoreLogo name={leadProduct.best_store} /><span>{leadProduct.best_store}</span></> : <span>Seguimiento Kuanto</span>}
+                {leadProduct?.best_store ? <><StoreLogo name={leadProduct.best_store} /><span>{leadProduct.best_store}</span></> : <span>Seguimiento Cuanto</span>}
               </span>
             <span className="discovery-category">{leadProduct?.category?.name ?? "Catálogo seguido"}</span>
             <h3>{leadProduct?.name ?? "Tu próxima decisión, más clara"}</h3>
