@@ -594,7 +594,11 @@ async function countRows(table: string, column = "id"): Promise<number> {
 
 async function countActiveStores(): Promise<number> {
   if (!supabase) return 0;
-  const { data, error } = await supabase.rpc("count_active_stores");
+  let { data, error } = await supabase.rpc("count_active_stores");
+  if (error?.code === "PGRST303") {
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    ({ data, error } = await supabase.rpc("count_active_stores"));
+  }
   if (error) throw error;
   return Number(data ?? 0);
 }

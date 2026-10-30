@@ -46,17 +46,19 @@ export function HomePage() {
   const [categoryId, setCategoryId] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [categoryError, setCategoryError] = useState<string | null>(null);
+  const [statsError, setStatsError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
-    Promise.all([getCategories(), getHomepageStats()])
-      .then(([nextCategories, nextStats]) => {
-        if (cancelled) return;
-        setCategories(nextCategories);
-        setStats(nextStats);
-      })
-      .catch(() => !cancelled && setError("No pudimos cargar las categorías todavía."));
+    getCategories()
+      .then((nextCategories) => !cancelled && setCategories(nextCategories))
+      .catch(() => !cancelled && setCategoryError("No pudimos cargar las categorías todavía."));
+
+    getHomepageStats()
+      .then((nextStats) => !cancelled && setStats(nextStats))
+      .catch(() => !cancelled && setStatsError("No pudimos cargar el resumen de datos todavía."));
 
     return () => {
       cancelled = true;
@@ -158,6 +160,7 @@ export function HomePage() {
         ))}
       </div>
 
+      {categoryError && <div className="inline-alert">{categoryError}</div>}
       {error && <div className="inline-alert">{error}</div>}
 
       <section className="discovery-section" aria-labelledby="discovery-title">
@@ -252,24 +255,28 @@ export function HomePage() {
             Actualizado diariamente
           </span>
         </div>
-        <div className="data-summary-grid">
-          <div>
-            <span>Productos seguidos</span>
-            <strong>{number(stats.products)}</strong>
+        {statsError ? (
+          <div className="inline-alert">{statsError}</div>
+        ) : (
+          <div className="data-summary-grid">
+            <div>
+              <span>Productos seguidos</span>
+              <strong>{number(stats.products)}</strong>
+            </div>
+            <div>
+              <span>Cadenas comparadas</span>
+              <strong>{number(stats.stores)}</strong>
+            </div>
+            <div>
+              <span>Precios registrados</span>
+              <strong>{number(stats.observations)}</strong>
+            </div>
+            <div>
+              <span>Días de historia</span>
+              <strong>{number(stats.days)}</strong>
+            </div>
           </div>
-          <div>
-            <span>Cadenas comparadas</span>
-            <strong>{number(stats.stores)}</strong>
-          </div>
-          <div>
-            <span>Precios registrados</span>
-            <strong>{number(stats.observations)}</strong>
-          </div>
-          <div>
-            <span>Días de historia</span>
-            <strong>{number(stats.days)}</strong>
-          </div>
-        </div>
+        )}
       </section>
     </section>
   );
