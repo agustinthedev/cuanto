@@ -2,7 +2,7 @@
   "name": "cuanto-uy",
   "private": true,
   "version": "0.1.0",
-  "description": "Cuánto.uy - seguimiento y comparación de precios de supermercados en Uruguay",
+  "description": "Cuanto.uy - seguimiento y comparación de precios de supermercados en Uruguay",
   "workspaces": [
     "apps/web",
     "apps/scraper"

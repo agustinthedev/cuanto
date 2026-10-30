@@ -15,9 +15,9 @@ export function Layout({ children }: { children: ReactNode }) {
       <div className="ambient ambient-two" />
       <header className={isAdminArea ? "site-header admin-site-header" : "site-header"}>
         <div className="site-header-inner container">
-          <Link className="brand" to="/" aria-label="Cuánto.uy, inicio">
+          <Link className="brand" to="/" aria-label="Cuanto.uy, inicio">
             <span className="brand-mark">$</span>
-            <span>cuánto<span className="brand-domain">.uy</span></span>
+            <span>cuanto<span className="brand-domain">.uy</span></span>
           </Link>
           <nav className={isAdminArea ? "site-nav admin-site-nav" : "site-nav"} aria-label="Navegación principal">
             {isAdminArea ? <>
@@ -39,9 +39,9 @@ export function Layout({ children }: { children: ReactNode }) {
       <main>{children}</main>
       <footer className="site-footer container">
         <div className="footer-main">
-          <Link className="footer-brand" to="/" aria-label="Volver al inicio de Cuánto.uy">
+          <Link className="footer-brand" to="/" aria-label="Volver al inicio de Cuanto.uy">
             <span className="footer-mark">$</span>
-            <span>cuánto<span className="brand-domain">.uy</span></span>
+            <span>cuanto<span className="brand-domain">.uy</span></span>
           </Link>
           <p className="footer-copy"><strong>Precios claros</strong><span>para decidir mejor en Uruguay.</span></p>
         </div>
