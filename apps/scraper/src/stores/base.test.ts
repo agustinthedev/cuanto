@@ -39,6 +39,22 @@ describe("fetchWithRetry", () => {
     expect(secondCancel).toHaveBeenCalledTimes(1);
   });
 
+  it("respeta Retry-After cuando el servidor pide una espera mayor", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response("ocupado", { status: 503, headers: { "Retry-After": "4" } }))
+      .mockResolvedValueOnce(new Response("ok", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const request = fetchWithRetry("https://example.test/product");
+    await vi.advanceTimersByTimeAsync(3_999);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(request).resolves.toMatchObject({ status: 200 });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("adjunta la respuesta original a los errores de parseo", () => {
     const rawResponse = {
       url: "https://example.test/product",

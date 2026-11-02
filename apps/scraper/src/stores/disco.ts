@@ -39,7 +39,9 @@ export const discoScraper: StoreScraper = {
   async scrape(record: StoreProductRecord): Promise<ScrapeResult> {
     const rawResponse = await requireResponseTextSnapshot(record.url, {
       headers: { "User-Agent": "Cuanto.uy price tracker/0.1 (+https://cuanto.uy)" },
-    });
+    }, (response) => response.status === 429
+      || response.status >= 500
+      || (response.status === 403 && response.headers.has("Retry-After")));
     let parsed: PriceEvidence & { price: number };
     try {
       parsed = parseDiscoHtmlWithEvidence(rawResponse.body);

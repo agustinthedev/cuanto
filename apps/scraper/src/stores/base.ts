@@ -36,6 +36,20 @@ async function cancelResponseBody(response: Response): Promise<void> {
   }
 }
 
+function retryDelay(response: Response, attempt: number): number | null {
+  const defaultDelay = RETRY_DELAYS_MS[Math.min(attempt - 1, RETRY_DELAYS_MS.length - 1)];
+  const retryAfter = response.headers.get("Retry-After");
+  if (!retryAfter) return defaultDelay;
+
+  const seconds = Number(retryAfter);
+  const retryAt = Number.isFinite(seconds) ? Date.now() + seconds * 1_000 : Date.parse(retryAfter);
+  if (!Number.isFinite(retryAt)) return defaultDelay;
+
+  const delayMs = Math.max(0, retryAt - Date.now());
+  if (delayMs > 60_000) return null;
+  return Math.max(defaultDelay, delayMs);
+}
+
 function logRetry(input: RequestInfo | URL, attempt: number, nextAttempt: number, delayMs: number, status?: number, error?: unknown, response?: Response) {
   console.warn(JSON.stringify({
     event: "http_retry_scheduled",
@@ -62,9 +76,10 @@ export async function fetchWithRetry(
       const response = await fetch(input, init);
       if (response.ok || attempt === attempts || !shouldRetryResponse(response)) return response;
 
+      const delayMs = retryDelay(response, attempt);
+      if (delayMs === null) return response;
       await cancelResponseBody(response);
       lastError = new ScraperError(`Respuesta HTTP ${response.status}`);
-      const delayMs = RETRY_DELAYS_MS[Math.min(attempt - 1, RETRY_DELAYS_MS.length - 1)];
       logRetry(input, attempt, attempt + 1, delayMs, response.status, undefined, response);
       await sleep(delayMs);
     } catch (error) {
