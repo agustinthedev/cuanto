@@ -3,12 +3,11 @@ import { fetchWithRetry, ScraperError, sleep } from "./stores/base";
 import { probeTiendaInglesaFallbackOrigin, tiendaInglesaFallbackOrigins } from "./stores/tienda-inglesa";
 import { saveRawResponse, type RawResponseReference } from "./raw-responses";
 import { buildScrapeAttempt, saveScrapeAttempts } from "./scrape-attempts";
-import type { ScrapeAttemptStatus, ScrapeAttemptUpsert, ScrapeQueueMessage, ScrapeRawResponse, ScrapeSummary, ScrapeResult, StoreProductRecord, StoreScrapeContext } from "./types";
+import type { DispatchQueueMessage, ScrapeAttemptStatus, ScrapeAttemptUpsert, ScrapeQueueMessage, ScrapeRawResponse, ScrapeSummary, ScrapeResult, StoreProductRecord, StoreScrapeContext } from "./types";
 
 const API_TABLES = {
   products: "products",
   storeProducts: "store_products",
-  stores: "stores",
   prices: "prices",
   scrapeAttempts: "scrape_attempts",
 } as const;
@@ -20,6 +19,11 @@ interface ProductImageRecord {
   image_updated_at: string | null;
 }
 
+interface ActiveStoreProductRow extends Omit<StoreProductRecord, "store_slug"> {
+  store: { slug: string; active: boolean } | null;
+  product: ProductImageRecord | null;
+}
+
 const IMAGE_STORE_PRIORITY: Record<string, number> = {
   disco: 10,
   "tienda-inglesa": 20,
@@ -29,6 +33,7 @@ const IMAGE_STORE_PRIORITY: Record<string, number> = {
 };
 
 const TIENDA_INGLESA_REQUEST_DELAY_MS = 500;
+const DISCO_REQUEST_DELAY_MS = 1_000;
 const QUEUE_SEND_BATCH_SIZE = 100;
 const SUPABASE_REST_PAGE_SIZE = 500;
 const SCRAPE_ATTEMPT_RETENTION_DAYS: Record<ScrapeAttemptStatus, number> = {
@@ -67,35 +72,47 @@ async function loadAllRows<T>(env: Env, table: string, query: string, errorMessa
   }
 }
 
-async function loadActiveStoreProducts(env: Env, productId?: string): Promise<StoreProductRecord[]> {
+function activeStoreProductsQuery(productId?: string): string {
   const productFilter = productId ? `&product_id=eq.${encodeURIComponent(productId)}` : "";
-  const [storesResponse, products] = await Promise.all([
-    fetchWithRetry(apiUrl(env, API_TABLES.stores, "select=id,slug&active=eq.true"), { headers: apiHeaders(env) }),
-    loadAllRows<Omit<StoreProductRecord, "store_slug">>(
-      env,
-      API_TABLES.storeProducts,
-      `select=id,product_id,store_id,location_id,url,external_name,image_url&active=eq.true${productFilter}`,
-      "No se pudieron cargar los productos",
-    ),
-  ]);
-  if (!storesResponse.ok) throw new Error(`No se pudieron cargar las cadenas: HTTP ${storesResponse.status}`);
-  const stores = await storesResponse.json() as Array<{ id: string; slug: string }>;
-  const storeSlugs = new Map(stores.map((store) => [store.id, store.slug]));
-  return products.flatMap((product) => {
-    const storeSlug = storeSlugs.get(product.store_id);
-    return storeSlug ? [{ ...product, store_slug: storeSlug }] : [];
-  });
+  return `select=id,product_id,store_id,location_id,url,external_name,image_url,store:stores!inner(slug,active),product:products(id,image_url,image_source_store_product_id,image_updated_at)&active=eq.true&store.active=eq.true${productFilter}`;
 }
 
-async function loadProductImages(env: Env, productId?: string): Promise<Map<string, ProductImageRecord>> {
-  const productFilter = productId ? `&id=eq.${encodeURIComponent(productId)}` : "";
-  const products = await loadAllRows<ProductImageRecord>(
+function mapActiveStoreProductRows(rows: ActiveStoreProductRow[]): { records: StoreProductRecord[]; productImages: Map<string, ProductImageRecord> } {
+  const records: StoreProductRecord[] = [];
+  const productImages = new Map<string, ProductImageRecord>();
+
+  for (const { store, product, ...record } of rows) {
+    if (!store?.active || !store.slug) continue;
+    records.push({ ...record, store_slug: store.slug });
+    if (product) productImages.set(product.id, product);
+  }
+
+  return { records, productImages };
+}
+
+async function loadActiveStoreProductsPage(env: Env, offset: number): Promise<{
+  records: StoreProductRecord[];
+  productImages: Map<string, ProductImageRecord>;
+  rowCount: number;
+  hasMore: boolean;
+}> {
+  const headers = apiHeaders(env);
+  headers.set("Range-Unit", "items");
+  headers.set("Range", `${offset}-${offset + SUPABASE_REST_PAGE_SIZE - 1}`);
+  const response = await fetchWithRetry(apiUrl(env, API_TABLES.storeProducts, `${activeStoreProductsQuery()}&order=id.asc`), { headers });
+  if (!response.ok) throw new Error(`No se pudieron cargar las publicaciones activas: HTTP ${response.status}`);
+  const rows = await response.json() as ActiveStoreProductRow[];
+  return { ...mapActiveStoreProductRows(rows), rowCount: rows.length, hasMore: rows.length === SUPABASE_REST_PAGE_SIZE };
+}
+
+async function loadActiveStoreProducts(env: Env, productId?: string): Promise<{ records: StoreProductRecord[]; productImages: Map<string, ProductImageRecord> }> {
+  const rows = await loadAllRows<ActiveStoreProductRow>(
     env,
-    API_TABLES.products,
-    `select=id,image_url,image_source_store_product_id,image_updated_at${productFilter}`,
-    "No se pudieron cargar las imágenes de productos",
+    API_TABLES.storeProducts,
+    activeStoreProductsQuery(productId),
+    "No se pudieron cargar las publicaciones activas",
   );
-  return new Map(products.map((product) => [product.id, product]));
+  return mapActiveStoreProductRows(rows);
 }
 
 async function savePrice(env: Env, record: StoreProductRecord, price: number, date: string) {
@@ -172,7 +189,7 @@ function uruguayDate(now = new Date()): string {
   return `${values.year}-${values.month}-${values.day}`;
 }
 
-function scrapeQueue(env: Env): Queue<ScrapeQueueMessage> {
+function scrapeQueue(env: Env): Queue<ScrapeQueueMessage | DispatchQueueMessage> {
   const queue = env.SCRAPE_QUEUE;
   if (!queue) throw new Error("La Queue de scraping no está configurada");
   return queue;
@@ -213,9 +230,16 @@ export function buildScrapeQueueMessages(
 export interface DispatchSummary {
   run_id: string;
   date: string;
-  products: number;
+  dispatch_message_enqueued: true;
+}
+
+export interface DispatchPageSummary {
+  run_id: string;
+  date: string;
+  offset: number;
   store_products: number;
   messages: number;
+  next_offset: number | null;
 }
 
 interface TiendaInglesaFallbackSelection {
@@ -243,25 +267,62 @@ export async function selectTiendaInglesaFallbackOrigins(records: StoreProductRe
 }
 
 export async function dispatchDailyRun(env: Env, scheduledTime = new Date()): Promise<DispatchSummary> {
-  const [records, productImages] = await Promise.all([loadActiveStoreProducts(env), loadProductImages(env)]);
+  const runId = scheduledTime.toISOString();
   const date = uruguayDate(scheduledTime);
-  const tiendaInglesaSelection = await selectTiendaInglesaFallbackOrigins(records, env);
+  const dispatchMessage: DispatchQueueMessage = { type: "dispatch_page", run_id: runId, date, offset: 0 };
+  await scrapeQueue(env).send(dispatchMessage);
+  return { run_id: runId, date, dispatch_message_enqueued: true };
+}
+
+export async function dispatchDailyRunPage(env: Env, dispatchMessage: DispatchQueueMessage): Promise<DispatchPageSummary> {
+  const { records, productImages, rowCount, hasMore } = await loadActiveStoreProductsPage(env, dispatchMessage.offset);
+  const hasTiendaInglesaProducts = records.some((record) => record.store_slug === "tienda-inglesa");
+  const tiendaInglesaSelection = dispatchMessage.tienda_inglesa_fallback_origins
+    ? {
+      origins: dispatchMessage.tienda_inglesa_fallback_origins,
+      previouslyFailedOrigins: dispatchMessage.tienda_inglesa_previously_failed_origins ?? [],
+    }
+    : hasTiendaInglesaProducts
+      ? await selectTiendaInglesaFallbackOrigins(records, env)
+      : { origins: tiendaInglesaFallbackOrigins(env), previouslyFailedOrigins: [] };
+
   const messages = buildScrapeQueueMessages(
     records,
     productImages,
-    scheduledTime.toISOString(),
-    date,
+    dispatchMessage.run_id,
+    dispatchMessage.date,
     tiendaInglesaSelection.origins,
     tiendaInglesaSelection.previouslyFailedOrigins,
   );
   const queue = scrapeQueue(env);
-
   for (let index = 0; index < messages.length; index += QUEUE_SEND_BATCH_SIZE) {
     const chunk = messages.slice(index, index + QUEUE_SEND_BATCH_SIZE);
     await queue.sendBatch(chunk.map((body) => ({ body })));
   }
 
-  return { run_id: scheduledTime.toISOString(), date, products: messages.length, store_products: records.length, messages: messages.length };
+  const nextOffset = dispatchMessage.offset + rowCount;
+  if (hasMore) {
+    const carryTiendaInglesaSelection = dispatchMessage.tienda_inglesa_fallback_origins !== undefined || hasTiendaInglesaProducts;
+    await queue.send({
+      type: "dispatch_page",
+      run_id: dispatchMessage.run_id,
+      date: dispatchMessage.date,
+      offset: nextOffset,
+      ...(carryTiendaInglesaSelection ? {
+        tienda_inglesa_fallback_origins: tiendaInglesaSelection.origins,
+        tienda_inglesa_previously_failed_origins: tiendaInglesaSelection.previouslyFailedOrigins,
+      } : {}),
+    });
+  }
+
+  return {
+    run_id: dispatchMessage.run_id,
+    date: dispatchMessage.date,
+    offset: dispatchMessage.offset,
+    store_products: records.length,
+    messages: messages.length,
+    next_offset: hasMore ? nextOffset : null,
+  };
 }
 
 async function scrapeStoreProduct(env: Env, record: StoreProductRecord, context?: StoreScrapeContext): Promise<ScrapeResult> {
@@ -351,9 +412,29 @@ function isScrapeQueueMessage(value: unknown): value is ScrapeQueueMessage {
     ));
 }
 
+function isDispatchQueueMessage(value: unknown): value is DispatchQueueMessage {
+  if (!value || typeof value !== "object") return false;
+  const message = value as Partial<DispatchQueueMessage>;
+  return message.type === "dispatch_page"
+    && typeof message.run_id === "string"
+    && typeof message.date === "string"
+    && Number.isSafeInteger(message.offset)
+    && (message.offset ?? -1) >= 0
+    && (message.tienda_inglesa_fallback_origins === undefined
+      || (Array.isArray(message.tienda_inglesa_fallback_origins) && message.tienda_inglesa_fallback_origins.every((origin) => typeof origin === "string")))
+    && (message.tienda_inglesa_previously_failed_origins === undefined
+      || (Array.isArray(message.tienda_inglesa_previously_failed_origins) && message.tienda_inglesa_previously_failed_origins.every((origin) => typeof origin === "string")));
+}
+
 interface FailedStoreProduct {
   record: StoreProductRecord;
   error: unknown;
+}
+
+function isDiscoForbiddenFailure({ record, error }: FailedStoreProduct): boolean {
+  return record.store_slug === "disco"
+    && error instanceof ScraperError
+    && error.rawResponse?.status === 403;
 }
 
 export async function performScrapeMessage(env: Env, message: ScrapeQueueMessage): Promise<ScrapeSummary> {
@@ -373,6 +454,10 @@ export async function performScrapeMessage(env: Env, message: ScrapeQueueMessage
   };
 
   for (const record of records) {
+    if (record.store_slug === "disco") {
+      console.log(JSON.stringify({ event: "store_request_delay", store: record.store_slug, delay_ms: DISCO_REQUEST_DELAY_MS }));
+      await sleep(DISCO_REQUEST_DELAY_MS);
+    }
     if (record.store_slug === "tienda-inglesa") {
       console.log(JSON.stringify({ event: "store_request_delay", store: record.store_slug, delay_ms: TIENDA_INGLESA_REQUEST_DELAY_MS }));
       await sleep(TIENDA_INGLESA_REQUEST_DELAY_MS);
@@ -442,21 +527,24 @@ export async function performScrapeMessage(env: Env, message: ScrapeQueueMessage
   }
 
   if (failed.length > 0) {
-    if (records.length === 1) {
-      throw failed[0].error instanceof Error ? failed[0].error : new Error(String(failed[0].error));
+    const retryableFailures = failed.filter((failure) => !isDiscoForbiddenFailure(failure));
+    if (records.length === 1 && retryableFailures.length > 0) {
+      throw retryableFailures[0].error instanceof Error ? retryableFailures[0].error : new Error(String(retryableFailures[0].error));
     }
 
-    const queue = scrapeQueue(env);
-    const retryMessages = failed.map(({ record }) => ({
-      run_id: message.run_id,
-      date: message.date,
-      product_id: message.product_id,
-      product_image_url: message.product_image_url,
-      store_products: [record],
-      ...(message.tienda_inglesa_fallback_origins ? { tienda_inglesa_fallback_origins: message.tienda_inglesa_fallback_origins } : {}),
-      ...(message.tienda_inglesa_previously_failed_origins ? { tienda_inglesa_previously_failed_origins: message.tienda_inglesa_previously_failed_origins } : {}),
-    } satisfies ScrapeQueueMessage));
-    await queue.sendBatch(retryMessages.map((body) => ({ body })));
+    if (retryableFailures.length > 0) {
+      const queue = scrapeQueue(env);
+      const retryMessages = retryableFailures.map(({ record }) => ({
+        run_id: message.run_id,
+        date: message.date,
+        product_id: message.product_id,
+        product_image_url: message.product_image_url,
+        store_products: [record],
+        ...(message.tienda_inglesa_fallback_origins ? { tienda_inglesa_fallback_origins: message.tienda_inglesa_fallback_origins } : {}),
+        ...(message.tienda_inglesa_previously_failed_origins ? { tienda_inglesa_previously_failed_origins: message.tienda_inglesa_previously_failed_origins } : {}),
+      } satisfies ScrapeQueueMessage));
+      await queue.sendBatch(retryMessages.map((body) => ({ body })));
+    }
   }
 
   return { attempted: records.length, saved: successful.length, failed: failed.length };
@@ -467,7 +555,7 @@ export interface ScrapeOptions {
 }
 
 export async function runScrape(env: Env, now = new Date(), options: ScrapeOptions = {}): Promise<ScrapeSummary> {
-  const [records, productImages] = await Promise.all([loadActiveStoreProducts(env, options.productId), loadProductImages(env, options.productId)]);
+  const { records, productImages } = await loadActiveStoreProducts(env, options.productId);
   records.sort((left, right) => imagePriority(left.store_slug) - imagePriority(right.store_slug));
   const date = uruguayDate(now);
   const runId = `manual-${now.toISOString()}`;
@@ -477,6 +565,10 @@ export async function runScrape(env: Env, now = new Date(), options: ScrapeOptio
   let previousStoreSlug: string | undefined;
 
   for (const record of records) {
+    if (record.store_slug === "disco" && previousStoreSlug === "disco") {
+      console.log(JSON.stringify({ event: "store_request_delay", store: record.store_slug, delay_ms: DISCO_REQUEST_DELAY_MS }));
+      await sleep(DISCO_REQUEST_DELAY_MS);
+    }
     if (record.store_slug === "tienda-inglesa" && previousStoreSlug === record.store_slug) {
       console.log(JSON.stringify({ event: "store_request_delay", store: record.store_slug, delay_ms: TIENDA_INGLESA_REQUEST_DELAY_MS }));
       await sleep(TIENDA_INGLESA_REQUEST_DELAY_MS);
@@ -612,7 +704,7 @@ export default {
   async scheduled(controller: ScheduledController, env: Env) {
     const scheduledTime = new Date(controller.scheduledTime);
     const summary = await dispatchDailyRun(env, scheduledTime);
-    console.log(JSON.stringify({ event: "scrape_dispatch_finished", ...summary }));
+    console.log(JSON.stringify({ event: "scrape_dispatch_started", ...summary }));
     try {
       await pruneExpiredScrapeAttempts(env, scheduledTime);
     } catch (error) {
@@ -621,6 +713,11 @@ export default {
   },
   async queue(batch: MessageBatch<unknown>, env: Env) {
     for (const message of batch.messages) {
+      if (isDispatchQueueMessage(message.body)) {
+        const summary = await dispatchDailyRunPage(env, message.body);
+        console.log(JSON.stringify({ event: "scrape_dispatch_page_finished", ...summary }));
+        continue;
+      }
       if (!isScrapeQueueMessage(message.body)) throw new Error("El mensaje de scraping tiene un formato inválido");
       const summary = await performScrapeMessage(env, message.body);
       console.log(JSON.stringify({ event: "scrape_product_finished", ...summary, product_id: message.body.product_id, run_id: message.body.run_id }));

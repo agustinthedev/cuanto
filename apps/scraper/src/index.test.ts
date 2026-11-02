@@ -1,10 +1,27 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import productPayload from "./fixtures/eldorado-product.json";
-import worker, { buildScrapeQueueMessages, dispatchDailyRun, performScrapeMessage, runScrape } from "./index";
+import worker, { buildScrapeQueueMessages, dispatchDailyRunPage, performScrapeMessage, runScrape } from "./index";
 import { EL_DORADO_ORIGIN, EL_DORADO_REGION_ID } from "./stores/el-dorado";
-import type { ScrapeQueueMessage } from "./types";
+import type { DispatchQueueMessage, ScrapeQueueMessage, StoreProductRecord } from "./types";
 
 const elDoradoRegionIdEncoded = btoa(EL_DORADO_REGION_ID);
+
+function activeStoreProductRow(
+  record: Omit<StoreProductRecord, "store_slug">,
+  storeSlug: string,
+  storeActive = true,
+  productImage: { image_url: string | null; image_source_store_product_id: string | null; image_updated_at: string | null } = {
+    image_url: null,
+    image_source_store_product_id: null,
+    image_updated_at: null,
+  },
+) {
+  return {
+    ...record,
+    store: { slug: storeSlug, active: storeActive },
+    product: { id: record.product_id, ...productImage },
+  };
+}
 
 describe("ejecución diaria", () => {
   afterEach(() => {
@@ -21,12 +38,11 @@ describe("ejecución diaria", () => {
     const putRawResponse = vi.fn(async () => undefined);
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      if (url.includes("/rest/v1/stores")) return new Response(JSON.stringify([{ id: "store-1", slug: "disco" }]), { status: 200 });
       if (url.includes("/rest/v1/store_products") && init?.method === "PATCH") {
         savedStoreImageBodies.push(JSON.parse(String(init.body)));
         return new Response(null, { status: 204 });
       }
-      if (url.includes("/rest/v1/store_products")) return new Response(JSON.stringify([{
+      if (url.includes("/rest/v1/store_products")) return new Response(JSON.stringify([activeStoreProductRow({
         id: "store-product-1",
         product_id: "product-1",
         store_id: "store-1",
@@ -34,17 +50,11 @@ describe("ejecución diaria", () => {
         url: "https://example.test/product",
         external_name: null,
         image_url: null,
-      }]), { status: 200 });
+      }, "disco")]), { status: 200 });
       if (url.includes("/rest/v1/products") && init?.method === "PATCH") {
         savedProductImageBodies.push(JSON.parse(String(init.body)));
         return new Response(null, { status: 204 });
       }
-      if (url.includes("/rest/v1/products")) return new Response(JSON.stringify([{
-        id: "product-1",
-        image_url: null,
-        image_source_store_product_id: null,
-        image_updated_at: null,
-      }]), { status: 200 });
       if (url === "https://example.test/product") return new Response('<meta property="og:image" content="/images/product.jpg"><meta property="product:price:amount" content="1299.00"><main><h1>Producto</h1><strong>$ 1.299</strong></main>', { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } });
       if (url.includes("/rest/v1/scrape_attempts")) {
         savedAttemptBodies.push(...JSON.parse(String(init?.body)) as unknown[]);
@@ -101,8 +111,7 @@ describe("ejecución diaria", () => {
     const putRawResponse = vi.fn(async () => undefined);
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      if (url.includes("/rest/v1/stores")) return new Response(JSON.stringify([{ id: "store-1", slug: "disco" }]), { status: 200 });
-      if (url.includes("/rest/v1/store_products")) return new Response(JSON.stringify([{
+      if (url.includes("/rest/v1/store_products")) return new Response(JSON.stringify([activeStoreProductRow({
         id: "store-product-1",
         product_id: "product-1",
         store_id: "store-1",
@@ -110,13 +119,7 @@ describe("ejecución diaria", () => {
         url: "https://example.test/product",
         external_name: null,
         image_url: null,
-      }]), { status: 200 });
-      if (url.includes("/rest/v1/products")) return new Response(JSON.stringify([{
-        id: "product-1",
-        image_url: null,
-        image_source_store_product_id: null,
-        image_updated_at: null,
-      }]), { status: 200 });
+      }, "disco")]), { status: 200 });
       if (url === "https://example.test/product") return new Response("<main>Producto no encontrado</main>", { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } });
       if (url.includes("/rest/v1/scrape_attempts")) {
         savedAttemptBodies.push(...JSON.parse(String(init?.body)) as unknown[]);
@@ -152,8 +155,7 @@ describe("ejecución diaria", () => {
     const tataBody = JSON.stringify({ errors: [{ message: "Product unavailable" }] });
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      if (url.includes("/rest/v1/stores")) return new Response(JSON.stringify([{ id: "store-tata", slug: "ta-ta" }]), { status: 200 });
-      if (url.includes("/rest/v1/store_products")) return new Response(JSON.stringify([{
+      if (url.includes("/rest/v1/store_products")) return new Response(JSON.stringify([activeStoreProductRow({
         id: "store-product-tata",
         product_id: "product-1",
         store_id: "store-tata",
@@ -161,13 +163,7 @@ describe("ejecución diaria", () => {
         url: "https://www.tata.com.uy/producto/p",
         external_name: null,
         image_url: null,
-      }]), { status: 200 });
-      if (url.includes("/rest/v1/products")) return new Response(JSON.stringify([{
-        id: "product-1",
-        image_url: null,
-        image_source_store_product_id: null,
-        image_updated_at: null,
-      }]), { status: 200 });
+      }, "ta-ta")]), { status: 200 });
       if (url.includes("/rest/v1/scrape_attempts")) {
         savedAttemptBodies.push(...JSON.parse(String(init?.body)) as unknown[]);
         return new Response(null, { status: 201 });
@@ -226,14 +222,9 @@ describe("ejecución diaria", () => {
     const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
-      if (url.includes("/rest/v1/stores")) return new Response(JSON.stringify([{ id: "store-1", slug: "tienda-inglesa" }]), { status: 200 });
       if (url.includes("/rest/v1/store_products")) return new Response(JSON.stringify([
-        { id: "store-product-1", product_id: "product-1", store_id: "store-1", location_id: null, url: "https://example.test/product-1", external_name: null, image_url: null },
-        { id: "store-product-2", product_id: "product-2", store_id: "store-1", location_id: null, url: "https://example.test/product-2", external_name: null, image_url: null },
-      ]), { status: 200 });
-      if (url.includes("/rest/v1/products")) return new Response(JSON.stringify([
-        { id: "product-1", image_url: null, image_source_store_product_id: null, image_updated_at: null },
-        { id: "product-2", image_url: null, image_source_store_product_id: null, image_updated_at: null },
+        activeStoreProductRow({ id: "store-product-1", product_id: "product-1", store_id: "store-1", location_id: null, url: "https://example.test/product-1", external_name: null, image_url: null }, "tienda-inglesa"),
+        activeStoreProductRow({ id: "store-product-2", product_id: "product-2", store_id: "store-1", location_id: null, url: "https://example.test/product-2", external_name: null, image_url: null }, "tienda-inglesa"),
       ]), { status: 200 });
       if (url.includes("/rest/v1/scrape_attempts")) return new Response(null, { status: 201 });
       if (url.includes("/rest/v1/prices")) return new Response(null, { status: 201 });
@@ -256,8 +247,7 @@ describe("ejecución diaria", () => {
     const scraperUrls: string[] = [];
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      if (url.includes("/rest/v1/stores")) return new Response(JSON.stringify([{ id: "store-1", slug: "tienda-inglesa" }]), { status: 200 });
-      if (url.includes("/rest/v1/store_products")) return new Response(JSON.stringify([{
+      if (url.includes("/rest/v1/store_products")) return new Response(JSON.stringify([activeStoreProductRow({
         id: "store-product-1",
         product_id: "product-1",
         store_id: "store-1",
@@ -265,13 +255,7 @@ describe("ejecución diaria", () => {
         url: canonicalUrl,
         external_name: "Café",
         image_url: null,
-      }]), { status: 200 });
-      if (url.includes("/rest/v1/products")) return new Response(JSON.stringify([{
-        id: "product-1",
-        image_url: null,
-        image_source_store_product_id: null,
-        image_updated_at: null,
-      }]), { status: 200 });
+      }, "tienda-inglesa")]), { status: 200 });
       if (url.includes("/rest/v1/scrape_attempts")) return new Response(null, { status: 201 });
       if (url.includes("/rest/v1/prices")) {
         savedPriceBodies.push(JSON.parse(String(init?.body)));
@@ -307,9 +291,7 @@ describe("ejecución diaria", () => {
   it("puede limitarse a las publicaciones activas de un producto", async () => {
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
-      if (url.includes("/rest/v1/stores")) return new Response(JSON.stringify([{ id: "store-1", slug: "disco" }]), { status: 200 });
       if (url.includes("/rest/v1/store_products")) return new Response(JSON.stringify([]), { status: 200 });
-      if (url.includes("/rest/v1/products")) return new Response(JSON.stringify([]), { status: 200 });
       return new Response("Not found", { status: 404 });
     }));
 
@@ -322,11 +304,8 @@ describe("ejecución diaria", () => {
     const storeProductsUrl = vi.mocked(fetch).mock.calls
       .map(([input]) => String(input))
       .find((url) => url.includes("/rest/v1/store_products"));
-    const productsUrl = vi.mocked(fetch).mock.calls
-      .map(([input]) => String(input))
-      .find((url) => url.includes("/rest/v1/products"));
     expect(storeProductsUrl).toContain("active=eq.true&product_id=eq.product-1");
-    expect(productsUrl).toContain("id=eq.product-1");
+    expect(storeProductsUrl).toContain("store.active=eq.true");
     vi.unstubAllGlobals();
   });
 
@@ -338,9 +317,7 @@ describe("ejecución diaria", () => {
       const url = String(input);
       if (url.endsWith("/auth/v1/user")) return new Response(JSON.stringify({ id: userId }), { status: 200 });
       if (url.includes("/rest/v1/admin_users")) return new Response(JSON.stringify([{ user_id: userId }]), { status: 200 });
-      if (url.includes("/rest/v1/stores")) return new Response(JSON.stringify([]), { status: 200 });
       if (url.includes("/rest/v1/store_products")) return new Response(JSON.stringify([]), { status: 200 });
-      if (url.includes("/rest/v1/products")) return new Response(JSON.stringify([]), { status: 200 });
       return new Response("Not found", { status: 404 });
     }));
 
@@ -448,8 +425,7 @@ describe("flujo con Queue", () => {
     const queue = { sendBatch: vi.fn(async (messages: unknown[]) => { sentBatches.push(messages); }) };
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      if (url.includes("/rest/v1/stores")) return new Response(JSON.stringify([{ id: "store-1", slug: "disco" }]), { status: 200 });
-      if (url.includes("/rest/v1/store_products")) return new Response(JSON.stringify([{
+      if (url.includes("/rest/v1/store_products")) return new Response(JSON.stringify([activeStoreProductRow({
         id: "store-product-1",
         product_id: "product-1",
         store_id: "store-1",
@@ -457,27 +433,21 @@ describe("flujo con Queue", () => {
         url: "https://example.test/disco",
         external_name: null,
         image_url: null,
-      }]), { status: 200 });
-      if (url.includes("/rest/v1/products")) return new Response(JSON.stringify([{
-        id: "product-1",
-        image_url: null,
-        image_source_store_product_id: null,
-        image_updated_at: null,
-      }]), { status: 200 });
+      }, "disco")]), { status: 200 });
       return new Response("Not found", { status: 404 });
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const dispatched = await dispatchDailyRun(
+    const dispatched = await dispatchDailyRunPage(
       {
         SUPABASE_URL: "https://project.supabase.co",
         SUPABASE_SERVICE_ROLE_KEY: "service-role",
         SCRAPE_QUEUE: queue,
       } as unknown as Env,
-      new Date("2026-09-02T07:00:00Z"),
+      { type: "dispatch_page", run_id: "2026-09-02T07:00:00.000Z", date: "2026-09-02", offset: 0 },
     );
 
-    expect(dispatched).toMatchObject({ date: "2026-09-02", products: 1, messages: 1 });
+    expect(dispatched).toMatchObject({ date: "2026-09-02", store_products: 1, messages: 1, next_offset: null });
     expect(sentBatches).toHaveLength(1);
     expect((sentBatches[0] as Array<{ body: { product_id: string } }>)[0].body.product_id).toBe("product-1");
 
@@ -516,7 +486,8 @@ describe("flujo con Queue", () => {
       return new Response("Not found", { status: 404 });
     }));
 
-    const result = await performScrapeMessage(
+    vi.useFakeTimers();
+    const resultPromise = performScrapeMessage(
       {
         SUPABASE_URL: "https://project.supabase.co",
         SUPABASE_SERVICE_ROLE_KEY: "service-role",
@@ -551,6 +522,8 @@ describe("flujo con Queue", () => {
         ],
       },
     );
+    await vi.advanceTimersByTimeAsync(1_000);
+    const result = await resultPromise;
 
     expect(result).toEqual({ attempted: 2, saved: 2, failed: 0 });
     expect(savedPriceBodies).toHaveLength(1);
@@ -571,11 +544,85 @@ describe("flujo con Queue", () => {
     expect(savedProductImageBodies).toHaveLength(1);
   });
 
-  it("pagina todas las publicaciones activas y todas las imágenes al despachar", async () => {
+  it("guarda la respuesta 403 de Disco sin reintentarla ni volverla a encolar", async () => {
+    vi.useFakeTimers();
+    const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
+    const productUrl = "https://www.disco.com.uy/producto/limitado";
+    const savedAttempts: Array<Record<string, unknown>> = [];
+    const putRawResponse = vi.fn(async () => undefined);
+    const queue = { sendBatch: vi.fn(async () => undefined) };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === productUrl) return new Response("challenge de Disco", { status: 403, headers: { "Content-Type": "text/html" } });
+      if (url.includes("/rest/v1/scrape_attempts")) {
+        savedAttempts.push(...JSON.parse(String(init?.body)) as Array<Record<string, unknown>>);
+        return new Response(null, { status: 201 });
+      }
+      return new Response("Not found", { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const scrape = performScrapeMessage({
+      SUPABASE_URL: "https://project.supabase.co",
+      SUPABASE_SERVICE_ROLE_KEY: "service-role",
+      SCRAPE_QUEUE: queue,
+      SCRAPE_RESPONSES_BUCKET: { put: putRawResponse } as unknown as R2Bucket,
+    } as unknown as Env, {
+      run_id: "run-403",
+      date: "2026-09-02",
+      product_id: "product-403",
+      product_image_url: null,
+      store_products: [{
+        id: "store-product-403",
+        product_id: "product-403",
+        store_id: "store-disco",
+        location_id: null,
+        url: productUrl,
+        external_name: null,
+        image_url: null,
+        store_slug: "disco",
+      }],
+    });
+    await vi.advanceTimersByTimeAsync(1_000);
+    await expect(scrape).resolves.toEqual({ attempted: 1, saved: 0, failed: 1 });
+
+    expect(fetchMock.mock.calls.filter(([input]) => String(input) === productUrl)).toHaveLength(1);
+    expect(queue.sendBatch).not.toHaveBeenCalled();
+    expect(putRawResponse).toHaveBeenCalledTimes(1);
+    expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 1_000);
+    expect(savedAttempts[0]).toMatchObject({ status: "failed", http_status: 403, content_type: "text/html", error: "No se pudo leer https://www.disco.com.uy/producto/limitado: HTTP 403" });
+  });
+
+  it("consume una página cuando recibe el mensaje de despacho de Queue", async () => {
+    const queue = { sendBatch: vi.fn(async () => undefined), send: vi.fn(async () => undefined) };
+    const requestedUrls: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      requestedUrls.push(url);
+      if (url.includes("/rest/v1/store_products")) return new Response(JSON.stringify([]), { status: 200 });
+      return new Response("Not found", { status: 404 });
+    }));
+
+    await worker.queue({
+      messages: [{ body: { type: "dispatch_page", run_id: "run-1", date: "2026-09-02", offset: 0 } }],
+    } as unknown as MessageBatch<unknown>, {
+      SUPABASE_URL: "https://project.supabase.co",
+      SUPABASE_SERVICE_ROLE_KEY: "service-role",
+      SCRAPE_QUEUE: queue,
+    } as unknown as Env);
+
+    const storeProductsUrl = requestedUrls.find((url) => url.includes("/rest/v1/store_products"));
+    expect(new Headers(vi.mocked(fetch).mock.calls[0][1]?.headers).get("Range")).toBe("0-499");
+    expect(storeProductsUrl).toContain("store:stores!inner(slug,active)");
+    expect(queue.sendBatch).not.toHaveBeenCalled();
+    expect(queue.send).not.toHaveBeenCalled();
+  });
+
+  it("procesa el catálogo en páginas de Queue y carga cada imagen junto a su publicación", async () => {
     const total = 1001;
     const storeProducts = Array.from({ length: total }, (_, index) => {
       const id = String(index).padStart(4, "0");
-      return {
+      return activeStoreProductRow({
         id: `store-product-${id}`,
         product_id: `product-${id}`,
         store_id: "store-1",
@@ -583,50 +630,50 @@ describe("flujo con Queue", () => {
         url: `https://example.test/disco/${id}`,
         external_name: null,
         image_url: null,
-      };
+      }, "disco");
     });
-    const products = Array.from({ length: total }, (_, index) => ({
-      id: `product-${String(index).padStart(4, "0")}`,
-      image_url: null,
-      image_source_store_product_id: null,
-      image_updated_at: null,
-    }));
     const storeProductRanges: string[] = [];
-    const productRanges: string[] = [];
-    const queue = { sendBatch: vi.fn(async () => undefined) };
+    const dispatchMessages: DispatchQueueMessage[] = [];
+    const queue = {
+      sendBatch: vi.fn(async () => undefined),
+      send: vi.fn(async (message: DispatchQueueMessage) => { dispatchMessages.push(message); }),
+    };
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      if (url.includes("/rest/v1/stores")) {
-        return new Response(JSON.stringify([{ id: "store-1", slug: "disco" }]), { status: 200 });
-      }
       if (url.includes("/rest/v1/store_products")) {
         const range = new Headers(init?.headers).get("Range") ?? "";
         storeProductRanges.push(range);
         const [from, to] = range.split("-").map(Number);
-        return new Response(JSON.stringify(storeProducts.slice(from, to + 1)), { status: 200 });
-      }
-      if (url.includes("/rest/v1/products")) {
-        const range = new Headers(init?.headers).get("Range") ?? "";
-        productRanges.push(range);
-        const [from, to] = range.split("-").map(Number);
-        return new Response(JSON.stringify(products.slice(from, to + 1)), { status: 200 });
+        return new Response(JSON.stringify(storeProducts.slice(from, Math.min(to + 1, from + 500))), { status: 200 });
       }
       return new Response("Not found", { status: 404 });
     }));
 
-    const dispatched = await dispatchDailyRun(
-      {
-        SUPABASE_URL: "https://project.supabase.co",
-        SUPABASE_SERVICE_ROLE_KEY: "service-role",
-        SCRAPE_QUEUE: queue,
-      } as unknown as Env,
-      new Date("2026-09-02T07:00:00Z"),
-    );
+    const env = {
+      SUPABASE_URL: "https://project.supabase.co",
+      SUPABASE_SERVICE_ROLE_KEY: "service-role",
+      SCRAPE_QUEUE: queue,
+    } as unknown as Env;
+    let dispatchMessage: DispatchQueueMessage | undefined = {
+      type: "dispatch_page",
+      run_id: "2026-09-02T07:00:00.000Z",
+      date: "2026-09-02",
+      offset: 0,
+    };
+    let totalStoreProducts = 0;
+    let totalMessages = 0;
+    while (dispatchMessage) {
+      const dispatched = await dispatchDailyRunPage(env, dispatchMessage);
+      totalStoreProducts += dispatched.store_products;
+      totalMessages += dispatched.messages;
+      dispatchMessage = dispatchMessages.shift();
+    }
 
-    expect(dispatched).toMatchObject({ date: "2026-09-02", products: total, store_products: total, messages: total });
+    expect(totalStoreProducts).toBe(total);
+    expect(totalMessages).toBe(total);
     expect(storeProductRanges).toEqual(["0-499", "500-999", "1000-1499"]);
-    expect(productRanges).toEqual(["0-499", "500-999", "1000-1499"]);
     expect(queue.sendBatch).toHaveBeenCalledTimes(11);
+    expect(queue.send).toHaveBeenCalledTimes(2);
   });
 
   it("omite cadenas inactivas aunque conserven publicaciones activas", async () => {
@@ -635,13 +682,12 @@ describe("flujo con Queue", () => {
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       urls.push(url);
-      if (url.includes("/rest/v1/stores")) {
-        expect(new URL(url).searchParams.get("active")).toBe("eq.true");
-        return new Response(JSON.stringify([{ id: "store-disco", slug: "disco" }]), { status: 200 });
-      }
       if (url.includes("/rest/v1/store_products")) {
+        const query = new URL(url).searchParams;
+        expect(query.get("active")).toBe("eq.true");
+        expect(query.get("store.active")).toBe("eq.true");
         return new Response(JSON.stringify([
-          {
+          activeStoreProductRow({
             id: "store-product-disco",
             product_id: "product-1",
             store_id: "store-disco",
@@ -649,8 +695,8 @@ describe("flujo con Queue", () => {
             url: "https://example.test/disco/producto",
             external_name: null,
             image_url: null,
-          },
-          {
+          }, "disco"),
+          activeStoreProductRow({
             id: "store-product-ti",
             product_id: "product-1",
             store_id: "store-ti",
@@ -658,30 +704,22 @@ describe("flujo con Queue", () => {
             url: "https://www.tiendainglesa.com.uy/producto",
             external_name: null,
             image_url: null,
-          },
+          }, "tienda-inglesa", false),
         ]), { status: 200 });
-      }
-      if (url.includes("/rest/v1/products")) {
-        return new Response(JSON.stringify([{
-          id: "product-1",
-          image_url: null,
-          image_source_store_product_id: null,
-          image_updated_at: null,
-        }]), { status: 200 });
       }
       return new Response("Not found", { status: 404 });
     }));
 
-    const dispatched = await dispatchDailyRun(
+    const dispatched = await dispatchDailyRunPage(
       {
         SUPABASE_URL: "https://project.supabase.co",
         SUPABASE_SERVICE_ROLE_KEY: "service-role",
         SCRAPE_QUEUE: queue,
       } as unknown as Env,
-      new Date("2026-09-02T07:00:00Z"),
+      { type: "dispatch_page", run_id: "run-1", date: "2026-09-02", offset: 0 },
     );
 
-    expect(dispatched).toMatchObject({ products: 1, store_products: 1, messages: 1 });
+    expect(dispatched).toMatchObject({ store_products: 1, messages: 1, next_offset: null });
     expect(queue.sendBatch).toHaveBeenCalledWith([{
       body: expect.objectContaining({
         product_id: "product-1",
@@ -788,8 +826,7 @@ describe("flujo con Queue", () => {
     const queue = { sendBatch: vi.fn(async () => undefined) };
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
-      if (url.includes("/rest/v1/stores")) return new Response(JSON.stringify([{ id: "store-1", slug: "tienda-inglesa" }]), { status: 200 });
-      if (url.includes("/rest/v1/store_products")) return new Response(JSON.stringify([{
+      if (url.includes("/rest/v1/store_products")) return new Response(JSON.stringify([activeStoreProductRow({
         id: "store-product-1",
         product_id: "product-1",
         store_id: "store-1",
@@ -797,25 +834,19 @@ describe("flujo con Queue", () => {
         url: canonicalUrl,
         external_name: "Café",
         image_url: null,
-      }]), { status: 200 });
-      if (url.includes("/rest/v1/products")) return new Response(JSON.stringify([{
-        id: "product-1",
-        image_url: null,
-        image_source_store_product_id: null,
-        image_updated_at: null,
-      }]), { status: 200 });
+      }, "tienda-inglesa")]), { status: 200 });
       if (url === blueUrl) return new Response("Service unavailable", { status: 503 });
       if (url === greenUrl) return new Response('{"W0032AV27ProductUI_PARM":{"Prices":[{"Label":"Precio","Price":123.45}]}}', { status: 200 });
       return new Response("Not found", { status: 404 });
     }));
 
-    await dispatchDailyRun(
+    await dispatchDailyRunPage(
       {
         SUPABASE_URL: "https://project.supabase.co",
         SUPABASE_SERVICE_ROLE_KEY: "service-role",
         SCRAPE_QUEUE: queue,
       } as unknown as Env,
-      new Date("2026-09-02T07:00:00Z"),
+      { type: "dispatch_page", run_id: "run-1", date: "2026-09-02", offset: 0 },
     );
 
     expect(queue.sendBatch).toHaveBeenCalledWith([{
@@ -976,13 +1007,13 @@ describe("flujo con Queue", () => {
   });
 
   it("limpia exitosos y fallos con retenciones distintas", async () => {
-    const queue = { sendBatch: vi.fn(async () => undefined) };
+    const queue = {
+      sendBatch: vi.fn(async () => undefined),
+      send: vi.fn(async () => undefined),
+    };
     const deletedUrls: string[] = [];
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      if (url.includes("/rest/v1/stores")) return new Response(JSON.stringify([{ id: "store-1", slug: "disco" }]), { status: 200 });
-      if (url.includes("/rest/v1/store_products")) return new Response(JSON.stringify([]), { status: 200 });
-      if (url.includes("/rest/v1/products")) return new Response(JSON.stringify([]), { status: 200 });
       if (url.includes("/rest/v1/scrape_attempts") && init?.method === "DELETE") {
         deletedUrls.push(url);
         return new Response(null, { status: 204 });
@@ -999,6 +1030,12 @@ describe("flujo con Queue", () => {
       } as unknown as Env,
     );
 
+    expect(queue.send).toHaveBeenCalledWith({
+      type: "dispatch_page",
+      run_id: "2026-09-10T07:00:00.000Z",
+      date: "2026-09-10",
+      offset: 0,
+    });
     expect(deletedUrls).toHaveLength(2);
     const filters = deletedUrls.map((url) => new URL(url).searchParams);
     expect(filters.map((params) => params.get("status"))).toEqual(["eq.success", "eq.failed"]);

@@ -19,6 +19,15 @@ export interface ScrapeQueueMessage {
   tienda_inglesa_previously_failed_origins?: string[];
 }
 
+export interface DispatchQueueMessage {
+  type: "dispatch_page";
+  run_id: string;
+  date: string;
+  offset: number;
+  tienda_inglesa_fallback_origins?: string[];
+  tienda_inglesa_previously_failed_origins?: string[];
+}
+
 export interface PriceCandidate {
   path: string;
   value: number;
