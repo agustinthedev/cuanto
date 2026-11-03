@@ -1,0 +1,101 @@
+{
+  "schema_version": 1,
+  "last_updated": "2026-11-03T14:40:43Z",
+  "pass_number": 1,
+  "active_store_names": ["Disco", "El Dorado", "Ta-Ta"],
+  "inactive_stores_excluded": ["Tienda Inglesa"],
+  "active_canonical_product_rule": "products row with at least one active store_products row in an active store; products has no active flag",
+  "ordering": ["active_follow_count ascending", "product_id ascending"],
+  "batch_size": 50,
+  "batch_start_index": 0,
+  "next_product_index": 0,
+  "next_product_id": "00002f47-a7b3-45e2-adb7-d51f0f5f4f0b",
+  "fully_reviewed_product_ids": [],
+  "partial_product_ids": [
+    "00025f84-7956-403a-b79e-d74025f7f6ba",
+    "001add91-2761-4a7a-b9b0-93faa1b7b394",
+    "0020b9fa-cd32-4f99-8db4-68564283e457"
+  ],
+  "not_started_count": 47,
+  "batch_product_ids": [
+    "00002f47-a7b3-45e2-adb7-d51f0f5f4f0b",
+    "000046e4-8328-4769-9ff5-deb93cc8202f",
+    "00025f84-7956-403a-b79e-d74025f7f6ba",
+    "000308f2-2a43-49f2-a9cc-3fba954acc1c",
+    "0004780d-52be-446d-b032-127833c83748",
+    "00053331-ae02-4001-b522-054bd9906c5e",
+    "0005a3d2-c9be-431d-9991-5abdad9de70a",
+    "000830e5-0790-449c-abd3-4f3b9270cafa",
+    "0009a79b-aaad-4842-8288-cd7d3b2ac692",
+    "000e0961-e161-47c5-ae66-d3029724ad3b",
+    "0012dfa7-5153-425c-8608-21c9c0f2d1d7",
+    "0019fd06-dd1f-4ce9-b1e0-eb9485ee5958",
+    "001acdcc-f176-4257-8d34-a0d12d63b58f",
+    "001add91-2761-4a7a-b9b0-93faa1b7b394",
+    "001bb909-59ac-4add-bc87-98a8a5c0023c",
+    "001dfc54-9e9e-42a2-94b2-1de4e2ccefaa",
+    "001e060b-1f0e-441b-b854-023d78963138",
+    "001e390a-2c82-4ba2-af2a-c1f5045acdc9",
+    "001f17df-6293-434f-b6cd-453dcbbc77d6",
+    "0020b9fa-cd32-4f99-8db4-68564283e457",
+    "00213576-2e7f-4259-b2f6-f36d743a14f1",
+    "00232ac1-4b65-460b-baee-9dfdb471f465",
+    "0024545c-5654-4e11-a266-4576f2880554",
+    "0025daba-c854-4e3f-83e4-5ebf9858afe1",
+    "00262ad8-5b5a-4d07-9385-406fea7fcdd3",
+    "0026c663-eed5-4d85-9923-9a001139f55b",
+    "002715f2-d389-4b99-905c-850c0a3767c9",
+    "0027204b-8304-40d1-b1d5-23d2140b6e5d",
+    "00287a87-b2bd-4e28-955c-da27fb017aba",
+    "002a8e7d-38e3-4079-b166-213ecbc20749",
+    "002eda6e-f94a-40c3-98a8-d69ebad87351",
+    "00301dbe-416b-4f21-b1a2-3bdf3695f582",
+    "00346b2d-e0d7-4a6d-a4fb-bd7120e80908",
+    "00352d59-b2ed-42d1-892d-cffb7f395ac7",
+    "003604bb-4ffd-42ac-b85a-858c67fe676d",
+    "00383d34-6cd7-4f4f-8c70-133a37d93cef",
+    "00399d3c-62eb-4319-9c9f-1735e1b0c3dd",
+    "003c3cc2-51b2-4962-9497-f068bffe0ba9",
+    "003d93b2-28e2-4a28-b586-f634581c2c08",
+    "003f7850-f0d1-4750-819c-a03cf6ee6920",
+    "004360a6-2809-40a5-808c-3c83c3acbb37",
+    "0044cf82-af70-4c86-ac7d-97e1a5549428",
+    "0045d94a-3133-4bb1-927c-b41c14bbc660",
+    "00485db0-4c2c-41a1-8594-a89fab5ea8df",
+    "004876a5-25af-40d5-953f-3dcda991c832",
+    "00498893-c030-4546-aebb-4a3d51b077f0",
+    "004c63e7-e638-4cb3-9f2f-23f213435b04",
+    "004dbcc9-1077-49d0-989c-2c1fe37bba92",
+    "004e1c37-4c76-43b5-ba52-4eba08f4e6f8",
+    "004eade2-a7fe-4196-8de1-f180717be9b9"
+  ],
+  "product_search_log": {
+    "00025f84-7956-403a-b79e-d74025f7f6ba": {
+      "product": "Té Verde LIPTON cítrus 20 sobres",
+      "status": "partial",
+      "queries": {
+        "El Dorado": ["Té Verde Lipton cítrus 20 sobres", "Lipton citrus"],
+        "Ta-Ta": ["Té verde Lipton cítrus 20 sobres", "Lipton"]
+      },
+      "evidence": "Only other Lipton variants were surfaced; exact citrus/20-sachet product not verified."
+    },
+    "001add91-2761-4a7a-b9b0-93faa1b7b394": {
+      "product": "Chocolate LINDT Lindor Avellanas 100 g",
+      "status": "partial",
+      "queries": {
+        "El Dorado": ["Chocolate LINDT Lindor Avellanas 100 g", "LINDT Lindor Avellanas", "Lindor Avellanas 100 g", "Bombones Lindor avellana 100 gr"],
+        "Ta-Ta": ["Lindt Lindor Avellanas 100 g", "Bombones Lindor Avellanas"]
+      },
+      "evidence": "Ta-Ta results were 75 g or 200 g products; El Dorado result was a different brand/product. Alternate query stages remain."
+    },
+    "0020b9fa-cd32-4f99-8db4-68564283e457": {
+      "product": "Crema Corporal Leocrema Nutritiva Karité 400 ml",
+      "status": "partial",
+      "queries": {
+        "El Dorado": ["Crema Corporal Leocrema Nutritiva Karite 400 Ml", "Leocrema Nutritiva Karite 400 ml", "Crema Karite Leocrema 400ml", "Leocrema Karité 400 cc"]
+      },
+      "evidence": "Top result was Nivea Body Milk Nutritiva 400 ml, wrong brand and unavailable. Disco not searched yet."
+    }
+  },
+  "new_store_products_inserted": 0
+}
