@@ -74,7 +74,7 @@ async function loadAllRows<T>(env: Env, table: string, query: string, errorMessa
 
 function activeStoreProductsQuery(productId?: string): string {
   const productFilter = productId ? `&product_id=eq.${encodeURIComponent(productId)}` : "";
-  return `select=id,product_id,store_id,location_id,url,external_name,image_url,store:stores!inner(slug,active),product:products(id,image_url,image_source_store_product_id,image_updated_at)&active=eq.true&store.active=eq.true${productFilter}`;
+  return `select=id,product_id,store_id,location_id,url,external_name,image_url,store:stores!store_products_store_id_fkey!inner(slug,active),product:products!store_products_product_id_fkey(id,image_url,image_source_store_product_id,image_updated_at)&active=eq.true&store.active=eq.true${productFilter}`;
 }
 
 function mapActiveStoreProductRows(rows: ActiveStoreProductRow[]): { records: StoreProductRecord[]; productImages: Map<string, ProductImageRecord> } {

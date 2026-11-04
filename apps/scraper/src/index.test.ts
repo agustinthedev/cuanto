@@ -425,15 +425,20 @@ describe("flujo con Queue", () => {
     const queue = { sendBatch: vi.fn(async (messages: unknown[]) => { sentBatches.push(messages); }) };
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      if (url.includes("/rest/v1/store_products")) return new Response(JSON.stringify([activeStoreProductRow({
-        id: "store-product-1",
-        product_id: "product-1",
-        store_id: "store-1",
-        location_id: null,
-        url: "https://example.test/disco",
-        external_name: null,
-        image_url: null,
-      }, "disco")]), { status: 200 });
+      if (url.includes("/rest/v1/store_products")) {
+        const select = new URL(url).searchParams.get("select");
+        expect(select).toContain("store:stores!store_products_store_id_fkey!inner(slug,active)");
+        expect(select).toContain("product:products!store_products_product_id_fkey(id,image_url,image_source_store_product_id,image_updated_at)");
+        return new Response(JSON.stringify([activeStoreProductRow({
+          id: "store-product-1",
+          product_id: "product-1",
+          store_id: "store-1",
+          location_id: null,
+          url: "https://example.test/disco",
+          external_name: null,
+          image_url: null,
+        }, "disco")]), { status: 200 });
+      }
       return new Response("Not found", { status: 404 });
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -613,7 +618,9 @@ describe("flujo con Queue", () => {
 
     const storeProductsUrl = requestedUrls.find((url) => url.includes("/rest/v1/store_products"));
     expect(new Headers(vi.mocked(fetch).mock.calls[0][1]?.headers).get("Range")).toBe("0-499");
-    expect(storeProductsUrl).toContain("store:stores!inner(slug,active)");
+    const select = new URL(storeProductsUrl ?? "").searchParams.get("select");
+    expect(select).toContain("store:stores!store_products_store_id_fkey!inner(slug,active)");
+    expect(select).toContain("product:products!store_products_product_id_fkey(id,image_url,image_source_store_product_id,image_updated_at)");
     expect(queue.sendBatch).not.toHaveBeenCalled();
     expect(queue.send).not.toHaveBeenCalled();
   });
