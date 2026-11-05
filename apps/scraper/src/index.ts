@@ -391,6 +391,8 @@ function isScrapeQueueMessage(value: unknown): value is ScrapeQueueMessage {
     && typeof message.date === "string"
     && typeof message.product_id === "string"
     && (message.product_image_url === null || typeof message.product_image_url === "string")
+    && (message.ta_ta_404_retry_count === undefined
+      || (Number.isSafeInteger(message.ta_ta_404_retry_count) && message.ta_ta_404_retry_count >= 0))
     && (message.tienda_inglesa_fallback_origins === undefined
       || (Array.isArray(message.tienda_inglesa_fallback_origins) && message.tienda_inglesa_fallback_origins.every((origin) => typeof origin === "string")))
     && (message.tienda_inglesa_previously_failed_origins === undefined
@@ -437,7 +439,17 @@ function isDiscoForbiddenFailure({ record, error }: FailedStoreProduct): boolean
     && error.rawResponse?.status === 403;
 }
 
-export async function performScrapeMessage(env: Env, message: ScrapeQueueMessage): Promise<ScrapeSummary> {
+function isTaTaNotFoundFailure({ record, error }: FailedStoreProduct): boolean {
+  return record.store_slug === "ta-ta"
+    && error instanceof ScraperError
+    && error.rawResponse?.status === 404;
+}
+
+export async function performScrapeMessage(
+  env: Env,
+  message: ScrapeQueueMessage,
+  queueDeliveryAttempt = 1,
+): Promise<ScrapeSummary> {
   const records = [...message.store_products].sort((left, right) => imagePriority(left.store_slug) - imagePriority(right.store_slug));
   const productImages = new Map<string, ProductImageRecord>([[message.product_id, {
     id: message.product_id,
@@ -527,22 +539,46 @@ export async function performScrapeMessage(env: Env, message: ScrapeQueueMessage
   }
 
   if (failed.length > 0) {
-    const retryableFailures = failed.filter((failure) => !isDiscoForbiddenFailure(failure));
+    const retryableFailures = failed.filter((failure) => {
+      if (isDiscoForbiddenFailure(failure)) return false;
+      if (!isTaTaNotFoundFailure(failure)) return true;
+
+      const alreadyRetriedAfter404 = (message.ta_ta_404_retry_count ?? 0) >= 1;
+      const queueMessageAlreadyRetried = queueDeliveryAttempt > 1;
+      if (!alreadyRetriedAfter404 && !queueMessageAlreadyRetried) return true;
+
+      console.warn(JSON.stringify({
+        event: "scrape_retry_skipped",
+        run_id: message.run_id,
+        store: failure.record.store_slug,
+        store_product_id: failure.record.id,
+        status: 404,
+        reason: "ta_ta_404_retry_limit_reached",
+      }));
+      return false;
+    });
     if (records.length === 1 && retryableFailures.length > 0) {
       throw retryableFailures[0].error instanceof Error ? retryableFailures[0].error : new Error(String(retryableFailures[0].error));
     }
 
     if (retryableFailures.length > 0) {
       const queue = scrapeQueue(env);
-      const retryMessages = retryableFailures.map(({ record }) => ({
-        run_id: message.run_id,
-        date: message.date,
-        product_id: message.product_id,
-        product_image_url: message.product_image_url,
-        store_products: [record],
-        ...(message.tienda_inglesa_fallback_origins ? { tienda_inglesa_fallback_origins: message.tienda_inglesa_fallback_origins } : {}),
-        ...(message.tienda_inglesa_previously_failed_origins ? { tienda_inglesa_previously_failed_origins: message.tienda_inglesa_previously_failed_origins } : {}),
-      } satisfies ScrapeQueueMessage));
+      const retryMessages = retryableFailures.map((failure) => {
+        const { record } = failure;
+        const taTa404RetryCount = isTaTaNotFoundFailure(failure)
+          ? (message.ta_ta_404_retry_count ?? 0) + 1
+          : message.ta_ta_404_retry_count;
+        return {
+          run_id: message.run_id,
+          date: message.date,
+          product_id: message.product_id,
+          product_image_url: message.product_image_url,
+          store_products: [record],
+          ...(taTa404RetryCount === undefined ? {} : { ta_ta_404_retry_count: taTa404RetryCount }),
+          ...(message.tienda_inglesa_fallback_origins ? { tienda_inglesa_fallback_origins: message.tienda_inglesa_fallback_origins } : {}),
+          ...(message.tienda_inglesa_previously_failed_origins ? { tienda_inglesa_previously_failed_origins: message.tienda_inglesa_previously_failed_origins } : {}),
+        } satisfies ScrapeQueueMessage;
+      });
       await queue.sendBatch(retryMessages.map((body) => ({ body })));
     }
   }
@@ -719,7 +755,7 @@ export default {
         continue;
       }
       if (!isScrapeQueueMessage(message.body)) throw new Error("El mensaje de scraping tiene un formato inválido");
-      const summary = await performScrapeMessage(env, message.body);
+      const summary = await performScrapeMessage(env, message.body, message.attempts);
       console.log(JSON.stringify({ event: "scrape_product_finished", ...summary, product_id: message.body.product_id, run_id: message.body.run_id }));
     }
   },
