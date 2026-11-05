@@ -15,6 +15,7 @@ export interface ScrapeQueueMessage {
   product_id: string;
   product_image_url: string | null;
   store_products: StoreProductRecord[];
+  ta_ta_404_retry_count?: number;
   tienda_inglesa_fallback_origins?: string[];
   tienda_inglesa_previously_failed_origins?: string[];
 }
